@@ -1,4 +1,4 @@
-module gihub.com/nlnwa/whatwg-url
+module github.com/nlnwa/whatwg-url
 
 go 1.13
 
