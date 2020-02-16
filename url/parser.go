@@ -18,7 +18,7 @@ package url
 
 import (
 	"fmt"
-	"gihub.com/nlnwa/whatwg-url/errors"
+	"github.com/nlnwa/whatwg-url/errors"
 	"github.com/willf/bitset"
 	"strconv"
 	"strings"

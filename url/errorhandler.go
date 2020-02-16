@@ -17,7 +17,7 @@
 package url
 
 import (
-	"gihub.com/nlnwa/whatwg-url/errors"
+	"github.com/nlnwa/whatwg-url/errors"
 )
 
 func (p *Parser) handleError(u *Url, code errors.ErrorCode) error {
