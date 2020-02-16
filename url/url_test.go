@@ -180,6 +180,7 @@ func TestUrlSearchParams_Get(t *testing.T) {
 		{"4", "http://example.com?foo=bar2&foo=bar", "foo", "bar2", true},
 		{"5", "http://example.com?foo=bar2&foo=bar", "foo2", "", false},
 		{"6", "http://example.com?foo=bar2&foo2", "foo2", "", true},
+		{"7", "http://example.com/", "foo2", "", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

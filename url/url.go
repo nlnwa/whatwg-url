@@ -234,7 +234,9 @@ type searchParams struct {
 
 func (u *Url) newUrlSearchParams() {
 	usp := &searchParams{url: u}
-	usp.init(*u.search)
+	if u.search != nil {
+		usp.init(*u.search)
+	}
 	u.searchParams = usp
 }
 
