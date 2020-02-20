@@ -342,8 +342,10 @@ func (s *searchParams) String() string {
 			output.WriteRune('&')
 		}
 		output.WriteString(url.QueryEscape(nvp.name))
-		output.WriteRune('=')
-		output.WriteString(url.QueryEscape(nvp.value))
+		if nvp.value != "" {
+			output.WriteRune('=')
+			output.WriteString(url.QueryEscape(nvp.value))
+		}
 	}
 	return output.String()
 }
