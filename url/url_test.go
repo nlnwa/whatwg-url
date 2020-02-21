@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"reflect"
 	"strconv"
 	"testing"
 )
@@ -121,6 +120,314 @@ func TestParse(t *testing.T) {
 	}
 }
 
+type setterTest struct {
+	Comment   string
+	Href      string
+	New_value string
+	Expected  map[string]string
+}
+
+type setterTestCollection struct {
+	Protocol []setterTest
+	Username []setterTest
+	Password []setterTest
+	Host     []setterTest
+	Hostname []setterTest
+	Port     []setterTest
+	Pathname []setterTest
+	Search   []setterTest
+	Hash     []setterTest
+}
+
+func TestUrl_SetProtocol(t *testing.T) {
+	var tests setterTestCollection
+
+	jsonFile, err := os.Open("../testdata/setters_tests.json")
+	if err != nil {
+		t.Error(err)
+	}
+	defer jsonFile.Close()
+	data, _ := ioutil.ReadAll(jsonFile)
+	json.Unmarshal(data, &tests)
+
+	var testNum int
+	for _, tt := range tests.Protocol {
+		testNum++
+
+		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
+			got, err := Parse(tt.Href)
+			got.SetProtocol(tt.New_value)
+
+			if err != nil {
+				t.Errorf("Input: '%v', New value: '%v', Parse() error = '%v'", tt.Href, tt.New_value, err)
+				return
+			}
+
+			validateExpected(got, err, tt, t)
+		})
+	}
+}
+
+func TestUrl_SetUsername(t *testing.T) {
+	var tests setterTestCollection
+
+	jsonFile, err := os.Open("../testdata/setters_tests.json")
+	if err != nil {
+		t.Error(err)
+	}
+	defer jsonFile.Close()
+	data, _ := ioutil.ReadAll(jsonFile)
+	json.Unmarshal(data, &tests)
+
+	var testNum int
+	for _, tt := range tests.Username {
+		testNum++
+
+		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
+			got, err := Parse(tt.Href)
+			got.SetUsername(tt.New_value)
+
+			validateExpected(got, err, tt, t)
+		})
+	}
+}
+
+func TestUrl_SetPassword(t *testing.T) {
+	var tests setterTestCollection
+
+	jsonFile, err := os.Open("../testdata/setters_tests.json")
+	if err != nil {
+		t.Error(err)
+	}
+	defer jsonFile.Close()
+	data, _ := ioutil.ReadAll(jsonFile)
+	json.Unmarshal(data, &tests)
+
+	var testNum int
+	for _, tt := range tests.Password {
+		testNum++
+
+		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
+			got, err := Parse(tt.Href)
+			got.SetPassword(tt.New_value)
+
+			validateExpected(got, err, tt, t)
+		})
+	}
+}
+
+func TestUrl_SetHost(t *testing.T) {
+	var tests setterTestCollection
+
+	jsonFile, err := os.Open("../testdata/setters_tests.json")
+	if err != nil {
+		t.Error(err)
+	}
+	defer jsonFile.Close()
+	data, _ := ioutil.ReadAll(jsonFile)
+	json.Unmarshal(data, &tests)
+
+	var testNum int
+	for _, tt := range tests.Host {
+		testNum++
+
+		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
+			got, err := Parse(tt.Href)
+			got.SetHost(tt.New_value)
+
+			validateExpected(got, err, tt, t)
+		})
+	}
+}
+
+func TestUrl_SetHostname(t *testing.T) {
+	var tests setterTestCollection
+
+	jsonFile, err := os.Open("../testdata/setters_tests.json")
+	if err != nil {
+		t.Error(err)
+	}
+	defer jsonFile.Close()
+	data, _ := ioutil.ReadAll(jsonFile)
+	json.Unmarshal(data, &tests)
+
+	var testNum int
+	for _, tt := range tests.Hostname {
+		testNum++
+
+		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
+			got, err := Parse(tt.Href)
+			got.SetHostname(tt.New_value)
+
+			validateExpected(got, err, tt, t)
+		})
+	}
+}
+
+func TestUrl_SetPort(t *testing.T) {
+	var tests setterTestCollection
+
+	jsonFile, err := os.Open("../testdata/setters_tests.json")
+	if err != nil {
+		t.Error(err)
+	}
+	defer jsonFile.Close()
+	data, _ := ioutil.ReadAll(jsonFile)
+	json.Unmarshal(data, &tests)
+
+	var testNum int
+	for _, tt := range tests.Port {
+		testNum++
+
+		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
+			got, err := Parse(tt.Href)
+			got.SetPort(tt.New_value)
+
+			validateExpected(got, err, tt, t)
+		})
+	}
+}
+
+func TestUrl_SetPathname(t *testing.T) {
+	var tests setterTestCollection
+
+	jsonFile, err := os.Open("../testdata/setters_tests.json")
+	if err != nil {
+		t.Error(err)
+	}
+	defer jsonFile.Close()
+	data, _ := ioutil.ReadAll(jsonFile)
+	json.Unmarshal(data, &tests)
+
+	var testNum int
+	for _, tt := range tests.Pathname {
+		testNum++
+
+		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
+			got, err := Parse(tt.Href)
+			got.SetPathname(tt.New_value)
+
+			validateExpected(got, err, tt, t)
+		})
+	}
+}
+
+func TestUrl_SetSearch(t *testing.T) {
+	var tests setterTestCollection
+
+	jsonFile, err := os.Open("../testdata/setters_tests.json")
+	if err != nil {
+		t.Error(err)
+	}
+	defer jsonFile.Close()
+	data, _ := ioutil.ReadAll(jsonFile)
+	json.Unmarshal(data, &tests)
+
+	var testNum int
+	for _, tt := range tests.Search {
+		testNum++
+
+		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
+			got, err := Parse(tt.Href)
+			got.SetSearch(tt.New_value)
+
+			validateExpected(got, err, tt, t)
+		})
+	}
+}
+
+func TestUrl_SetHash(t *testing.T) {
+	var tests setterTestCollection
+
+	jsonFile, err := os.Open("../testdata/setters_tests.json")
+	if err != nil {
+		t.Error(err)
+	}
+	defer jsonFile.Close()
+	data, _ := ioutil.ReadAll(jsonFile)
+	json.Unmarshal(data, &tests)
+
+	var testNum int
+	for _, tt := range tests.Hash {
+		testNum++
+
+		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
+			got, err := Parse(tt.Href)
+			got.SetHash(tt.New_value)
+
+			validateExpected(got, err, tt, t)
+		})
+	}
+}
+
+func validateExpected(got *Url, err error, expected setterTest, t *testing.T) {
+	if err != nil {
+		t.Errorf("Input: '%v', New value: '%v', Parse() error = '%v'", expected.Href, expected.New_value, err)
+		return
+	}
+
+	if href, ok := expected.Expected["href"]; ok {
+		if got.String() != href {
+			t.Errorf("Input: '%v', New value: '%v', String() got = '%v', want '%v'",
+				expected.Href, expected.New_value, got.String(), href)
+		}
+	}
+
+	if protocol, ok := expected.Expected["protocol"]; ok {
+		if got.Protocol() != protocol {
+			t.Errorf("Scheme got = '%v', want '%v'", got.Protocol(), protocol)
+		}
+	}
+
+	if username, ok := expected.Expected["username"]; ok {
+		if got.Username() != username {
+			t.Errorf("Username got = '%v', want '%v'", got.Username(), username)
+		}
+	}
+
+	if password, ok := expected.Expected["password"]; ok {
+		if got.Password() != password {
+			t.Errorf("Password got = '%v', want '%v'", got.Password(), password)
+		}
+	}
+
+	if host, ok := expected.Expected["host"]; ok {
+		if got.Host() != host {
+			t.Errorf("Host() got = '%v', want '%v'", got.Host(), host)
+		}
+	}
+
+	if hostname, ok := expected.Expected["hostname"]; ok {
+		if got.Hostname() != hostname {
+			t.Errorf("Hostname() got = '%v', want '%v'", got.Hostname(), hostname)
+		}
+	}
+
+	if port, ok := expected.Expected["port"]; ok {
+		if got.Port() != port {
+			t.Errorf("Port() got = '%v', want '%v'", got.Port(), port)
+		}
+	}
+
+	if pathname, ok := expected.Expected["pathname"]; ok {
+		if got.Pathname() != pathname {
+			t.Errorf("Pathname() got = '%v', want '%v'", got.Pathname(), pathname)
+		}
+	}
+
+	if search, ok := expected.Expected["search"]; ok {
+		if got.Search() != search {
+			t.Errorf("Search() got = '%v', want '%v'", got.Search(), search)
+		}
+	}
+
+	if hash, ok := expected.Expected["hash"]; ok {
+		if got.Hash() != hash {
+			t.Errorf("Hash() got = '%v', want '%v'", got.Hash(), hash)
+		}
+	}
+}
+
 var result string
 
 func BenchmarkParse(b *testing.B) {
@@ -163,148 +470,5 @@ func BenchmarkParse(b *testing.B) {
 				}
 			})
 		}
-	}
-}
-
-func TestUrlSearchParams_Get(t *testing.T) {
-	tests := []struct {
-		name    string
-		url     string
-		key     string
-		want    string
-		wantHas bool
-	}{
-		{"1", "http://example.com?foo=bar", "foo", "bar", true},
-		{"2", "http://example.com?foo=bar&foo2=bar2", "foo", "bar", true},
-		{"3", "http://example.com?foo=bar&foo=bar2", "foo", "bar", true},
-		{"4", "http://example.com?foo=bar2&foo=bar", "foo", "bar2", true},
-		{"5", "http://example.com?foo=bar2&foo=bar", "foo2", "", false},
-		{"6", "http://example.com?foo=bar2&foo2", "foo2", "", true},
-		{"7", "http://example.com/", "foo2", "", false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			url, _ := Parse(tt.url)
-			s := url.SearchParams()
-			if got := s.Get(tt.key); got != tt.want {
-				t.Errorf("Get() = %v, want %v", got, tt.want)
-			}
-			if got := s.Has(tt.key); got != tt.wantHas {
-				t.Errorf("Get() = %v, want %v", got, tt.wantHas)
-			}
-		})
-	}
-}
-
-func TestUrlSearchParams_GetAll(t *testing.T) {
-	tests := []struct {
-		name           string
-		url            string
-		key            string
-		sort           bool
-		want           []string
-		wantSerialized string
-	}{
-		{"1", "http://example.com?foo=bar", "foo", false, []string{"bar"}, "foo=bar"},
-		{"2", "http://example.com?foo=bar&foo2=bar2", "foo", false, []string{"bar"}, "foo=bar&foo2=bar2"},
-		{"3", "http://example.com?foo2=bar2&foo=bar", "foo", false, []string{"bar"}, "foo2=bar2&foo=bar"},
-		{"4", "http://example.com?foo=bar&foo=bar2", "foo", false, []string{"bar", "bar2"}, "foo=bar&foo=bar2"},
-		{"5", "http://example.com?foo=bar2&foo=bar", "foo", false, []string{"bar2", "bar"}, "foo=bar2&foo=bar"},
-		{"6", "http://example.com?foo=bar", "foo", true, []string{"bar"}, "foo=bar"},
-		{"7", "http://example.com?foo=bar&foo2=bar2", "foo", true, []string{"bar"}, "foo=bar&foo2=bar2"},
-		{"8", "http://example.com?foo2=bar2&foo=bar", "foo", true, []string{"bar"}, "foo=bar&foo2=bar2"},
-		{"9", "http://example.com?foo=bar&foo=bar2", "foo", true, []string{"bar", "bar2"}, "foo=bar&foo=bar2"},
-		{"10", "http://example.com?foo=bar2&foo=bar", "foo", true, []string{"bar2", "bar"}, "foo=bar2&foo=bar"},
-		{"11", "http://example.com?xyz=aaa&foo=bar2&xyz=aaa&foo=bar", "foo", true, []string{"bar2", "bar"}, "foo=bar2&foo=bar&xyz=aaa&xyz=aaa"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			url, _ := Parse(tt.url)
-			s := url.SearchParams()
-			if tt.sort {
-				s.Sort()
-			}
-			if got := s.GetAll(tt.key); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Get() = %v, want %v", got, tt.want)
-			}
-			if got := s.String(); got != tt.wantSerialized {
-				t.Errorf("String() = %v, want %v", got, tt.wantSerialized)
-			}
-		})
-	}
-}
-
-func TestUrlSearchParams_Append(t *testing.T) {
-	tests := []struct {
-		name           string
-		url            string
-		key            string
-		value          string
-		wantSerialized string
-	}{
-		{"1", "http://example.com?foo=bar", "foo", "bar2", "foo=bar&foo=bar2"},
-		{"2", "http://example.com?foo=bar&foo 2=bar+2", "abc", "xyz", "foo=bar&foo+2=bar+2&abc=xyz"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			url, _ := Parse(tt.url)
-			s := url.SearchParams()
-			s.Append(tt.key, tt.value)
-			if got := s.String(); got != tt.wantSerialized {
-				t.Errorf("String() = %v, want %v", got, tt.wantSerialized)
-			}
-		})
-	}
-}
-
-func TestUrlSearchParams_Delete(t *testing.T) {
-	tests := []struct {
-		name           string
-		url            string
-		key            string
-		wantSerialized string
-	}{
-		{"1", "http://example.com?foo=bar", "foo", ""},
-		{"2", "http://example.com?foo=bar&foo 2=bar+2", "foo", "foo+2=bar+2"},
-		{"3", "http://example.com?foo2=bar2&foo=bar", "foo", "foo2=bar2"},
-		{"4", "http://example.com?foo=bar&foo=bar2", "foo", ""},
-		{"5", "http://example.com?xyz=aaa&foo=bar2&xyz=aaa&foo=bar", "foo", "xyz=aaa&xyz=aaa"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			url, _ := Parse(tt.url)
-			s := url.SearchParams()
-			s.Delete(tt.key)
-			if got := s.String(); got != tt.wantSerialized {
-				t.Errorf("String() = %v, want %v", got, tt.wantSerialized)
-			}
-		})
-	}
-}
-
-func TestUrlSearchParams_Set(t *testing.T) {
-	tests := []struct {
-		name           string
-		url            string
-		key            string
-		value          string
-		wantSerialized string
-	}{
-		{"1", "http://example.com?foo=bar", "foo", "bar2", "foo=bar2"},
-		{"2", "http://example.com?foo=bar&foo 2=bar+2", "foo", "xyz", "foo=xyz&foo+2=bar+2"},
-		{"3", "http://example.com?foo2=bar2&foo=bar", "foo", "xyz", "foo2=bar2&foo=xyz"},
-		{"4", "http://example.com?foo=bar&foo=bar2", "foo", "xyz", "foo=xyz"},
-		{"5", "http://example.com?xyz=aaa&foo=bar2&xyz=aaa&foo=bar", "foo", "xyz", "xyz=aaa&foo=xyz&xyz=aaa"},
-		{"6", "http://example.com?xyz=aaa&foo=bar2&xyz=aaa&foo=bar", "foo2", "xyz", "xyz=aaa&foo=bar2&xyz=aaa&foo=bar&foo2=xyz"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			url, _ := Parse(tt.url)
-			s := url.SearchParams()
-			s.Set(tt.key, tt.value)
-			if got := s.String(); got != tt.wantSerialized {
-				t.Errorf("String() = %v, want %v", got, tt.wantSerialized)
-			}
-		})
 	}
 }

@@ -658,7 +658,7 @@ func (p *Parser) basicParser(urlOrRef string, base, url *Url, stateOverride stat
 					for i := 0; i < n; i++ {
 						b := bytes[i]
 						if b < 0x21 || b > 0x7e || (b == 0x22 || b == 0x23 || b == 0x3c || b == 0x3e) || (b == 0x27 && isSpecialScheme(url.protocol)) {
-							*url.search += fmt.Sprintf("%%%X", b)
+							*url.search += fmt.Sprintf("%%%02X", b)
 						} else {
 							*url.search += string(b)
 						}
@@ -705,8 +705,25 @@ func percentEncode(r rune, tr *percentEncodeSet) string {
 	var bytes = make([]byte, 10)
 	n := utf8.EncodeRune(bytes, r)
 	for i := 0; i < n; i++ {
-		h := fmt.Sprintf("%%%X", bytes[i:i+1])
+		h := fmt.Sprintf("%%%02X", bytes[i:i+1])
 		buffer.WriteString(h)
+	}
+	return buffer.String()
+}
+
+func percentEncodeString(s string, tr *percentEncodeSet) string {
+	buffer := &strings.Builder{}
+	for _, r := range []rune(s) {
+		if !tr.runeInSet(r) {
+			buffer.WriteRune(r)
+			continue
+		}
+		var bytes = make([]byte, 10)
+		n := utf8.EncodeRune(bytes, r)
+		for i := 0; i < n; i++ {
+			h := fmt.Sprintf("%%%X", bytes[i:i+1])
+			buffer.WriteString(h)
+		}
 	}
 	return buffer.String()
 }
@@ -840,7 +857,7 @@ func (u *Url) isSpecialSchemeAndBackslash(r rune) bool {
 }
 
 func (u *Url) cleanDefaultPort() {
-	if dp, ok := specialSchemes[u.protocol]; ok && dp == *u.port {
+	if dp, ok := specialSchemes[u.protocol]; ok && (u.port == nil || dp == *u.port) {
 		u.port = nil
 	}
 }
