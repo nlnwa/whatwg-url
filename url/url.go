@@ -33,9 +33,10 @@ type Url struct {
 	cannotBeABaseUrl bool
 	searchParams     *searchParams
 	validationErrors []error
+	parser           *Parser
 }
 
-func (u *Url) Href() string {
+func (u *Url) Href(excludeFragment bool) string {
 	output := u.protocol + ":"
 	if u.host != nil {
 		output += "//"
@@ -56,7 +57,7 @@ func (u *Url) Href() string {
 		output += "?" + *u.search
 	}
 
-	if u.hash != nil {
+	if !excludeFragment && u.hash != nil {
 		output += "#" + *u.hash
 	}
 
@@ -68,7 +69,7 @@ func (u *Url) Protocol() string {
 }
 
 func (u *Url) SetProtocol(scheme string) {
-	defaultParser.basicParser(scheme+":", nil, u, stateSchemeStart)
+	u.parser.basicParser(scheme+":", nil, u, stateSchemeStart)
 }
 
 func (u *Url) Username() string {
@@ -79,7 +80,7 @@ func (u *Url) SetUsername(username string) {
 	if u.host == nil || *u.host == "" || u.cannotBeABaseUrl || u.protocol == "file" {
 		return
 	}
-	u.username = percentEncodeString(username, UserInfoPercentEncodeSet)
+	u.username = u.parser.PercentEncodeString(username, UserInfoPercentEncodeSet)
 }
 
 func (u *Url) Password() string {
@@ -90,7 +91,7 @@ func (u *Url) SetPassword(password string) {
 	if u.host == nil || *u.host == "" || u.cannotBeABaseUrl || u.protocol == "file" {
 		return
 	}
-	u.password = percentEncodeString(password, UserInfoPercentEncodeSet)
+	u.password = u.parser.PercentEncodeString(password, UserInfoPercentEncodeSet)
 }
 
 func (u *Url) Host() string {
@@ -107,7 +108,7 @@ func (u *Url) SetHost(host string) {
 	if u.cannotBeABaseUrl {
 		return
 	}
-	defaultParser.basicParser(host, nil, u, stateHost)
+	u.parser.basicParser(host, nil, u, stateHost)
 }
 
 func (u *Url) Hostname() string {
@@ -121,7 +122,7 @@ func (u *Url) SetHostname(host string) {
 	if u.cannotBeABaseUrl {
 		return
 	}
-	defaultParser.basicParser(host, nil, u, stateHostname)
+	u.parser.basicParser(host, nil, u, stateHostname)
 }
 
 func (u *Url) Port() string {
@@ -138,7 +139,7 @@ func (u *Url) SetPort(port string) {
 	if port == "" {
 		u.port = nil
 	} else {
-		defaultParser.basicParser(port, nil, u, statePort)
+		u.parser.basicParser(port, nil, u, statePort)
 	}
 }
 
@@ -157,13 +158,17 @@ func (u *Url) Pathname() string {
 }
 
 func (u *Url) SetPathname(path string) {
-	if u.cannotBeABaseUrl {
+	if u.cannotBeABaseUrl && !u.parser.AllowSettingPathForNonBaseUrl {
 		return
 	}
 	if u.path != nil {
 		u.path = u.path[:0]
 	}
-	defaultParser.basicParser(path, nil, u, statePathStart)
+	if u.cannotBeABaseUrl {
+		u.parser.basicParser(path, nil, u, stateCannotBeABaseUrl)
+	} else {
+		u.parser.basicParser(path, nil, u, statePathStart)
+	}
 }
 
 func (u *Url) Search() string {
@@ -186,11 +191,12 @@ func (u *Url) SetSearch(query string) {
 		u.search = new(string)
 	}
 	*u.search = ""
-	_, _ = defaultParser.basicParser(query, nil, u, stateQuery)
+	_, _ = u.parser.basicParser(query, nil, u, stateQuery)
 	if u.searchParams == nil {
 		u.newUrlSearchParams()
+	} else {
+		u.searchParams.init(*u.search)
 	}
-	u.searchParams.init(query)
 }
 
 func (u *Url) SearchParams() *searchParams {
@@ -214,11 +220,11 @@ func (u *Url) SetHash(fragment string) {
 	}
 	fragment = strings.TrimPrefix(fragment, "#")
 	u.hash = new(string)
-	defaultParser.basicParser(fragment, nil, u, stateFragment)
+	u.parser.basicParser(fragment, nil, u, stateFragment)
 }
 
 func (u *Url) String() string {
-	return u.Href()
+	return u.Href(false)
 }
 
 func (u *Url) ValidationErrors() []error {

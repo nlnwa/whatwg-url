@@ -17,18 +17,17 @@
 package url
 
 import (
-	"net/url"
 	"sort"
 	"strings"
 )
 
-type nameValuePair struct {
-	name, value string
+type NameValuePair struct {
+	Name, Value string
 }
 
 type searchParams struct {
 	url    *Url
-	params []*nameValuePair
+	params []*NameValuePair
 }
 
 func (s *searchParams) init(query string) {
@@ -38,11 +37,13 @@ func (s *searchParams) init(query string) {
 			continue
 		}
 		kv := strings.SplitN(q, "=", 2)
-		name, _ := url.QueryUnescape(kv[0])
-		nvp := &nameValuePair{name: name}
+		name := s.url.parser.DecodePercentEncoded(kv[0])
+		name = strings.ReplaceAll(name, "+", " ")
+		nvp := &NameValuePair{Name: name}
 		if len(kv) == 2 {
-			value, _ := url.QueryUnescape(kv[1])
-			nvp.value = value
+			value := s.url.parser.DecodePercentEncoded(kv[1])
+			value = strings.ReplaceAll(value, "+", " ")
+			nvp.Value = value
 		}
 		s.params = append(s.params, nvp)
 	}
@@ -58,14 +59,14 @@ func (s *searchParams) update() {
 }
 
 func (s *searchParams) Append(name, value string) {
-	s.params = append(s.params, &nameValuePair{name: name, value: value})
+	s.params = append(s.params, &NameValuePair{Name: name, Value: value})
 	s.update()
 }
 
 func (s *searchParams) Delete(name string) {
-	var result []*nameValuePair
+	var result []*NameValuePair
 	for _, nvp := range s.params {
-		if nvp.name != name {
+		if nvp.Name != name {
 			result = append(result, nvp)
 		}
 	}
@@ -75,8 +76,8 @@ func (s *searchParams) Delete(name string) {
 
 func (s *searchParams) Get(name string) string {
 	for _, nvp := range s.params {
-		if nvp.name == name {
-			return nvp.value
+		if nvp.Name == name {
+			return nvp.Value
 		}
 	}
 	return ""
@@ -85,8 +86,8 @@ func (s *searchParams) Get(name string) string {
 func (s *searchParams) GetAll(name string) []string {
 	var result []string
 	for _, nvp := range s.params {
-		if nvp.name == name {
-			result = append(result, nvp.value)
+		if nvp.Name == name {
+			result = append(result, nvp.Value)
 		}
 	}
 	return result
@@ -94,7 +95,7 @@ func (s *searchParams) GetAll(name string) []string {
 
 func (s *searchParams) Has(name string) bool {
 	for _, nvp := range s.params {
-		if nvp.name == name {
+		if nvp.Name == name {
 			return true
 		}
 	}
@@ -104,11 +105,11 @@ func (s *searchParams) Has(name string) bool {
 func (s *searchParams) Set(name, value string) {
 	isSet := false
 	for idx, nvp := range s.params {
-		if nvp.name == name {
+		if nvp.Name == name {
 			if isSet {
 				s.params = append(s.params[:idx], s.params[idx+1:]...)
 			} else {
-				nvp.value = value
+				nvp.Value = value
 				isSet = true
 			}
 		}
@@ -121,8 +122,22 @@ func (s *searchParams) Set(name, value string) {
 
 func (s *searchParams) Sort() {
 	sort.SliceStable(s.params, func(i, j int) bool {
-		return s.params[i].name < s.params[j].name
+		return s.params[i].Name < s.params[j].Name
 	})
+	s.update()
+}
+
+func (s *searchParams) SortAbsolute() {
+	sort.SliceStable(s.params, func(i, j int) bool {
+		return s.params[i].Name+s.params[i].Value < s.params[j].Name+s.params[j].Value
+	})
+	s.update()
+}
+
+func (s *searchParams) Iterate(f func(pair *NameValuePair)) {
+	for _, nvp := range s.params {
+		f(nvp)
+	}
 	s.update()
 }
 
@@ -132,11 +147,22 @@ func (s *searchParams) String() string {
 		if idx > 0 {
 			output.WriteRune('&')
 		}
-		output.WriteString(url.QueryEscape(nvp.name))
-		if nvp.value != "" {
+
+		s.QueryEscape(nvp.Name, &output)
+		if nvp.Value != "" {
 			output.WriteRune('=')
-			output.WriteString(url.QueryEscape(nvp.value))
+			s.QueryEscape(nvp.Value, &output)
 		}
 	}
 	return output.String()
+}
+
+func (s *searchParams) QueryEscape(st string, output *strings.Builder) {
+	for _, b := range st {
+		if b == 0x0020 {
+			output.WriteRune(0x002B)
+		} else {
+			output.WriteString(s.url.parser.percentEncode(b, s.url.parser.QueryPercentEncodeSet))
+		}
+	}
 }
