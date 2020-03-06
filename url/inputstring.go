@@ -22,14 +22,19 @@ import (
 )
 
 type inputString struct {
-	runes   []rune
-	pointer int
-	eof     bool
-	length  int
+	s                       string
+	runes                   []rune
+	pointer                 int
+	eof                     bool
+	length                  int
+	acceptInvalidCodepoints bool
 }
 
-func newInputString(s string) *inputString {
-	i := &inputString{runes: []rune(s), pointer: -1}
+func newInputString(s string, acceptInvalidCodepoints bool) *inputString {
+	i := &inputString{runes: []rune(s), pointer: -1, acceptInvalidCodepoints: acceptInvalidCodepoints}
+	if acceptInvalidCodepoints {
+		i.s = s
+	}
 	i.length = len(i.runes)
 	return i
 }
@@ -40,7 +45,16 @@ func (i *inputString) nextCodePoint() rune {
 		i.eof = true
 		return utf8.RuneError
 	}
-	return i.runes[i.pointer]
+	r := i.runes[i.pointer]
+
+	if r == utf8.RuneError && i.acceptInvalidCodepoints {
+		var pos int
+		for j := 0; j < i.pointer; j++ {
+			pos += utf8.RuneLen(i.runes[j])
+		}
+		r = int32(i.s[pos])
+	}
+	return r
 }
 
 func (i *inputString) rewindLast() {

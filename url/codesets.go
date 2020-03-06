@@ -22,14 +22,52 @@ import (
 )
 
 type percentEncodeSet struct {
-	*bitset.BitSet
+	bs       *bitset.BitSet
+	allBelow int32
 }
 
-func (p *percentEncodeSet) runeInSet(r rune) bool {
-	if r > 0x7E || p.Test(uint(r)) {
+func NewPercentEncodeSet(allBelow int32, bytes ...uint) *percentEncodeSet {
+	p := &percentEncodeSet{allBelow: allBelow, bs: bitset.New(0x7f)}
+	for _, b := range bytes {
+		p.bs.Set(b)
+	}
+	return p
+}
+
+func (p *percentEncodeSet) Set(bytes ...uint) *percentEncodeSet {
+	r := &percentEncodeSet{
+		allBelow: p.allBelow,
+		bs:       p.bs.Clone(),
+	}
+	for _, b := range bytes {
+		r.bs.Set(b)
+	}
+	return r
+}
+
+func (p *percentEncodeSet) Clear(bytes ...uint) *percentEncodeSet {
+	r := &percentEncodeSet{
+		allBelow: p.allBelow,
+		bs:       p.bs.Clone(),
+	}
+	for _, b := range bytes {
+		r.bs.Clear(b)
+	}
+	return r
+}
+
+func (p *percentEncodeSet) RuneShouldBeEncoded(r rune) bool {
+	if r < p.allBelow || r > 0x007E || p.bs.Test(uint(r)) {
 		return true
 	}
 	return false
+}
+
+func (p *percentEncodeSet) RuneNotInSet(r rune) bool {
+	if r < p.allBelow || p.bs.Test(uint(r)) {
+		return false
+	}
+	return true
 }
 
 func isURLCodePoint(r rune) bool {
@@ -51,58 +89,46 @@ func isURLCodePoint(r rune) bool {
 	return false
 }
 
-var C0 = bitset.New(0x1f).Set(0x00).Set(0x01).Set(0x02).Set(0x03).Set(0x04).Set(0x05).Set(0x06).
-	Set(0x07).Set(0x08).Set(0x09).Set(0x0a).Set(0x0b).Set(0x0c).Set(0x0d).Set(0x0e).Set(0x0f).
-	Set(0x10).Set(0x11).Set(0x12).Set(0x13).Set(0x14).Set(0x15).Set(0x16).Set(0x17).Set(0x18).
-	Set(0x19).Set(0x1a).Set(0x1b).Set(0x1c).Set(0x1d).Set(0x1e).Set(0x1f)
-var C0OrSpace = bitset.New(0x20).Set(0x20)
 var ASCIITabOrNewline = bitset.New(0x0d).Set(0x09).Set(0x0a).Set(0x0d)
-var ASCIIUpperAlpha = bitset.New(0x5a)
-var ASCIILowerAlpha = bitset.New(0x7a)
 var ASCIIAlpha = bitset.New(0x7a)
 var ASCIIDigit = bitset.New(0x39)
-var ASCIIUpperHexDigit = bitset.New(0x46)
-var ASCIILowerHexDigit = bitset.New(0x66)
 var ASCIIHexDigit = bitset.New(0x66)
 var ASCIIAlphanumeric = bitset.New(0x7a)
-var C0PercentEncodeSet = &percentEncodeSet{C0}
-var FragmentPercentEncodeSet = &percentEncodeSet{C0.Clone().Set(0x20).Set(0x22).Set(0x3c).Set(0x3e).Set(0x60)}
-var PathPercentEncodeSet = &percentEncodeSet{FragmentPercentEncodeSet.BitSet.Clone().Set(0x23).Set(0x3f).Set(0x7b).Set(0x7d)}
-var UserInfoPercentEncodeSet = &percentEncodeSet{PathPercentEncodeSet.BitSet.Clone().Set(0x2f).Set(0x3a).
-	Set(0x3b).Set(0x3d).Set(0x40).Set(0x5b).Set(0x5c).Set(0x5d).Set(0x5e).Set(0x7c)}
 var ForbiddenHostCodePoint = bitset.New(0x5d).Set(0x00).Set(0x09).Set(0x0a).Set(0x0d).Set(0x20).
 	Set(0x23).Set(0x25).Set(0x2f).Set(0x3a).Set(0x3f).Set(0x40).Set(0x5b).Set(0x5c).Set(0x5d)
-
 var someURLCodePoints = bitset.New(0x7e).Set(0x24).Set(0x26).Set(0x27).Set(0x28).Set(0x29).
 	Set(0x2a).Set(0x2b).Set(0x2c).Set(0x2d).Set(0x2e).Set(0x2f).Set(0x3a).Set(0x3b).Set(0x3d).
 	Set(0x3f).Set(0x40).Set(0x5f).Set(0x7e)
 
+var C0PercentEncodeSet = NewPercentEncodeSet(0x20)
+var C0OrSpacePercentEncodeSet = NewPercentEncodeSet(0x21)
+var FragmentPercentEncodeSet = C0OrSpacePercentEncodeSet.Set(0x22, 0x3c, 0x3e, 0x60)
+var PathPercentEncodeSet = FragmentPercentEncodeSet.Set(0x23, 0x3f, 0x7b, 0x7d)
+var UserInfoPercentEncodeSet = PathPercentEncodeSet.Set(0x2f, 0x3a, 0x3b, 0x3d, 0x40, 0x5b, 0x5c, 0x5d, 0x5e, 0x7c)
+var HostPercentEncodeSet = C0OrSpacePercentEncodeSet.Set(0x23)
+var QueryPercentEncodeSet = C0PercentEncodeSet.Set(0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2B,
+	0x2C, 0x2F, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F, 0x40, 0x5B, 0x5C, 0x5D, 0x5E, 0x60, 0x7B, 0x7C, 0x7D, 0x7E)
+
 func init() {
-	C0OrSpace.InPlaceUnion(C0)
 	for i := 'a'; i <= 'z'; i++ {
-		ASCIILowerAlpha.Set(uint(i))
+		ASCIIAlpha.Set(uint(i))
 	}
 	for i := 'A'; i <= 'Z'; i++ {
-		ASCIIUpperAlpha.Set(uint(i))
+		ASCIIAlpha.Set(uint(i))
 	}
-	ASCIIAlpha.InPlaceUnion(ASCIILowerAlpha)
-	ASCIIAlpha.InPlaceUnion(ASCIIUpperAlpha)
+
 	for i := '0'; i <= '9'; i++ {
 		ASCIIDigit.Set(uint(i))
 	}
+
 	ASCIIAlphanumeric.InPlaceUnion(ASCIIAlpha)
 	ASCIIAlphanumeric.InPlaceUnion(ASCIIDigit)
 
-	ASCIIUpperHexDigit.InPlaceUnion(ASCIIDigit)
+	ASCIIHexDigit.InPlaceUnion(ASCIIDigit)
 	for i := 'A'; i <= 'F'; i++ {
-		ASCIIUpperHexDigit.Set(uint(i))
+		ASCIIHexDigit.Set(uint(i))
 	}
-
-	ASCIILowerHexDigit.InPlaceUnion(ASCIIDigit)
 	for i := 'a'; i <= 'f'; i++ {
-		ASCIILowerHexDigit.Set(uint(i))
+		ASCIIHexDigit.Set(uint(i))
 	}
-
-	ASCIIHexDigit.InPlaceUnion(ASCIIUpperHexDigit)
-	ASCIIHexDigit.InPlaceUnion(ASCIILowerHexDigit)
 }

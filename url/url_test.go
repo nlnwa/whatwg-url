@@ -18,7 +18,6 @@ package url
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -62,7 +61,6 @@ func TestParse(t *testing.T) {
 			t.Run(strconv.Itoa(testNum), func(t *testing.T) {
 				got, err := ParseRef(tt.Base, tt.Input)
 				if (err != nil) != tt.Failure {
-					t.Logf("Base: %v, Input: %v, Expected: %v, GOT: %v", tt.Base, tt.Input, tt.Href, got)
 					t.Errorf("ParseRef() error = %v, wantErr %v", err, tt.Failure)
 					return
 				}
@@ -76,11 +74,11 @@ func TestParse(t *testing.T) {
 				}
 
 				if got.String() != tt.Href {
-					t.Errorf("String() got = %v, want %v", got.String(), tt.Href)
+					t.Logf("Base: '%v', Input: '%v'", tt.Base, tt.Input)
+					t.Errorf("String() got = '%v', want '%v'", got.String(), tt.Href)
 				}
 
 				if got.protocol+":" != tt.Protocol {
-					fmt.Printf("%T %T %v %v\n", got.protocol, tt.Protocol, got.protocol, tt.Protocol)
 					t.Errorf("Scheme got = %v, want %v", got.protocol, tt.Protocol)
 				}
 
@@ -114,6 +112,15 @@ func TestParse(t *testing.T) {
 
 				if got.Hash() != tt.Hash {
 					t.Errorf("Fragment got = %v, want %v", got.Hash(), tt.Hash)
+				}
+
+				reparsed, err := Parse(got.String())
+				if err != nil {
+					t.Errorf("Parse() error = %v", err)
+					return
+				}
+				if got.String() != reparsed.String() {
+					t.Errorf("Reparsing expected same result got = %v, want %v", reparsed.String(), got.String())
 				}
 			})
 		}

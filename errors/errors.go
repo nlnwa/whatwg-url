@@ -18,7 +18,6 @@ package errors
 
 import (
 	"fmt"
-	gerrs "github.com/pkg/errors"
 )
 
 // UrlError is the struct of url error
@@ -37,7 +36,7 @@ func (e *UrlError) Error() string {
 	return errMsg + ", Cause: " + e.cause.Error()
 }
 
-func (e *UrlError) Cause() error {
+func (e *UrlError) Unwrap() error {
 	return e.cause
 }
 
@@ -47,11 +46,6 @@ func (e *UrlError) Code() ErrorCode {
 
 func (e *UrlError) Url() string {
 	return e.url
-}
-
-// Cause returns the cause error of this error
-func Cause(err error) error {
-	return gerrs.Cause(err)
 }
 
 // Code returns the error code
