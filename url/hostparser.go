@@ -28,8 +28,8 @@ import (
 )
 
 func (p *Parser) parseHost(u *Url, parser *Parser, input string, isNotSpecial bool) (string, error) {
-	if p.PreParseHostFunc != nil {
-		input = p.PreParseHostFunc(u, parser, input)
+	if p.opts.preParseHostFunc != nil {
+		input = p.opts.preParseHostFunc(u, parser, input)
 	}
 	if input == "" {
 		return "", nil
@@ -39,7 +39,7 @@ func (p *Parser) parseHost(u *Url, parser *Parser, input string, isNotSpecial bo
 			return "", errors.Error(errors.IllegalIPv6Address, "")
 		}
 		input = strings.Trim(input, "[]")
-		return p.parseIPv6(newInputString(input, p.AcceptInvalidCodepoints))
+		return p.parseIPv6(newInputString(input, p.opts.acceptInvalidCodepoints))
 	}
 	if isNotSpecial {
 		return p.parseOpaqueHost(input)
@@ -47,14 +47,14 @@ func (p *Parser) parseHost(u *Url, parser *Parser, input string, isNotSpecial bo
 
 	domain, err := url.QueryUnescape(input)
 	if err != nil {
-		if p.LaxHostParsing {
+		if p.opts.laxHostParsing {
 			return input, nil
 		}
 		return "", errors.Error(errors.CouldNotDecodeHost, "")
 	}
 
 	if !utf8.ValidString(domain) {
-		if p.LaxHostParsing {
+		if p.opts.laxHostParsing {
 			return parser.PercentEncodeString(input, HostPercentEncodeSet), nil
 		}
 		return "", errors.Error(errors.CouldNotDecodeHost, "")
@@ -62,7 +62,7 @@ func (p *Parser) parseHost(u *Url, parser *Parser, input string, isNotSpecial bo
 
 	asciiDomain, err := p.ToASCII(domain)
 	if err != nil {
-		if p.LaxHostParsing {
+		if p.opts.laxHostParsing {
 			return domain, nil
 		}
 		return "", errors.Error(errors.CouldNotDecodeHost, "")
@@ -72,8 +72,8 @@ func (p *Parser) parseHost(u *Url, parser *Parser, input string, isNotSpecial bo
 	if ok || err != nil {
 		return ipv4Host, err
 	}
-	if p.PostParseHostFunc != nil {
-		asciiDomain = p.PostParseHostFunc(u, p, asciiDomain)
+	if p.opts.postParseHostFunc != nil {
+		asciiDomain = p.opts.postParseHostFunc(u, p, asciiDomain)
 	}
 	return asciiDomain, nil
 }
@@ -347,7 +347,7 @@ var idnaProfile = idna.New(
 func (p *Parser) ToASCII(src string) (string, error) {
 	a, err := idnaProfile.ToASCII(src)
 	if err != nil {
-		if !p.LaxHostParsing && !strings.Contains(err.Error(), src) {
+		if !p.opts.laxHostParsing && !strings.Contains(err.Error(), src) {
 			return "", err
 		}
 		a = p.PercentEncodeString(src, HostPercentEncodeSet)

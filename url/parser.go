@@ -19,7 +19,6 @@ package url
 import (
 	"github.com/nlnwa/whatwg-url/errors"
 	"github.com/willf/bitset"
-	"golang.org/x/text/encoding/charmap"
 	u2 "net/url"
 	"strconv"
 	"strings"
@@ -27,20 +26,16 @@ import (
 	"unicode/utf8"
 )
 
+func NewParser(opts ...ParserOption) (parser *Parser) {
+	p := &Parser{opts: defaultParserOptions()}
+	for _, opt := range opts {
+		opt.apply(&p.opts)
+	}
+	return p
+}
+
 type Parser struct {
-	ReportValidationErrors         bool
-	FailOnValidationError          bool
-	LaxHostParsing                 bool
-	CollapseConsecutiveSlashes     bool
-	AcceptInvalidCodepoints        bool
-	PreParseHostFunc               func(url *Url, parser *Parser, host string) string
-	PostParseHostFunc              func(url *Url, parser *Parser, host string) string
-	PercentEncodeSinglePercentSign bool
-	AllowSettingPathForNonBaseUrl  bool
-	SpecialSchemes                 map[string]string
-	EncodingOverride               *charmap.Charmap
-	PathPercentEncodeSet           *percentEncodeSet
-	QueryPercentEncodeSet          *percentEncodeSet
+	opts parserOptions
 }
 
 func (p *Parser) Parse(rawUrl string) (*Url, error) {
@@ -60,7 +55,7 @@ func (u *Url) Parse(ref string) (*Url, error) {
 	return defaultParser.basicParser(ref, u, nil, noState)
 }
 
-var defaultParser = &Parser{}
+var defaultParser = NewParser()
 
 func Parse(rawUrl string) (*Url, error) {
 	return defaultParser.Parse(rawUrl)
@@ -98,11 +93,11 @@ const (
 )
 
 func (p *Parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride state) (*Url, error) {
-	if p.PathPercentEncodeSet == nil {
-		p.PathPercentEncodeSet = PathPercentEncodeSet
+	if p.opts.pathPercentEncodeSet == nil {
+		p.opts.pathPercentEncodeSet = PathPercentEncodeSet
 	}
-	if p.QueryPercentEncodeSet == nil {
-		p.QueryPercentEncodeSet = QueryPercentEncodeSet
+	if p.opts.queryPercentEncodeSet == nil {
+		p.opts.queryPercentEncodeSet = QueryPercentEncodeSet
 	}
 
 	stateOverridden := stateOverride > noState
@@ -126,7 +121,7 @@ func (p *Parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 		url.inputUrl = i
 	}
 
-	input := newInputString(url.inputUrl, p.AcceptInvalidCodepoints)
+	input := newInputString(url.inputUrl, p.opts.acceptInvalidCodepoints)
 	var state state
 	if stateOverridden {
 		state = stateOverride
@@ -344,7 +339,7 @@ func (p *Parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 					buffer.WriteString(tmp)
 				}
 				atFlag = true
-				bb := newInputString(buffer.String(), p.AcceptInvalidCodepoints)
+				bb := newInputString(buffer.String(), p.opts.acceptInvalidCodepoints)
 				c := bb.nextCodePoint()
 				for !bb.eof {
 					if c == ':' && !passwordTokenSeenFlag {
@@ -594,7 +589,7 @@ func (p *Parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 						buffer.Reset()
 						buffer.WriteString(b[0:1] + ":" + b[2:])
 					}
-					if !p.CollapseConsecutiveSlashes || !url.IsSpecialScheme() || len(url.path) == 0 || len(url.path[len(url.path)-1]) > 0 {
+					if !p.opts.collapseConsecutiveSlashes || !url.IsSpecialScheme() || len(url.path) == 0 || len(url.path[len(url.path)-1]) > 0 {
 						url.path = append(url.path, buffer.String())
 					} else {
 						url.path[len(url.path)-1] = buffer.String()
@@ -630,9 +625,9 @@ func (p *Parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 					}
 				}
 				if invalidPercentEncoding {
-					buffer.WriteString(p.percentEncodeInvalid(r, p.PathPercentEncodeSet))
+					buffer.WriteString(p.percentEncodeInvalid(r, p.opts.pathPercentEncodeSet))
 				} else {
-					buffer.WriteString(p.percentEncode(r, p.PathPercentEncodeSet))
+					buffer.WriteString(p.percentEncode(r, p.opts.pathPercentEncodeSet))
 				}
 			}
 		case stateCannotBeABaseUrl:
@@ -667,7 +662,7 @@ func (p *Parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 
 			}
 		case stateQuery:
-			encodingOverride := p.EncodingOverride
+			encodingOverride := p.opts.encodingOverride
 			if encodingOverride != nil && (!url.IsSpecialScheme() || url.protocol == "ws" || url.protocol == "wss") {
 				encodingOverride = nil
 			}
@@ -749,7 +744,7 @@ func (p *Parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 }
 
 func (p *Parser) percentEncodeInvalid(r rune, tr *percentEncodeSet) string {
-	if p.PercentEncodeSinglePercentSign {
+	if p.opts.percentEncodeSinglePercentSign {
 		return p.percentEncode(r, tr.Set(0x25))
 	}
 	return p.percentEncode(r, tr)
@@ -762,8 +757,8 @@ func (p *Parser) percentEncode(r rune, tr *percentEncodeSet) string {
 
 	var bytes = make([]byte, 4)
 	var n int
-	if p.EncodingOverride != nil {
-		b, _ := p.EncodingOverride.EncodeRune(r)
+	if p.opts.encodingOverride != nil {
+		b, _ := p.opts.encodingOverride.EncodeRune(r)
 		bytes[0] = b
 		n = 1
 	} else {
@@ -789,7 +784,7 @@ func (p *Parser) PercentEncodeString(s string, tr *percentEncodeSet) string {
 		if r == '%' {
 			if len(runes) < (i+3) ||
 				(!ASCIIHexDigit.Test(uint(runes[i+1])) || !ASCIIHexDigit.Test(uint(runes[i+2]))) {
-				if p.PercentEncodeSinglePercentSign {
+				if p.opts.percentEncodeSinglePercentSign {
 					buffer.WriteString(p.percentEncode(r, tr.Set(0x25)))
 					continue
 				}
@@ -814,8 +809,8 @@ func (p *Parser) DecodePercentEncoded(s string) string {
 			if e != nil {
 				return sb.String()
 			}
-			if p.EncodingOverride != nil {
-				r := p.EncodingOverride.DecodeByte(b[0])
+			if p.opts.encodingOverride != nil {
+				r := p.opts.encodingOverride.DecodeByte(b[0])
 				sb.WriteRune(r)
 			} else {
 				sb.WriteString(b)
@@ -954,8 +949,8 @@ func (u *Url) isSpecialScheme(s string) bool {
 }
 
 func (u *Url) getSpecialScheme(s string) (string, bool) {
-	if u.parser.SpecialSchemes != nil {
-		dp, ok := u.parser.SpecialSchemes[s]
+	if u.parser.opts.specialSchemes != nil {
+		dp, ok := u.parser.opts.specialSchemes[s]
 		return dp, ok
 	} else {
 		dp, ok := specialSchemes[s]

@@ -25,25 +25,21 @@ import (
 
 var LaxQueryPercentEncodeSet = url.QueryPercentEncodeSet.Clear(0x22, 0x25, 0x2F, 0x3B, 0x3F, 0x7B)
 
-var GoogleSafeBrowsing = Profile{
-	parser: &url.Parser{
-		ReportValidationErrors:         false,
-		FailOnValidationError:          false,
-		LaxHostParsing:                 true,
-		QueryPercentEncodeSet:          LaxQueryPercentEncodeSet,
-		CollapseConsecutiveSlashes:     true,
-		AcceptInvalidCodepoints:        true,
-		PercentEncodeSinglePercentSign: true,
-		EncodingOverride:               charmap.ISO8859_1,
-		PreParseHostFunc: func(u *url.Url, parser *url.Parser, host string) string {
-			host = strings.Trim(host, ".")
-			var re = regexp.MustCompile("\\.\\.+")
-			host = re.ReplaceAllString(host, ".")
-			return host
-		},
-	},
-	RemovePort:              true,
-	RemoveFragment:          true,
-	repeatedPercentDecoding: true,
-	DefaultScheme:           "http",
-}
+var GoogleSafeBrowsing = New(
+	url.WithLaxHostParsing(),
+	url.WithQueryPercentEncodeSet(LaxQueryPercentEncodeSet),
+	url.WithCollapseConsecutiveSlashes(),
+	url.WithAcceptInvalidCodepoints(),
+	url.WithPercentEncodeSinglePercentSign(),
+	url.WithEncodingOverride(charmap.ISO8859_1),
+	url.WithPreParseHostFunc(func(u *url.Url, parser *url.Parser, host string) string {
+		host = strings.Trim(host, ".")
+		var re = regexp.MustCompile("\\.\\.+")
+		host = re.ReplaceAllString(host, ".")
+		return host
+	}),
+	WithRemovePort(),
+	WithRemoveFragment(),
+	WithRepeatedPercentDecoding(),
+	WithDefaultScheme("http"),
+)

@@ -23,22 +23,34 @@ import (
 	"strings"
 )
 
+func New(opts ...url.ParserOption) (profile *Profile) {
+	p := &Profile{
+		parser:    url.NewParser(opts...),
+		sortQuery: NoSort,
+	}
+	for _, opt := range opts {
+		if o, ok := opt.(CanonParserOption); ok {
+			o.applyProfile(p)
+		}
+	}
+	return p
+}
+
 type Profile struct {
 	parser                  *url.Parser
-	RemoveUserInfo          bool
-	RemovePort              bool
-	RemoveFragment          bool
-	SortQuery               bool
-	SortQueryKeys           bool
+	removeUserInfo          bool
+	removePort              bool
+	removeFragment          bool
+	sortQuery               querySort
 	repeatedPercentDecoding bool
-	DefaultScheme           string
+	defaultScheme           string
 }
 
 func (p *Profile) Canonicalize(s string) string {
 	u, err := p.parser.Parse(s)
 	if err != nil {
-		if errors.Code(err) == errors.FailRelativeUrlWithNoBase && p.DefaultScheme != "" {
-			s = p.DefaultScheme + "://" + s
+		if errors.Code(err) == errors.FailRelativeUrlWithNoBase && p.defaultScheme != "" {
+			s = p.defaultScheme + "://" + s
 			u, err = p.parser.Parse(s)
 		}
 		if err != nil {
@@ -65,21 +77,22 @@ func (p *Profile) Canonicalize(s string) string {
 		}
 	}
 
-	if p.RemovePort {
+	if p.removePort {
 		u.SetPort("")
 	}
-	if p.RemoveUserInfo {
+	if p.removeUserInfo {
 		u.SetUsername("")
 		u.SetPassword("")
 	}
 
-	if p.SortQueryKeys {
+	switch p.sortQuery {
+	case SortKeys:
 		u.SearchParams().Sort()
-	} else if p.SortQuery {
+	case SortParameter:
 		u.SearchParams().SortAbsolute()
 	}
 
-	return u.Href(p.RemoveFragment)
+	return u.Href(p.removeFragment)
 }
 
 var GoogleSafeBrowsingPercentEncodeSet = url.NewPercentEncodeSet(33, '#', '%')
@@ -101,3 +114,96 @@ func repeatedDecode(parser *url.Parser, s string) string {
 	}
 	return s
 }
+
+type CanonParserOption interface {
+	applyProfile(*Profile)
+}
+
+// funcCanonParserOption wraps a function that canonicalizes url into an
+// implementation of the CanonParserOption interface.
+type funcCanonParserOption struct {
+	url.EmptyParserOption
+	f func(*Profile)
+}
+
+func (cpo *funcCanonParserOption) applyProfile(p *Profile) {
+	cpo.f(p)
+}
+
+// WithRemoveUserInfo removes username and password from url.
+//
+// This API is EXPERIMENTAL.
+func WithRemoveUserInfo() url.ParserOption {
+	return &funcCanonParserOption{
+		f: func(p *Profile) {
+			p.removeUserInfo = true
+		},
+	}
+}
+
+// WithRemovePort always removes port from url. Default is to remove port if port is default port for scheme.
+//
+// This API is EXPERIMENTAL.
+func WithRemovePort() url.ParserOption {
+	return &funcCanonParserOption{
+		f: func(p *Profile) {
+			p.removePort = true
+		},
+	}
+}
+
+// WithRemoveFragment removes the fragment part of the url.
+//
+// This API is EXPERIMENTAL.
+func WithRemoveFragment() url.ParserOption {
+	return &funcCanonParserOption{
+		f: func(p *Profile) {
+			p.removeFragment = true
+		},
+	}
+}
+
+// WithRepeatedPercentDecoding.
+//
+// This API is EXPERIMENTAL.
+func WithRepeatedPercentDecoding() url.ParserOption {
+	return &funcCanonParserOption{
+		f: func(p *Profile) {
+			p.repeatedPercentDecoding = true
+		},
+	}
+}
+
+// WithDefaultScheme sets a scheme to add if url is missing scheme.
+//
+// This API is EXPERIMENTAL.
+func WithDefaultScheme(scheme string) url.ParserOption {
+	return &funcCanonParserOption{
+		f: func(p *Profile) {
+			p.defaultScheme = scheme
+		},
+	}
+}
+
+// WithSortQuery sets sort type for query parameters.
+// if query should be sorted: 0 = no sort, 1 = sort keys, but leave repeated keys in same order, 2 = sort key,value
+//
+// This API is EXPERIMENTAL.
+func WithSortQuery(sortType querySort) url.ParserOption {
+	return &funcCanonParserOption{
+		f: func(p *Profile) {
+			p.sortQuery = sortType
+		},
+	}
+}
+
+type querySort int
+
+const (
+	// Do not sort query.
+	NoSort querySort = iota
+	// Stable sort on query parameter keys.
+	SortKeys
+	// Sort on entire query parameter.
+	SortParameter
+)

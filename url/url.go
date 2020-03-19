@@ -158,7 +158,7 @@ func (u *Url) Pathname() string {
 }
 
 func (u *Url) SetPathname(path string) {
-	if u.cannotBeABaseUrl && !u.parser.AllowSettingPathForNonBaseUrl {
+	if u.cannotBeABaseUrl && !u.parser.opts.allowSettingPathForNonBaseUrl {
 		return
 	}
 	if u.path != nil {

@@ -21,10 +21,10 @@ import (
 )
 
 func (p *Parser) handleError(u *Url, code errors.ErrorCode) error {
-	if p.ReportValidationErrors {
+	if p.opts.reportValidationErrors {
 		u.validationErrors = append(u.validationErrors, errors.Error(code, u.inputUrl))
 	}
-	if p.FailOnValidationError {
+	if p.opts.failOnValidationError {
 		return errors.Error(code, u.inputUrl)
 	}
 	return nil

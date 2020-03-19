@@ -162,7 +162,7 @@ func (s *searchParams) QueryEscape(st string, output *strings.Builder) {
 		if b == 0x0020 {
 			output.WriteRune(0x002B)
 		} else {
-			output.WriteString(s.url.parser.percentEncode(b, s.url.parser.QueryPercentEncodeSet))
+			output.WriteString(s.url.parser.percentEncode(b, s.url.parser.opts.queryPercentEncodeSet))
 		}
 	}
 }
