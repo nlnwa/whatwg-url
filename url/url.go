@@ -33,7 +33,7 @@ type Url struct {
 	cannotBeABaseUrl bool
 	searchParams     *searchParams
 	validationErrors []error
-	parser           *Parser
+	parser           *parser
 }
 
 func (u *Url) Href(excludeFragment bool) string {

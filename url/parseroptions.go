@@ -26,8 +26,8 @@ type parserOptions struct {
 	laxHostParsing                 bool
 	collapseConsecutiveSlashes     bool
 	acceptInvalidCodepoints        bool
-	preParseHostFunc               func(url *Url, parser *Parser, host string) string
-	postParseHostFunc              func(url *Url, parser *Parser, host string) string
+	preParseHostFunc               func(url *Url, host string) string
+	postParseHostFunc              func(url *Url, host string) string
 	percentEncodeSinglePercentSign bool
 	allowSettingPathForNonBaseUrl  bool
 	specialSchemes                 map[string]string
@@ -110,7 +110,7 @@ func WithAcceptInvalidCodepoints() ParserOption {
 // WithPreParseHostFunc is a function which allows manipulation of host string before it is parsed.
 //
 // This API is EXPERIMENTAL.
-func WithPreParseHostFunc(f func(url *Url, parser *Parser, host string) string) ParserOption {
+func WithPreParseHostFunc(f func(url *Url, host string) string) ParserOption {
 	return newFuncParserOption(func(o *parserOptions) {
 		o.preParseHostFunc = f
 	})
@@ -120,7 +120,7 @@ func WithPreParseHostFunc(f func(url *Url, parser *Parser, host string) string) 
 // It is called only if the host isn't an IP address.
 //
 // This API is EXPERIMENTAL.
-func WithPostParseHostFunc(f func(url *Url, parser *Parser, host string) string) ParserOption {
+func WithPostParseHostFunc(f func(url *Url, host string) string) ParserOption {
 	return newFuncParserOption(func(o *parserOptions) {
 		o.postParseHostFunc = f
 	})

@@ -27,9 +27,9 @@ import (
 	"unicode/utf8"
 )
 
-func (p *Parser) parseHost(u *Url, parser *Parser, input string, isNotSpecial bool) (string, error) {
+func (p *parser) parseHost(u *Url, parser *parser, input string, isNotSpecial bool) (string, error) {
 	if p.opts.preParseHostFunc != nil {
-		input = p.opts.preParseHostFunc(u, parser, input)
+		input = p.opts.preParseHostFunc(u, input)
 	}
 	if input == "" {
 		return "", nil
@@ -73,12 +73,12 @@ func (p *Parser) parseHost(u *Url, parser *Parser, input string, isNotSpecial bo
 		return ipv4Host, err
 	}
 	if p.opts.postParseHostFunc != nil {
-		asciiDomain = p.opts.postParseHostFunc(u, p, asciiDomain)
+		asciiDomain = p.opts.postParseHostFunc(u, asciiDomain)
 	}
 	return asciiDomain, nil
 }
 
-func (p *Parser) parseIPv4Number(input string, validationError *bool) (int64, error) {
+func (p *parser) parseIPv4Number(input string, validationError *bool) (int64, error) {
 	R := 10
 	if len(input) >= 2 && (strings.HasPrefix(input, "0x") || strings.HasPrefix(input, "0X")) {
 		*validationError = true
@@ -95,7 +95,7 @@ func (p *Parser) parseIPv4Number(input string, validationError *bool) (int64, er
 	return strconv.ParseInt(input, R, 64)
 }
 
-func (p *Parser) parseIPv4(u *Url, input string) (string, bool, error) {
+func (p *parser) parseIPv4(u *Url, input string) (string, bool, error) {
 	validationError := false
 	parts := strings.Split(input, ".")
 	if parts[len(parts)-1] == "" {
@@ -147,7 +147,7 @@ func (p *Parser) parseIPv4(u *Url, input string) (string, bool, error) {
 	return ipv4.String(), true, nil
 }
 
-func (p *Parser) parseIPv6(input *inputString) (string, error) {
+func (p *parser) parseIPv6(input *inputString) (string, error) {
 	address := &IPv6Addr{}
 	pieceIdx := 0
 	compress := -1
@@ -259,7 +259,7 @@ func (p *Parser) parseIPv6(input *inputString) (string, error) {
 	return "[" + address.String() + "]", nil
 }
 
-func (p *Parser) parseOpaqueHost(input string) (string, error) {
+func (p *parser) parseOpaqueHost(input string) (string, error) {
 	output := ""
 	for _, c := range input {
 		if ForbiddenHostCodePoint.Test(uint(c)) && c != '%' {
@@ -344,7 +344,7 @@ var idnaProfile = idna.New(
 	idna.BidiRule(),
 )
 
-func (p *Parser) ToASCII(src string) (string, error) {
+func (p *parser) ToASCII(src string) (string, error) {
 	a, err := idnaProfile.ToASCII(src)
 	if err != nil {
 		if !p.opts.laxHostParsing && !strings.Contains(err.Error(), src) {

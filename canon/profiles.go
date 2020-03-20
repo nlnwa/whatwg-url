@@ -32,7 +32,7 @@ var GoogleSafeBrowsing = New(
 	url.WithAcceptInvalidCodepoints(),
 	url.WithPercentEncodeSinglePercentSign(),
 	url.WithEncodingOverride(charmap.ISO8859_1),
-	url.WithPreParseHostFunc(func(u *url.Url, parser *url.Parser, host string) string {
+	url.WithPreParseHostFunc(func(u *url.Url, host string) string {
 		host = strings.Trim(host, ".")
 		var re = regexp.MustCompile("\\.\\.+")
 		host = re.ReplaceAllString(host, ".")

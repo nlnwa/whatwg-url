@@ -23,8 +23,8 @@ import (
 	"strings"
 )
 
-func New(opts ...url.ParserOption) (profile *Profile) {
-	p := &Profile{
+func New(opts ...url.ParserOption) Profile {
+	p := &profile{
 		parser:    url.NewParser(opts...),
 		sortQuery: NoSort,
 	}
@@ -36,8 +36,12 @@ func New(opts ...url.ParserOption) (profile *Profile) {
 	return p
 }
 
-type Profile struct {
-	parser                  *url.Parser
+type Profile interface {
+	Canonicalize(s string) string
+}
+
+type profile struct {
+	parser                  url.Parser
 	removeUserInfo          bool
 	removePort              bool
 	removeFragment          bool
@@ -46,7 +50,7 @@ type Profile struct {
 	defaultScheme           string
 }
 
-func (p *Profile) Canonicalize(s string) string {
+func (p *profile) Canonicalize(s string) string {
 	u, err := p.parser.Parse(s)
 	if err != nil {
 		if errors.Code(err) == errors.FailRelativeUrlWithNoBase && p.defaultScheme != "" {
@@ -97,13 +101,13 @@ func (p *Profile) Canonicalize(s string) string {
 
 var GoogleSafeBrowsingPercentEncodeSet = url.NewPercentEncodeSet(33, '#', '%')
 
-func decodeEncode(parser *url.Parser, s string) string {
+func decodeEncode(parser url.Parser, s string) string {
 	r := parser.PercentEncodeString(repeatedDecode(parser, s), GoogleSafeBrowsingPercentEncodeSet)
 	return r
 }
 
 // repeatedDecode repeatedly percent-unescape a string until it has no more percent-escapes
-func repeatedDecode(parser *url.Parser, s string) string {
+func repeatedDecode(parser url.Parser, s string) string {
 	var r string
 	for {
 		r = parser.DecodePercentEncoded(s)
@@ -116,17 +120,17 @@ func repeatedDecode(parser *url.Parser, s string) string {
 }
 
 type CanonParserOption interface {
-	applyProfile(*Profile)
+	applyProfile(*profile)
 }
 
 // funcCanonParserOption wraps a function that canonicalizes url into an
 // implementation of the CanonParserOption interface.
 type funcCanonParserOption struct {
 	url.EmptyParserOption
-	f func(*Profile)
+	f func(*profile)
 }
 
-func (cpo *funcCanonParserOption) applyProfile(p *Profile) {
+func (cpo *funcCanonParserOption) applyProfile(p *profile) {
 	cpo.f(p)
 }
 
@@ -135,7 +139,7 @@ func (cpo *funcCanonParserOption) applyProfile(p *Profile) {
 // This API is EXPERIMENTAL.
 func WithRemoveUserInfo() url.ParserOption {
 	return &funcCanonParserOption{
-		f: func(p *Profile) {
+		f: func(p *profile) {
 			p.removeUserInfo = true
 		},
 	}
@@ -146,7 +150,7 @@ func WithRemoveUserInfo() url.ParserOption {
 // This API is EXPERIMENTAL.
 func WithRemovePort() url.ParserOption {
 	return &funcCanonParserOption{
-		f: func(p *Profile) {
+		f: func(p *profile) {
 			p.removePort = true
 		},
 	}
@@ -157,7 +161,7 @@ func WithRemovePort() url.ParserOption {
 // This API is EXPERIMENTAL.
 func WithRemoveFragment() url.ParserOption {
 	return &funcCanonParserOption{
-		f: func(p *Profile) {
+		f: func(p *profile) {
 			p.removeFragment = true
 		},
 	}
@@ -168,7 +172,7 @@ func WithRemoveFragment() url.ParserOption {
 // This API is EXPERIMENTAL.
 func WithRepeatedPercentDecoding() url.ParserOption {
 	return &funcCanonParserOption{
-		f: func(p *Profile) {
+		f: func(p *profile) {
 			p.repeatedPercentDecoding = true
 		},
 	}
@@ -179,7 +183,7 @@ func WithRepeatedPercentDecoding() url.ParserOption {
 // This API is EXPERIMENTAL.
 func WithDefaultScheme(scheme string) url.ParserOption {
 	return &funcCanonParserOption{
-		f: func(p *Profile) {
+		f: func(p *profile) {
 			p.defaultScheme = scheme
 		},
 	}
@@ -191,7 +195,7 @@ func WithDefaultScheme(scheme string) url.ParserOption {
 // This API is EXPERIMENTAL.
 func WithSortQuery(sortType querySort) url.ParserOption {
 	return &funcCanonParserOption{
-		f: func(p *Profile) {
+		f: func(p *profile) {
 			p.sortQuery = sortType
 		},
 	}

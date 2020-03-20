@@ -26,23 +26,30 @@ import (
 	"unicode/utf8"
 )
 
-func NewParser(opts ...ParserOption) (parser *Parser) {
-	p := &Parser{opts: defaultParserOptions()}
+func NewParser(opts ...ParserOption) Parser {
+	p := &parser{opts: defaultParserOptions()}
 	for _, opt := range opts {
 		opt.apply(&p.opts)
 	}
 	return p
 }
 
-type Parser struct {
+type Parser interface {
+	Parse(rawUrl string) (*Url, error)
+	ParseRef(rawUrl, ref string) (*Url, error)
+	PercentEncodeString(s string, tr *percentEncodeSet) string
+	DecodePercentEncoded(s string) string
+}
+
+type parser struct {
 	opts parserOptions
 }
 
-func (p *Parser) Parse(rawUrl string) (*Url, error) {
+func (p *parser) Parse(rawUrl string) (*Url, error) {
 	return p.basicParser(rawUrl, nil, nil, noState)
 }
 
-func (p *Parser) ParseRef(rawUrl, ref string) (*Url, error) {
+func (p *parser) ParseRef(rawUrl, ref string) (*Url, error) {
 	b, err := p.Parse(rawUrl)
 	if err != nil {
 		return nil, err
@@ -52,7 +59,7 @@ func (p *Parser) ParseRef(rawUrl, ref string) (*Url, error) {
 }
 
 func (u *Url) Parse(ref string) (*Url, error) {
-	return defaultParser.basicParser(ref, u, nil, noState)
+	return u.parser.basicParser(ref, u, nil, noState)
 }
 
 var defaultParser = NewParser()
@@ -92,7 +99,7 @@ const (
 	stateRelativeSlash
 )
 
-func (p *Parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride state) (*Url, error) {
+func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride state) (*Url, error) {
 	if p.opts.pathPercentEncodeSet == nil {
 		p.opts.pathPercentEncodeSet = PathPercentEncodeSet
 	}
@@ -743,14 +750,14 @@ func (p *Parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 	return url, nil
 }
 
-func (p *Parser) percentEncodeInvalid(r rune, tr *percentEncodeSet) string {
+func (p *parser) percentEncodeInvalid(r rune, tr *percentEncodeSet) string {
 	if p.opts.percentEncodeSinglePercentSign {
 		return p.percentEncode(r, tr.Set(0x25))
 	}
 	return p.percentEncode(r, tr)
 }
 
-func (p *Parser) percentEncode(r rune, tr *percentEncodeSet) string {
+func (p *parser) percentEncode(r rune, tr *percentEncodeSet) string {
 	if tr != nil && !tr.RuneShouldBeEncoded(r) {
 		return string(r)
 	}
@@ -777,7 +784,7 @@ func (p *Parser) percentEncode(r rune, tr *percentEncodeSet) string {
 	return string(percentEncoded[:j])
 }
 
-func (p *Parser) PercentEncodeString(s string, tr *percentEncodeSet) string {
+func (p *parser) PercentEncodeString(s string, tr *percentEncodeSet) string {
 	buffer := &strings.Builder{}
 	runes := []rune(s)
 	for i, r := range runes {
@@ -795,7 +802,7 @@ func (p *Parser) PercentEncodeString(s string, tr *percentEncodeSet) string {
 	return buffer.String()
 }
 
-func (p *Parser) DecodePercentEncoded(s string) string {
+func (p *parser) DecodePercentEncoded(s string) string {
 	sb := strings.Builder{}
 	bytes := []byte(s)
 	for i := 0; i < len(bytes); i++ {
