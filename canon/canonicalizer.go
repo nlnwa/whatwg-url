@@ -37,7 +37,7 @@ func New(opts ...url.ParserOption) Profile {
 }
 
 type Profile interface {
-	Canonicalize(s string) string
+	Canonicalize(s string) (*url.Url, error)
 }
 
 type profile struct {
@@ -50,7 +50,7 @@ type profile struct {
 	defaultScheme           string
 }
 
-func (p *profile) Canonicalize(s string) string {
+func (p *profile) Canonicalize(s string) (*url.Url, error) {
 	u, err := p.parser.Parse(s)
 	if err != nil {
 		if errors.Code(err) == errors.FailRelativeUrlWithNoBase && p.defaultScheme != "" {
@@ -59,7 +59,7 @@ func (p *profile) Canonicalize(s string) string {
 		}
 		if err != nil {
 			fmt.Printf("Parse() error = %v", err)
-			return s
+			return nil, err
 		}
 	}
 
@@ -88,6 +88,9 @@ func (p *profile) Canonicalize(s string) string {
 		u.SetUsername("")
 		u.SetPassword("")
 	}
+	if p.removeFragment {
+		u.SetHash("")
+	}
 
 	switch p.sortQuery {
 	case SortKeys:
@@ -96,7 +99,7 @@ func (p *profile) Canonicalize(s string) string {
 		u.SearchParams().SortAbsolute()
 	}
 
-	return u.Href(p.removeFragment)
+	return u, nil
 }
 
 var GoogleSafeBrowsingPercentEncodeSet = url.NewPercentEncodeSet(33, '#', '%')

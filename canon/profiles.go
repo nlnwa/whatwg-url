@@ -25,6 +25,12 @@ import (
 
 var LaxQueryPercentEncodeSet = url.QueryPercentEncodeSet.Clear(0x22, 0x25, 0x2F, 0x3B, 0x3F, 0x7B)
 
+var WhatWg = New()
+
+var WhatWgSortQuery = New(
+	WithSortQuery(SortKeys),
+)
+
 var GoogleSafeBrowsing = New(
 	url.WithLaxHostParsing(),
 	url.WithQueryPercentEncodeSet(LaxQueryPercentEncodeSet),
