@@ -1,4 +1,4 @@
-package canon
+package canonicalizer
 
 import "testing"
 
@@ -45,7 +45,7 @@ func TestGoogleSafeBrowsing(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := GoogleSafeBrowsing.Canonicalize(tt.args)
+			got, err := GoogleSafeBrowsing.Parse(tt.args)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Canonicalize() error = %v, wantErr %v", err, tt.wantErr)
 				return

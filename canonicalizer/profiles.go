@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package canon
+package canonicalizer
 
 import (
 	"github.com/nlnwa/whatwg-url/url"
