@@ -21,19 +21,20 @@ import "golang.org/x/text/encoding/charmap"
 // parserOptions configure a url parser. parserOptions are set by the ParserOption
 // values passed to NewParser.
 type parserOptions struct {
-	reportValidationErrors         bool
-	failOnValidationError          bool
-	laxHostParsing                 bool
-	collapseConsecutiveSlashes     bool
-	acceptInvalidCodepoints        bool
-	preParseHostFunc               func(url *Url, host string) string
-	postParseHostFunc              func(url *Url, host string) string
-	percentEncodeSinglePercentSign bool
-	allowSettingPathForNonBaseUrl  bool
-	specialSchemes                 map[string]string
-	encodingOverride               *charmap.Charmap
-	pathPercentEncodeSet           *percentEncodeSet
-	queryPercentEncodeSet          *percentEncodeSet
+	reportValidationErrors              bool
+	failOnValidationError               bool
+	laxHostParsing                      bool
+	collapseConsecutiveSlashes          bool
+	acceptInvalidCodepoints             bool
+	preParseHostFunc                    func(url *Url, host string) string
+	postParseHostFunc                   func(url *Url, host string) string
+	percentEncodeSinglePercentSign      bool
+	allowSettingPathForNonBaseUrl       bool
+	skipWindowsDriveLetterNormalization bool
+	specialSchemes                      map[string]string
+	encodingOverride                    *charmap.Charmap
+	pathPercentEncodeSet                *percentEncodeSet
+	queryPercentEncodeSet               *percentEncodeSet
 }
 
 // ParserOption configures how we parse a URL.
@@ -143,6 +144,16 @@ func WithPercentEncodeSinglePercentSign() ParserOption {
 func WithAllowSettingPathForNonBaseUrl() ParserOption {
 	return newFuncParserOption(func(o *parserOptions) {
 		o.allowSettingPathForNonBaseUrl = true
+	})
+}
+
+// WithSkipWindowsDriveLetterNormalization skips conversion of 'C|' to 'C:'.
+// WhathWg standard says only a normalized Windows drive letter is conforming.
+//
+// This API is EXPERIMENTAL.
+func WithSkipWindowsDriveLetterNormalization() ParserOption {
+	return newFuncParserOption(func(o *parserOptions) {
+		o.skipWindowsDriveLetterNormalization = true
 	})
 }
 

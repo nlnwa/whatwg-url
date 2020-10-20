@@ -17,7 +17,6 @@
 package url
 
 import (
-	"fmt"
 	"github.com/nlnwa/whatwg-url/errors"
 	"golang.org/x/net/idna"
 	"math"
@@ -45,19 +44,19 @@ func (p *parser) parseHost(u *Url, parser *parser, input string, isNotSpecial bo
 		return p.parseOpaqueHost(input)
 	}
 
-	domain, err := url.QueryUnescape(input)
+	domain, err := url.PathUnescape(input)
 	if err != nil {
 		if p.opts.laxHostParsing {
 			return input, nil
 		}
-		return "", errors.Error(errors.CouldNotDecodeHost, "")
+		return "", errors.Wrap(err, errors.CouldNotDecodeHost, "")
 	}
 
 	if !utf8.ValidString(domain) {
 		if p.opts.laxHostParsing {
 			return parser.PercentEncodeString(input, HostPercentEncodeSet), nil
 		}
-		return "", errors.Error(errors.CouldNotDecodeHost, "")
+		return "", errors.ErrorWithDescr(errors.CouldNotDecodeHost, "not a valid UTF-8 string", "")
 	}
 
 	asciiDomain, err := p.ToASCII(domain)
@@ -65,7 +64,16 @@ func (p *parser) parseHost(u *Url, parser *parser, input string, isNotSpecial bo
 		if p.opts.laxHostParsing {
 			return domain, nil
 		}
-		return "", errors.Error(errors.CouldNotDecodeHost, "")
+		return "", errors.Wrap(err, errors.CouldNotDecodeHost, "")
+	}
+	for _, c := range asciiDomain {
+		if ForbiddenHostCodePoint.Test(uint(c)) {
+			if p.opts.laxHostParsing {
+				return input, nil
+			} else {
+				return "", errors.ErrorWithDescr(errors.IllegalCodePoint, string(c), "")
+			}
+		}
 	}
 
 	ipv4Host, ok, err := p.parseIPv4(u, asciiDomain)
@@ -263,7 +271,11 @@ func (p *parser) parseOpaqueHost(input string) (string, error) {
 	output := ""
 	for _, c := range input {
 		if ForbiddenHostCodePoint.Test(uint(c)) && c != '%' {
-			return "", fmt.Errorf("illegal IPv6 address '%v'", input)
+			if p.opts.laxHostParsing {
+				return input, nil
+			} else {
+				return "", errors.ErrorWithDescr(errors.IllegalCodePoint, string(c), "")
+			}
 		}
 		output += p.percentEncode(c, C0PercentEncodeSet)
 	}
@@ -342,6 +354,9 @@ func (address *IPv4Addr) String() string {
 var idnaProfile = idna.New(
 	idna.MapForLookup(),
 	idna.BidiRule(),
+	idna.VerifyDNSLength(true),
+	idna.StrictDomainName(false),
+	idna.ValidateLabels(false),
 )
 
 func (p *parser) ToASCII(src string) (string, error) {

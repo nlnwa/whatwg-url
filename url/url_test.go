@@ -61,7 +61,7 @@ func TestParse(t *testing.T) {
 			t.Run(strconv.Itoa(testNum), func(t *testing.T) {
 				got, err := ParseRef(tt.Base, tt.Input)
 				if (err != nil) != tt.Failure {
-					t.Errorf("ParseRef() error = %v, wantErr %v", err, tt.Failure)
+					t.Errorf("ParseRef(%v, %v) error = %v, wantErr %v", tt.Base, tt.Input, err, tt.Failure)
 					return
 				}
 				if err != nil && tt.Failure {
@@ -69,7 +69,7 @@ func TestParse(t *testing.T) {
 				}
 				if err != nil {
 					t.Logf("Base: %v, Input: %v, Expected: %v, GOT: %v", tt.Base, tt.Input, tt.Href, got)
-					t.Errorf("ParseRef() error = %v, wantErr %v", err, tt.Failure)
+					t.Errorf("ParseRef(%v, %v) error = %v, wantErr %v", tt.Base, tt.Input, err, tt.Failure)
 					return
 				}
 

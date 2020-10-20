@@ -4,6 +4,6 @@ go 1.13
 
 require (
 	github.com/willf/bitset v1.1.10
-	golang.org/x/net v0.0.0-20200202094626-16171245cfb2
-	golang.org/x/text v0.3.0
+	golang.org/x/net v0.0.0-20201020065357-d65d470038a5
+	golang.org/x/text v0.3.3
 )

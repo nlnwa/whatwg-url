@@ -47,11 +47,11 @@ func TestGoogleSafeBrowsing(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := GoogleSafeBrowsing.Parse(tt.args)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Canonicalize() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Parse(%v) error = %v, wantErr %v", tt.args, err, tt.wantErr)
 				return
 			}
 			if got.String() != tt.want {
-				t.Errorf("Canonicalize() = %v, want %v", got, tt.want)
+				t.Errorf("Parse(%v) = %v, want %v", tt.args, got, tt.want)
 			}
 		})
 	}

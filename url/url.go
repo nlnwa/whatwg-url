@@ -47,11 +47,21 @@ func (u *Url) Href(excludeFragment bool) string {
 			}
 			output += "@"
 		}
-		output += u.Host()
-	} else if u.host == nil && u.protocol == "file" {
-		output += "//"
+		output += *u.host
+		if u.port != nil {
+			output += ":" + *u.port
+		}
 	}
-	output += u.Pathname()
+	if u.cannotBeABaseUrl && len(u.path) > 0 {
+		output += u.path[0]
+	} else {
+		if u.host == nil && len(u.path) > 1 && u.path[0] == "" {
+			output += "/."
+		}
+		for _, p := range u.path {
+			output += "/" + p
+		}
+	}
 
 	if u.search != nil {
 		output += "?" + *u.search

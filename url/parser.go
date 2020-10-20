@@ -174,7 +174,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 						return url, nil
 					}
 					//If url’s scheme is "file" and its host is an empty host or null, then return.
-					if url.protocol == "file" && (url.host == nil || *url.host == "") {
+					if url.protocol == "file" && *url.host == "" {
 						return url, nil
 					}
 				}
@@ -247,52 +247,33 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 			}
 		case stateRelative:
 			url.protocol = base.protocol
-			if input.eof {
+			if r == '/' {
+				state = stateRelativeSlash
+			} else if url.isSpecialSchemeAndBackslash(r) {
+				if err := p.handleError(url, errors.IllegalSlashes); err != nil {
+					return nil, err
+				}
+				state = stateRelativeSlash
+			} else {
 				url.username = base.username
 				url.password = base.password
 				url.host = base.host
 				url.port = base.port
 				url.path = base.path // TODO: Ensure copy????
 				url.search = base.search
-			} else {
-				switch r {
-				case '/':
-					state = stateRelativeSlash
-				case '?':
-					url.username = base.username
-					url.password = base.password
-					url.host = base.host
-					url.port = base.port
-					url.path = base.path // TODO: Ensure copy????
+				if r == '?' {
 					url.search = new(string)
 					state = stateQuery
-				case '#':
-					url.username = base.username
-					url.password = base.password
-					url.host = base.host
-					url.port = base.port
-					url.path = base.path // TODO: Ensure copy????
-					url.search = base.search
+				} else if r == '#' {
 					url.hash = new(string)
 					state = stateFragment
-				default:
-					if url.isSpecialSchemeAndBackslash(r) {
-						if err := p.handleError(url, errors.IllegalSlashes); err != nil {
-							return nil, err
-						}
-						state = stateRelativeSlash
-					} else {
-						url.username = base.username
-						url.password = base.password
-						url.host = base.host
-						url.port = base.port
-						url.path = base.path // TODO: Ensure copy????
-						if len(url.path) > 0 {
-							url.path = url.path[0 : len(url.path)-1]
-						}
-						state = statePath
-						input.rewindLast()
+				} else if !input.eof {
+					url.search = nil
+					if len(url.path) > 0 {
+						url.path = url.path[0 : len(url.path)-1]
 					}
+					state = statePath
+					input.rewindLast()
 				}
 			}
 		case stateRelativeSlash:
@@ -447,6 +428,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 			}
 		case stateFile:
 			url.protocol = "file"
+			url.host = new(string)
 			if r == '/' || r == '\\' {
 				if r == '\\' {
 					if err := p.handleError(url, errors.IllegalSlashes); err != nil {
@@ -455,36 +437,28 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				}
 				state = stateFileSlash
 			} else if base != nil && base.protocol == "file" {
-				if input.eof {
-					url.host = base.host
-					url.path = base.path // TODO: Ensure copy????
-					url.search = base.search
-				} else {
-					switch r {
-					case '?':
-						url.host = base.host
-						url.path = base.path // TODO: Ensure copy????
-						url.search = new(string)
-						state = stateQuery
-					case '#':
-						url.host = base.host
-						url.path = base.path // TODO: Ensure copy????
-						url.search = base.search
-						url.hash = new(string)
-						state = stateFragment
-					default:
-						if !startsWithAWindowsDriveLetter(input.remainingFromPointer()) {
-							url.host = base.host
-							url.path = base.path // TODO: Ensure copy????
-							shortenPath(url)
-						} else {
-							if err := p.handleError(url, errors.BadWindowsDriveLetter); err != nil {
-								return nil, err
-							}
+				url.host = base.host
+				url.path = base.path // TODO: Ensure copy????
+				url.search = base.search
+				if r == '?' {
+					url.search = new(string)
+					state = stateQuery
+				} else if r == '#' {
+					url.hash = new(string)
+					state = stateFragment
+				} else if !input.eof {
+					url.search = nil
+					if !startsWithAWindowsDriveLetter(input.remainingFromPointer()) {
+						shortenPath(url)
+					} else {
+						if err := p.handleError(url, errors.BadWindowsDriveLetter); err != nil {
+							return nil, err
 						}
-						state = statePath
-						input.rewindLast()
+						url.path = []string{}
 					}
+					state = statePath
+					input.rewindLast()
+
 				}
 			} else {
 				state = statePath
@@ -499,12 +473,11 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				}
 				state = stateFileHost
 			} else {
-				if base != nil && base.protocol == "file" && !startsWithAWindowsDriveLetter(input.remainingFromPointer()) {
-					if base.path != nil && isNormalizedWindowsDriveLetter(base.path[0]) {
-						url.path = append(url.path, base.path[0])
+				if base != nil && base.protocol == "file" {
+					url.host = base.host
+					if !startsWithAWindowsDriveLetter(input.remainingFromPointer()) && base.path != nil && isNormalizedWindowsDriveLetter(base.path[0]) {
 						// This is a (platform-independent) Windows drive letter quirk. Both url’s and base’s host are null under these conditions and therefore not copied
-					} else {
-						url.host = base.host
+						url.path = append(url.path, base.path[0])
 					}
 				}
 				state = statePath
@@ -585,16 +558,13 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 					url.path = append(url.path, "")
 				} else if !isSingleDotPathSegment(buffer.String()) {
 					if url.protocol == "file" && len(url.path) == 0 && isWindowsDriveLetter(buffer.String()) {
-						if url.host != nil && len(*url.host) > 0 {
-							if err := p.handleError(url, errors.IllegalLocalFileAndHostCombo); err != nil {
-								return nil, err
-							}
-							url.host = new(string)
-						}
 						// replace second code point in buffer with U+003A (:).
-						b := buffer.String()
-						buffer.Reset()
-						buffer.WriteString(b[0:1] + ":" + b[2:])
+						// This is a (platform-independent) Windows drive letter quirk.
+						if !p.opts.skipWindowsDriveLetterNormalization {
+							b := buffer.String()
+							buffer.Reset()
+							buffer.WriteString(b[0:1] + ":" + b[2:])
+						}
 					}
 					if !p.opts.collapseConsecutiveSlashes || !url.IsSpecialScheme() || len(url.path) == 0 || len(url.path[len(url.path)-1]) > 0 {
 						url.path = append(url.path, buffer.String())
@@ -603,19 +573,10 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 					}
 				}
 				buffer.Reset()
-				if url.protocol == "file" && (input.eof || r == '?' || r == '#') {
-					for len(url.path) > 1 && url.path[0] == "" {
-						if err := p.handleError(url, errors.IllegalSlashes); err != nil {
-							return nil, err
-						}
-						url.path = url.path[1:]
-					}
-				}
 				if r == '?' {
 					url.search = new(string)
 					state = stateQuery
-				}
-				if r == '#' {
+				} else if r == '#' {
 					url.hash = new(string)
 					state = stateFragment
 				}
@@ -687,58 +648,25 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 						return nil, err
 					}
 				}
-				var bytes = make([]byte, 4)
-				var n int
-				if encodingOverride != nil {
-					b, _ := encodingOverride.EncodeRune(r)
-					bytes[0] = b
-					n = 1
-				} else {
-					n = utf8.EncodeRune(bytes, r)
+				encodeSet := QueryPercentEncodeSet
+				if url.isSpecialScheme(url.protocol) {
+					encodeSet = SpecialQueryPercentEncodeSet
 				}
-				if n > 2 && bytes[0] == '&' && bytes[1] == '#' && bytes[n-1] == ';' {
-					bytes = append(bytes, []byte("%26%23")...)
-					bytes = append(bytes, bytes[2:n-2]...)
-					bytes = append(bytes, []byte("%3B")...)
-					*url.search += string(bytes)
-				} else {
-					percentEncoded := make([]byte, 4*3)
-					j := 0
-					for i := 0; i < n; i++ {
-						b := bytes[i]
-						if b < 0x21 || b > 0x7e || (b == 0x22 || b == 0x23 || b == 0x3c || b == 0x3e) || (b == 0x27 && url.IsSpecialScheme()) {
-							percentEncoded[j] = '%'
-							percentEncoded[j+1] = "0123456789ABCDEF"[b>>4]
-							percentEncoded[j+2] = "0123456789ABCDEF"[b&15]
-							j += 3
-						} else {
-							percentEncoded[j] = b
-							j++
-						}
-					}
-					*url.search += string(percentEncoded[:j])
-				}
+				*url.search += p.percentEncode(r, encodeSet)
 			}
 		case stateFragment:
 			if !input.eof {
-				switch r {
-				case 0x00:
+				if !isURLCodePoint(r) && r != '%' {
 					if err := p.handleError(url, errors.IllegalCodePoint); err != nil {
 						return nil, err
 					}
-				default:
-					if !isURLCodePoint(r) && r != '%' {
-						if err := p.handleError(url, errors.IllegalCodePoint); err != nil {
-							return nil, err
-						}
-					}
-					if input.remainingIsInvalidPercentEncoded() {
-						if err := p.handleError(url, errors.InvalidPercentEncoding); err != nil {
-							return nil, err
-						}
-					}
-					*url.hash += p.percentEncode(r, FragmentPercentEncodeSet)
 				}
+				if input.remainingIsInvalidPercentEncoded() {
+					if err := p.handleError(url, errors.InvalidPercentEncoding); err != nil {
+						return nil, err
+					}
+				}
+				*url.hash += p.percentEncode(r, FragmentPercentEncodeSet)
 			}
 		}
 
