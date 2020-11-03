@@ -23,7 +23,9 @@ import (
 	"strings"
 )
 
+var LaxPathPercentEncodeSet = url.PathPercentEncodeSet.Clear(0x2E, 0x3C, 0x3E)
 var LaxQueryPercentEncodeSet = url.QueryPercentEncodeSet.Clear(0x22, 0x25, 0x2F, 0x3B, 0x3F, 0x7B)
+var RepeatedQueryPercentDecodeSet = url.C0OrSpacePercentEncodeSet.Set('#', '%', '&', '=')
 
 var WhatWg = New()
 
@@ -37,7 +39,6 @@ var GoogleSafeBrowsing = New(
 	url.WithCollapseConsecutiveSlashes(),
 	url.WithAcceptInvalidCodepoints(),
 	url.WithPercentEncodeSinglePercentSign(),
-	url.WithEncodingOverride(charmap.ISO8859_1),
 	url.WithPreParseHostFunc(func(u *url.Url, host string) string {
 		host = strings.Trim(host, ".")
 		var re = regexp.MustCompile("\\.\\.+")
@@ -48,4 +49,41 @@ var GoogleSafeBrowsing = New(
 	WithRemoveFragment(),
 	WithRepeatedPercentDecoding(),
 	WithDefaultScheme("http"),
+)
+
+var Semantic = New(
+	url.WithLaxHostParsing(),
+	url.WithPathPercentEncodeSet(LaxPathPercentEncodeSet),
+	url.WithQueryPercentEncodeSet(LaxQueryPercentEncodeSet),
+	url.WithCollapseConsecutiveSlashes(),
+	url.WithAcceptInvalidCodepoints(),
+	url.WithPercentEncodeSinglePercentSign(),
+	url.WithAllowSettingPathForNonBaseUrl(),
+	url.WithEncodingOverride(charmap.ISO8859_1),
+	url.WithPreParseHostFunc(func(u *url.Url, host string) string {
+		if host != "" {
+			host = strings.Trim(host, ".")
+			var re = regexp.MustCompile("\\.\\.+")
+			host = re.ReplaceAllString(host, ".")
+			if host == "" {
+				host = "0.0.0.0"
+			}
+		}
+		return host
+	}),
+	url.WithSpecialSchemes(map[string]string{
+		"ftp":    "21",
+		"file":   "",
+		"http":   "80",
+		"https":  "443",
+		"ws":     "80",
+		"wss":    "443",
+		"gopher": "70",
+	}),
+	WithRemoveUserInfo(),
+	WithDefaultScheme("http"),
+	WithSortQuery(SortKeys),
+	WithRepeatedPercentDecoding(),
+	WithDefaultScheme("http"),
+	WithRemoveFragment(),
 )

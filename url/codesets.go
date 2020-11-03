@@ -21,21 +21,21 @@ import (
 	"unicode"
 )
 
-type percentEncodeSet struct {
+type PercentEncodeSet struct {
 	bs       *bitset.BitSet
 	allBelow int32
 }
 
-func NewPercentEncodeSet(allBelow int32, bytes ...uint) *percentEncodeSet {
-	p := &percentEncodeSet{allBelow: allBelow, bs: bitset.New(0x7f)}
+func NewPercentEncodeSet(allBelow int32, bytes ...uint) *PercentEncodeSet {
+	p := &PercentEncodeSet{allBelow: allBelow, bs: bitset.New(0x7f)}
 	for _, b := range bytes {
 		p.bs.Set(b)
 	}
 	return p
 }
 
-func (p *percentEncodeSet) Set(bytes ...uint) *percentEncodeSet {
-	r := &percentEncodeSet{
+func (p *PercentEncodeSet) Set(bytes ...uint) *PercentEncodeSet {
+	r := &PercentEncodeSet{
 		allBelow: p.allBelow,
 		bs:       p.bs.Clone(),
 	}
@@ -45,8 +45,8 @@ func (p *percentEncodeSet) Set(bytes ...uint) *percentEncodeSet {
 	return r
 }
 
-func (p *percentEncodeSet) Clear(bytes ...uint) *percentEncodeSet {
-	r := &percentEncodeSet{
+func (p *PercentEncodeSet) Clear(bytes ...uint) *PercentEncodeSet {
+	r := &PercentEncodeSet{
 		allBelow: p.allBelow,
 		bs:       p.bs.Clone(),
 	}
@@ -56,14 +56,21 @@ func (p *percentEncodeSet) Clear(bytes ...uint) *percentEncodeSet {
 	return r
 }
 
-func (p *percentEncodeSet) RuneShouldBeEncoded(r rune) bool {
+func (p *PercentEncodeSet) RuneShouldBeEncoded(r rune) bool {
 	if r < p.allBelow || r > 0x007E || p.bs.Test(uint(r)) {
 		return true
 	}
 	return false
 }
 
-func (p *percentEncodeSet) RuneNotInSet(r rune) bool {
+func (p *PercentEncodeSet) ByteShouldBeEncoded(b byte) bool {
+	if int32(b) < p.allBelow || b > 0x007E || p.bs.Test(uint(b)) {
+		return true
+	}
+	return false
+}
+
+func (p *PercentEncodeSet) RuneNotInSet(r rune) bool {
 	if r < p.allBelow || p.bs.Test(uint(r)) {
 		return false
 	}

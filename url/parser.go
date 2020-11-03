@@ -37,8 +37,6 @@ func NewParser(opts ...ParserOption) Parser {
 type Parser interface {
 	Parse(rawUrl string) (*Url, error)
 	ParseRef(rawUrl, ref string) (*Url, error)
-	PercentEncodeString(s string, tr *percentEncodeSet) string
-	DecodePercentEncoded(s string) string
 }
 
 type parser struct {
@@ -100,13 +98,6 @@ const (
 )
 
 func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride state) (*Url, error) {
-	if p.opts.pathPercentEncodeSet == nil {
-		p.opts.pathPercentEncodeSet = PathPercentEncodeSet
-	}
-	if p.opts.queryPercentEncodeSet == nil {
-		p.opts.queryPercentEncodeSet = QueryPercentEncodeSet
-	}
-
 	stateOverridden := stateOverride > noState
 	if url == nil {
 		url = &Url{inputUrl: urlOrRef}
@@ -128,7 +119,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 		url.inputUrl = i
 	}
 
-	input := newInputString(url.inputUrl, p.opts.acceptInvalidCodepoints)
+	input := newInputString(url.inputUrl)
 	var state state
 	if stateOverridden {
 		state = stateOverride
@@ -327,7 +318,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 					buffer.WriteString(tmp)
 				}
 				atFlag = true
-				bb := newInputString(buffer.String(), p.opts.acceptInvalidCodepoints)
+				bb := newInputString(buffer.String())
 				c := bb.nextCodePoint()
 				for !bb.eof {
 					if c == ':' && !passwordTokenSeenFlag {
@@ -335,7 +326,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 						c = bb.nextCodePoint()
 						continue
 					}
-					encodedCodePoints := p.percentEncode(c, UserInfoPercentEncodeSet)
+					encodedCodePoints := p.percentEncodeRune(c, UserInfoPercentEncodeSet)
 					if passwordTokenSeenFlag {
 						url.password += encodedCodePoints
 					} else {
@@ -399,7 +390,11 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				} else if r == ']' {
 					bracketFlag = false
 				}
-				buffer.WriteRune(r)
+				if input.currentIsInvalid() && p.opts.acceptInvalidCodepoints {
+					buffer.WriteString(string([]byte{input.getCurrentAsByte()}))
+				} else {
+					buffer.WriteRune(r)
+				}
 			}
 		case statePort:
 			if ASCIIDigit.Test(uint(r)) {
@@ -516,7 +511,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				buffer.WriteRune(r)
 			}
 		case statePathStart:
-			if url.IsSpecialScheme() {
+			if url.IsSpecialScheme() && !p.opts.skipTrailingSlashNormalization {
 				if r == '\\' {
 					if err := p.handleError(url, errors.IllegalSlashes); err != nil {
 						return nil, err
@@ -593,9 +588,9 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 					}
 				}
 				if invalidPercentEncoding {
-					buffer.WriteString(p.percentEncodeInvalid(r, p.opts.pathPercentEncodeSet))
+					buffer.WriteString(p.percentEncodeInvalidRune(r, p.opts.pathPercentEncodeSet))
 				} else {
-					buffer.WriteString(p.percentEncode(r, p.opts.pathPercentEncodeSet))
+					buffer.WriteString(p.percentEncodeRune(r, p.opts.pathPercentEncodeSet))
 				}
 			}
 		case stateCannotBeABaseUrl:
@@ -622,18 +617,14 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 						url.path = append(url.path, "")
 					}
 					if invalidPercentEncoding {
-						url.path[0] += p.percentEncodeInvalid(r, C0PercentEncodeSet)
+						url.path[0] += p.percentEncodeInvalidRune(r, C0PercentEncodeSet)
 					} else {
-						url.path[0] += p.percentEncode(r, C0PercentEncodeSet)
+						url.path[0] += p.percentEncodeRune(r, C0PercentEncodeSet)
 					}
 				}
 
 			}
 		case stateQuery:
-			encodingOverride := p.opts.encodingOverride
-			if encodingOverride != nil && (!url.IsSpecialScheme() || url.protocol == "ws" || url.protocol == "wss") {
-				encodingOverride = nil
-			}
 			if !stateOverridden && r == '#' {
 				url.hash = new(string)
 				state = stateFragment
@@ -648,11 +639,11 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 						return nil, err
 					}
 				}
-				encodeSet := QueryPercentEncodeSet
+				encodeSet := p.opts.queryPercentEncodeSet
 				if url.isSpecialScheme(url.protocol) {
-					encodeSet = SpecialQueryPercentEncodeSet
+					encodeSet = p.opts.specialQueryPercentEncodeSet
 				}
-				*url.search += p.percentEncode(r, encodeSet)
+				*url.search += p.percentEncodeRune(r, encodeSet)
 			}
 		case stateFragment:
 			if !input.eof {
@@ -666,7 +657,11 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 						return nil, err
 					}
 				}
-				*url.hash += p.percentEncode(r, FragmentPercentEncodeSet)
+				encodeSet := p.opts.fragmentPercentEncodeSet
+				if url.isSpecialScheme(url.protocol) {
+					encodeSet = p.opts.specialFragmentPercentEncodeSet
+				}
+				*url.hash += p.percentEncodeRune(r, encodeSet)
 			}
 		}
 
@@ -678,14 +673,14 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 	return url, nil
 }
 
-func (p *parser) percentEncodeInvalid(r rune, tr *percentEncodeSet) string {
+func (p *parser) percentEncodeInvalidRune(r rune, tr *PercentEncodeSet) string {
 	if p.opts.percentEncodeSinglePercentSign {
-		return p.percentEncode(r, tr.Set(0x25))
+		return p.percentEncodeRune(r, tr.Set(0x25))
 	}
-	return p.percentEncode(r, tr)
+	return p.percentEncodeRune(r, tr)
 }
 
-func (p *parser) percentEncode(r rune, tr *percentEncodeSet) string {
+func (p *parser) percentEncodeRune(r rune, tr *PercentEncodeSet) string {
 	if tr != nil && !tr.RuneShouldBeEncoded(r) {
 		return string(r)
 	}
@@ -712,7 +707,7 @@ func (p *parser) percentEncode(r rune, tr *percentEncodeSet) string {
 	return string(percentEncoded[:j])
 }
 
-func (p *parser) PercentEncodeString(s string, tr *percentEncodeSet) string {
+func (p *parser) PercentEncodeString(s string, tr *PercentEncodeSet) string {
 	buffer := &strings.Builder{}
 	runes := []rune(s)
 	for i, r := range runes {
@@ -720,12 +715,12 @@ func (p *parser) PercentEncodeString(s string, tr *percentEncodeSet) string {
 			if len(runes) < (i+3) ||
 				(!ASCIIHexDigit.Test(uint(runes[i+1])) || !ASCIIHexDigit.Test(uint(runes[i+2]))) {
 				if p.opts.percentEncodeSinglePercentSign {
-					buffer.WriteString(p.percentEncode(r, tr.Set(0x25)))
+					buffer.WriteString(p.percentEncodeRune(r, tr.Set(0x25)))
 					continue
 				}
 			}
 		}
-		buffer.WriteString(p.percentEncode(r, tr))
+		buffer.WriteString(p.percentEncodeRune(r, tr))
 	}
 	return buffer.String()
 }
@@ -817,7 +812,7 @@ func isNormalizedWindowsDriveLetter(s string) bool {
 	return false
 }
 
-func trimPrefix(s string, tr *percentEncodeSet) (string, bool) {
+func trimPrefix(s string, tr *PercentEncodeSet) (string, bool) {
 	if s == "" {
 		return s, false
 	}
@@ -829,7 +824,7 @@ func trimPrefix(s string, tr *percentEncodeSet) (string, bool) {
 	return "", true
 }
 
-func trimPostfix(s string, tr *percentEncodeSet) (string, bool) {
+func trimPostfix(s string, tr *PercentEncodeSet) (string, bool) {
 	if s == "" {
 		return s, false
 	}
@@ -842,7 +837,7 @@ func trimPostfix(s string, tr *percentEncodeSet) (string, bool) {
 	return "", true
 }
 
-func trim(s string, tr *percentEncodeSet) (string, bool) {
+func trim(s string, tr *PercentEncodeSet) (string, bool) {
 	var c1, c2 bool
 	s, c1 = trimPrefix(s, tr)
 	s, c2 = trimPostfix(s, tr)

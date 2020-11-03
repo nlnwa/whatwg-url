@@ -51,9 +51,7 @@ func (s *searchParams) init(query string) {
 
 func (s *searchParams) update() {
 	query := s.String()
-	if query == "" {
-		s.url.search = nil
-	} else {
+	if (query == "" && s.url.search != nil) || query != "" {
 		s.url.search = &query
 	}
 }
@@ -162,7 +160,7 @@ func (s *searchParams) QueryEscape(st string, output *strings.Builder) {
 		if b == 0x0020 {
 			output.WriteRune(0x002B)
 		} else {
-			output.WriteString(s.url.parser.percentEncode(b, s.url.parser.opts.queryPercentEncodeSet))
+			output.WriteString(s.url.parser.percentEncodeRune(b, s.url.parser.opts.queryPercentEncodeSet))
 		}
 	}
 }

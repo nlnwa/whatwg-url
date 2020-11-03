@@ -57,7 +57,7 @@ func (p *profile) Parse(rawUrl string) (*url.Url, error) {
 		}
 	}
 
-	return p.canonicalize(u)
+	return p.Canonicalize(u)
 }
 
 func (p *profile) ParseRef(rawUrl, ref string) (*url.Url, error) {
@@ -77,25 +77,25 @@ func (p *profile) ParseRef(rawUrl, ref string) (*url.Url, error) {
 		return nil, err
 	}
 
-	return p.canonicalize(u)
+	return p.Canonicalize(u)
 }
 
-func (p *profile) canonicalize(u *url.Url) (*url.Url, error) {
+func (p *profile) Canonicalize(u *url.Url) (*url.Url, error) {
 	if p.repeatedPercentDecoding {
 		if u.Hostname() != "" {
-			u.SetHostname(decodeEncode(p.Parser, u.Hostname()))
+			u.SetHostname(decodeEncode(u.Hostname(), url.HostPercentEncodeSet))
 		}
 		if u.Pathname() != "" {
-			u.SetPathname(decodeEncode(p.Parser, u.Pathname()))
+			u.SetPathname(decodeEncode(u.Pathname(), LaxPathPercentEncodeSet))
 		}
 		if u.Search() != "" {
 			u.SearchParams().Iterate(func(pair *url.NameValuePair) {
-				pair.Name = decodeEncode(p.Parser, pair.Name)
-				pair.Value = decodeEncode(p.Parser, pair.Value)
+				pair.Name = decodeEncode(pair.Name, RepeatedQueryPercentDecodeSet)
+				pair.Value = decodeEncode(pair.Value, RepeatedQueryPercentDecodeSet)
 			})
 		}
 		if u.Hash() != "" {
-			u.SetHash(decodeEncode(p.Parser, strings.TrimPrefix(u.Hash(), "#")))
+			u.SetHash(decodeEncode(strings.TrimPrefix(u.Hash(), "#"), url.HostPercentEncodeSet))
 		}
 	}
 
@@ -120,22 +120,70 @@ func (p *profile) canonicalize(u *url.Url) (*url.Url, error) {
 	return u, nil
 }
 
-var GoogleSafeBrowsingPercentEncodeSet = url.NewPercentEncodeSet(33, '#', '%')
-
-func decodeEncode(parser url.Parser, s string) string {
-	r := parser.PercentEncodeString(repeatedDecode(parser, s), GoogleSafeBrowsingPercentEncodeSet)
+func decodeEncode(s string, tr *url.PercentEncodeSet) string {
+	r := percentEncode(repeatedDecode(s), tr)
 	return r
 }
 
 // repeatedDecode repeatedly percent-unescape a string until it has no more percent-escapes
-func repeatedDecode(parser url.Parser, s string) string {
+func repeatedDecode(s string) string {
 	var r string
 	for {
-		r = parser.DecodePercentEncoded(s)
+		r = decodePercentEncoded(s)
 		if s == r {
 			break
 		}
 		s = r
 	}
 	return s
+}
+
+func percentEncode(s string, tr *url.PercentEncodeSet) string {
+	sb := strings.Builder{}
+	for _, b := range []byte(s) {
+		sb.WriteString(percentEncodeByte(b, tr.Set('%')))
+	}
+	return sb.String()
+}
+
+func percentEncodeByte(b byte, tr *url.PercentEncodeSet) string {
+	if tr != nil && !tr.ByteShouldBeEncoded(b) {
+		return string(b)
+	}
+
+	percentEncoded := make([]byte, 3)
+	percentEncoded[0] = '%'
+	percentEncoded[1] = "0123456789ABCDEF"[b>>4]
+	percentEncoded[2] = "0123456789ABCDEF"[b&15]
+	return string(percentEncoded)
+}
+
+func decodePercentEncoded(s string) string {
+	sb := strings.Builder{}
+	bytes := []byte(s)
+	for i := 0; i < len(bytes); i++ {
+		if bytes[i] != '%' {
+			sb.WriteByte(bytes[i])
+		} else if len(bytes) < (i+3) ||
+			(!url.ASCIIHexDigit.Test(uint(bytes[i+1])) || !url.ASCIIHexDigit.Test(uint(bytes[i+2]))) {
+			sb.WriteByte(bytes[i])
+		} else {
+			b := unhex(bytes[i+1])<<4 | unhex(bytes[i+2])
+			sb.WriteByte(b)
+			i += 2
+		}
+	}
+	return sb.String()
+}
+
+func unhex(c byte) byte {
+	switch {
+	case '0' <= c && c <= '9':
+		return c - '0'
+	case 'a' <= c && c <= 'f':
+		return c - 'a' + 10
+	case 'A' <= c && c <= 'F':
+		return c - 'A' + 10
+	}
+	return 0
 }

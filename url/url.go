@@ -34,6 +34,8 @@ type Url struct {
 	searchParams     *searchParams
 	validationErrors []error
 	parser           *parser
+	isIPv4           bool
+	isIPv6           bool
 }
 
 func (u *Url) Href(excludeFragment bool) string {
@@ -247,4 +249,12 @@ func (u *Url) newUrlSearchParams() {
 		usp.init(*u.search)
 	}
 	u.searchParams = usp
+}
+
+func (u *Url) IsIPv4() bool {
+	return u.isIPv4
+}
+
+func (u *Url) IsIPv6() bool {
+	return u.isIPv6
 }

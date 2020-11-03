@@ -32,9 +32,13 @@ type parserOptions struct {
 	allowSettingPathForNonBaseUrl       bool
 	skipWindowsDriveLetterNormalization bool
 	specialSchemes                      map[string]string
+	skipTrailingSlashNormalization      bool
 	encodingOverride                    *charmap.Charmap
-	pathPercentEncodeSet                *percentEncodeSet
-	queryPercentEncodeSet               *percentEncodeSet
+	pathPercentEncodeSet                *PercentEncodeSet
+	specialQueryPercentEncodeSet        *PercentEncodeSet
+	queryPercentEncodeSet               *PercentEncodeSet
+	specialFragmentPercentEncodeSet     *PercentEncodeSet
+	fragmentPercentEncodeSet            *PercentEncodeSet
 }
 
 // ParserOption configures how we parse a URL.
@@ -65,7 +69,13 @@ func newFuncParserOption(f func(*parserOptions)) *funcParserOption {
 }
 
 func defaultParserOptions() parserOptions {
-	return parserOptions{}
+	return parserOptions{
+		pathPercentEncodeSet:            PathPercentEncodeSet,
+		specialQueryPercentEncodeSet:    SpecialQueryPercentEncodeSet,
+		queryPercentEncodeSet:           QueryPercentEncodeSet,
+		specialFragmentPercentEncodeSet: FragmentPercentEncodeSet,
+		fragmentPercentEncodeSet:        FragmentPercentEncodeSet,
+	}
 }
 
 // WithReportValidationErrors records all non fatal validation errors so that they can be fetchd by a call to....
@@ -191,17 +201,57 @@ func WithEncodingOverride(cm *charmap.Charmap) ParserOption {
 // WithPathPercentEncodeSet allows to set an alternative set of characters to percent encode in path component.
 //
 // This API is EXPERIMENTAL.
-func WithPathPercentEncodeSet(encodeSet *percentEncodeSet) ParserOption {
+func WithPathPercentEncodeSet(encodeSet *PercentEncodeSet) ParserOption {
 	return newFuncParserOption(func(o *parserOptions) {
 		o.pathPercentEncodeSet = encodeSet
 	})
 }
 
-// WithQueryPercentEncodeSet allows to set an alternative set of characters to percent encode in query component.
+// WithQueryPercentEncodeSet allows to set an alternative set of characters to percent encode in query component
+// when scheme is not special.
 //
 // This API is EXPERIMENTAL.
-func WithQueryPercentEncodeSet(encodeSet *percentEncodeSet) ParserOption {
+func WithQueryPercentEncodeSet(encodeSet *PercentEncodeSet) ParserOption {
 	return newFuncParserOption(func(o *parserOptions) {
 		o.queryPercentEncodeSet = encodeSet
+	})
+}
+
+// WithSpecialQueryPercentEncodeSet allows to set an alternative set of characters to percent encode in query component
+// when scheme is special.
+//
+// This API is EXPERIMENTAL.
+func WithSpecialQueryPercentEncodeSet(encodeSet *PercentEncodeSet) ParserOption {
+	return newFuncParserOption(func(o *parserOptions) {
+		o.specialQueryPercentEncodeSet = encodeSet
+	})
+}
+
+// WithFragmentPathPercentEncodeSet allows to set an alternative set of characters to percent encode in fragment
+// component when scheme is not special.
+//
+// This API is EXPERIMENTAL.
+func WithFragmentPathPercentEncodeSet(encodeSet *PercentEncodeSet) ParserOption {
+	return newFuncParserOption(func(o *parserOptions) {
+		o.fragmentPercentEncodeSet = encodeSet
+	})
+}
+
+// WithSpecialFragmentPathPercentEncodeSet allows to set an alternative set of characters to percent encode in fragment
+// component when scheme is special.
+//
+// This API is EXPERIMENTAL.
+func WithSpecialFragmentPathPercentEncodeSet(encodeSet *PercentEncodeSet) ParserOption {
+	return newFuncParserOption(func(o *parserOptions) {
+		o.fragmentPercentEncodeSet = encodeSet
+	})
+}
+
+// WithSkipTrailingSlashNormalization skips normalizing of empty paths.
+//
+// This API is EXPERIMENTAL.
+func WithSkipTrailingSlashNormalization() ParserOption {
+	return newFuncParserOption(func(o *parserOptions) {
+		o.skipTrailingSlashNormalization = true
 	})
 }

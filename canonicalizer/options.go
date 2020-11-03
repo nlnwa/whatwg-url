@@ -2,12 +2,13 @@ package canonicalizer
 
 import "github.com/nlnwa/whatwg-url/url"
 
+// canonParserOption configures how we canonicalize a URL.
 type canonParserOption interface {
 	applyProfile(*profile)
 }
 
-// funcCanonParserOption wraps a function that canonicalizes url into an
-// implementation of the CanonParserOption interface.
+// funcCanonParserOption wraps a function that modifies profile into an
+// implementation of both the url.ParserOption and canonParserOption interface.
 type funcCanonParserOption struct {
 	url.EmptyParserOption
 	f func(*profile)
