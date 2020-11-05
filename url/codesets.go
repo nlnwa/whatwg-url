@@ -21,21 +21,21 @@ import (
 	"unicode"
 )
 
-type percentEncodeSet struct {
+type PercentEncodeSet struct {
 	bs       *bitset.BitSet
 	allBelow int32
 }
 
-func NewPercentEncodeSet(allBelow int32, bytes ...uint) *percentEncodeSet {
-	p := &percentEncodeSet{allBelow: allBelow, bs: bitset.New(0x7f)}
+func NewPercentEncodeSet(allBelow int32, bytes ...uint) *PercentEncodeSet {
+	p := &PercentEncodeSet{allBelow: allBelow, bs: bitset.New(0x7f)}
 	for _, b := range bytes {
 		p.bs.Set(b)
 	}
 	return p
 }
 
-func (p *percentEncodeSet) Set(bytes ...uint) *percentEncodeSet {
-	r := &percentEncodeSet{
+func (p *PercentEncodeSet) Set(bytes ...uint) *PercentEncodeSet {
+	r := &PercentEncodeSet{
 		allBelow: p.allBelow,
 		bs:       p.bs.Clone(),
 	}
@@ -45,8 +45,8 @@ func (p *percentEncodeSet) Set(bytes ...uint) *percentEncodeSet {
 	return r
 }
 
-func (p *percentEncodeSet) Clear(bytes ...uint) *percentEncodeSet {
-	r := &percentEncodeSet{
+func (p *PercentEncodeSet) Clear(bytes ...uint) *PercentEncodeSet {
+	r := &PercentEncodeSet{
 		allBelow: p.allBelow,
 		bs:       p.bs.Clone(),
 	}
@@ -56,14 +56,21 @@ func (p *percentEncodeSet) Clear(bytes ...uint) *percentEncodeSet {
 	return r
 }
 
-func (p *percentEncodeSet) RuneShouldBeEncoded(r rune) bool {
+func (p *PercentEncodeSet) RuneShouldBeEncoded(r rune) bool {
 	if r < p.allBelow || r > 0x007E || p.bs.Test(uint(r)) {
 		return true
 	}
 	return false
 }
 
-func (p *percentEncodeSet) RuneNotInSet(r rune) bool {
+func (p *PercentEncodeSet) ByteShouldBeEncoded(b byte) bool {
+	if int32(b) < p.allBelow || b > 0x007E || p.bs.Test(uint(b)) {
+		return true
+	}
+	return false
+}
+
+func (p *PercentEncodeSet) RuneNotInSet(r rune) bool {
 	if r < p.allBelow || p.bs.Test(uint(r)) {
 		return false
 	}
@@ -95,7 +102,8 @@ var ASCIIDigit = bitset.New(0x39)
 var ASCIIHexDigit = bitset.New(0x66)
 var ASCIIAlphanumeric = bitset.New(0x7a)
 var ForbiddenHostCodePoint = bitset.New(0x5d).Set(0x00).Set(0x09).Set(0x0a).Set(0x0d).Set(0x20).
-	Set(0x23).Set(0x25).Set(0x2f).Set(0x3a).Set(0x3f).Set(0x40).Set(0x5b).Set(0x5c).Set(0x5d)
+	Set(0x23).Set(0x25).Set(0x2f).Set(0x3a).Set(0x3c).Set(0x3e).Set(0x3f).Set(0x40).Set(0x5b).
+	Set(0x5c).Set(0x5d).Set(0x5e)
 var someURLCodePoints = bitset.New(0x7e).Set(0x24).Set(0x26).Set(0x27).Set(0x28).Set(0x29).
 	Set(0x2a).Set(0x2b).Set(0x2c).Set(0x2d).Set(0x2e).Set(0x2f).Set(0x3a).Set(0x3b).Set(0x3d).
 	Set(0x3f).Set(0x40).Set(0x5f).Set(0x7e)
@@ -103,11 +111,11 @@ var someURLCodePoints = bitset.New(0x7e).Set(0x24).Set(0x26).Set(0x27).Set(0x28)
 var C0PercentEncodeSet = NewPercentEncodeSet(0x20)
 var C0OrSpacePercentEncodeSet = NewPercentEncodeSet(0x21)
 var FragmentPercentEncodeSet = C0OrSpacePercentEncodeSet.Set(0x22, 0x3c, 0x3e, 0x60)
-var PathPercentEncodeSet = FragmentPercentEncodeSet.Set(0x23, 0x3f, 0x7b, 0x7d)
+var QueryPercentEncodeSet = C0OrSpacePercentEncodeSet.Set(0x22, 0x23, 0x3C, 0x3E)
+var SpecialQueryPercentEncodeSet = QueryPercentEncodeSet.Set(0x27)
+var PathPercentEncodeSet = QueryPercentEncodeSet.Set(0x3f, 0x60, 0x7b, 0x7d)
 var UserInfoPercentEncodeSet = PathPercentEncodeSet.Set(0x2f, 0x3a, 0x3b, 0x3d, 0x40, 0x5b, 0x5c, 0x5d, 0x5e, 0x7c)
 var HostPercentEncodeSet = C0OrSpacePercentEncodeSet.Set(0x23)
-var QueryPercentEncodeSet = C0PercentEncodeSet.Set(0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2B,
-	0x2C, 0x2F, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F, 0x40, 0x5B, 0x5C, 0x5D, 0x5E, 0x60, 0x7B, 0x7C, 0x7D, 0x7E)
 
 func init() {
 	for i := 'a'; i <= 'z'; i++ {

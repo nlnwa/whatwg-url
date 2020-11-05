@@ -23,7 +23,7 @@ import (
 func Test_percentEncodeSet_RuneShouldBeEncoded(t *testing.T) {
 	tests := []struct {
 		name string
-		pes  *percentEncodeSet
+		pes  *PercentEncodeSet
 		r    rune
 		want bool
 	}{

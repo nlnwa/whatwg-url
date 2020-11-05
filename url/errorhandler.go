@@ -20,16 +20,16 @@ import (
 	"github.com/nlnwa/whatwg-url/errors"
 )
 
-func (p *Parser) handleError(u *Url, code errors.ErrorCode) error {
-	if p.ReportValidationErrors {
+func (p *parser) handleError(u *Url, code errors.ErrorCode) error {
+	if p.opts.reportValidationErrors {
 		u.validationErrors = append(u.validationErrors, errors.Error(code, u.inputUrl))
 	}
-	if p.FailOnValidationError {
+	if p.opts.failOnValidationError {
 		return errors.Error(code, u.inputUrl)
 	}
 	return nil
 }
 
-func (p *Parser) handleFailure(u *Url, code errors.ErrorCode, err error) (*Url, error) {
+func (p *parser) handleFailure(u *Url, code errors.ErrorCode, err error) (*Url, error) {
 	return nil, errors.Wrap(err, code, u.inputUrl)
 }

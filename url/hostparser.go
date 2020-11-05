@@ -27,9 +27,9 @@ import (
 	"unicode/utf8"
 )
 
-func (p *Parser) parseHost(u *Url, parser *Parser, input string, isNotSpecial bool) (string, error) {
-	if p.PreParseHostFunc != nil {
-		input = p.PreParseHostFunc(u, parser, input)
+func (p *parser) parseHost(u *Url, parser *parser, input string, isNotSpecial bool) (string, error) {
+	if p.opts.preParseHostFunc != nil {
+		input = p.opts.preParseHostFunc(u, input)
 	}
 	if input == "" {
 		return "", nil
@@ -39,46 +39,55 @@ func (p *Parser) parseHost(u *Url, parser *Parser, input string, isNotSpecial bo
 			return "", errors.Error(errors.IllegalIPv6Address, "")
 		}
 		input = strings.Trim(input, "[]")
-		return p.parseIPv6(newInputString(input, p.AcceptInvalidCodepoints))
+		return p.parseIPv6(u, newInputString(input))
 	}
 	if isNotSpecial {
 		return p.parseOpaqueHost(input)
 	}
 
-	domain, err := url.QueryUnescape(input)
+	domain, err := url.PathUnescape(input)
 	if err != nil {
-		if p.LaxHostParsing {
+		if p.opts.laxHostParsing {
 			return input, nil
 		}
-		return "", errors.Error(errors.CouldNotDecodeHost, "")
+		return "", errors.Wrap(err, errors.CouldNotDecodeHost, "")
 	}
 
 	if !utf8.ValidString(domain) {
-		if p.LaxHostParsing {
-			return parser.PercentEncodeString(input, HostPercentEncodeSet), nil
+		if p.opts.laxHostParsing {
+			return percentEncodeString(input, HostPercentEncodeSet), nil
 		}
-		return "", errors.Error(errors.CouldNotDecodeHost, "")
+		return "", errors.ErrorWithDescr(errors.CouldNotDecodeHost, "not a valid UTF-8 string", "")
 	}
 
 	asciiDomain, err := p.ToASCII(domain)
 	if err != nil {
-		if p.LaxHostParsing {
+		if p.opts.laxHostParsing {
 			return domain, nil
 		}
-		return "", errors.Error(errors.CouldNotDecodeHost, "")
+		return "", errors.Wrap(err, errors.CouldNotDecodeHost, "")
+	}
+	for _, c := range asciiDomain {
+		if ForbiddenHostCodePoint.Test(uint(c)) {
+			if p.opts.laxHostParsing {
+				return parser.PercentEncodeString(asciiDomain, HostPercentEncodeSet), nil
+			} else {
+				return "", errors.ErrorWithDescr(errors.IllegalCodePoint, string(c), "")
+			}
+		}
 	}
 
 	ipv4Host, ok, err := p.parseIPv4(u, asciiDomain)
 	if ok || err != nil {
 		return ipv4Host, err
 	}
-	if p.PostParseHostFunc != nil {
-		asciiDomain = p.PostParseHostFunc(u, p, asciiDomain)
+	if p.opts.postParseHostFunc != nil {
+		asciiDomain = p.opts.postParseHostFunc(u, asciiDomain)
 	}
 	return asciiDomain, nil
 }
 
-func (p *Parser) parseIPv4Number(input string, validationError *bool) (int64, error) {
+func (p *parser) parseIPv4Number(input string, validationError *bool) (int64, error) {
 	R := 10
 	if len(input) >= 2 && (strings.HasPrefix(input, "0x") || strings.HasPrefix(input, "0X")) {
 		*validationError = true
@@ -95,7 +104,7 @@ func (p *Parser) parseIPv4Number(input string, validationError *bool) (int64, er
 	return strconv.ParseInt(input, R, 64)
 }
 
-func (p *Parser) parseIPv4(u *Url, input string) (string, bool, error) {
+func (p *parser) parseIPv4(u *Url, input string) (string, bool, error) {
 	validationError := false
 	parts := strings.Split(input, ".")
 	if parts[len(parts)-1] == "" {
@@ -144,10 +153,11 @@ func (p *Parser) parseIPv4(u *Url, input string) (string, bool, error) {
 		ipv4 += IPv4Addr(n * int64(math.Pow(256, float64(3-counter))))
 	}
 
+	u.isIPv4 = true
 	return ipv4.String(), true, nil
 }
 
-func (p *Parser) parseIPv6(input *inputString) (string, error) {
+func (p *parser) parseIPv6(u *Url, input *inputString) (string, error) {
 	address := &IPv6Addr{}
 	pieceIdx := 0
 	compress := -1
@@ -256,16 +266,21 @@ func (p *Parser) parseIPv6(input *inputString) (string, error) {
 	} else if compress < 0 && pieceIdx != 8 {
 		return "", errors.Error(errors.IllegalIPv6Address, "")
 	}
+	u.isIPv6 = true
 	return "[" + address.String() + "]", nil
 }
 
-func (p *Parser) parseOpaqueHost(input string) (string, error) {
+func (p *parser) parseOpaqueHost(input string) (string, error) {
 	output := ""
 	for _, c := range input {
 		if ForbiddenHostCodePoint.Test(uint(c)) && c != '%' {
-			return "", fmt.Errorf("illegal IPv6 address '%v'", input)
+			if p.opts.laxHostParsing {
+				return input, nil
+			} else {
+				return "", errors.ErrorWithDescr(errors.IllegalCodePoint, string(c), "")
+			}
 		}
-		output += p.percentEncode(c, C0PercentEncodeSet)
+		output += p.percentEncodeRune(c, C0PercentEncodeSet)
 	}
 	return output, nil
 }
@@ -342,15 +357,58 @@ func (address *IPv4Addr) String() string {
 var idnaProfile = idna.New(
 	idna.MapForLookup(),
 	idna.BidiRule(),
+	idna.VerifyDNSLength(true),
+	idna.StrictDomainName(false),
+	idna.ValidateLabels(false),
 )
 
-func (p *Parser) ToASCII(src string) (string, error) {
+func (p *parser) ToASCII(src string) (string, error) {
+	// If encoding is set, convert to Unicode
+	if p.opts.encodingOverride != nil {
+		if u, err := p.stringToUnicode(src); err == nil {
+			src = u
+		}
+	}
+
+	// Convert to punycode
 	a, err := idnaProfile.ToASCII(src)
 	if err != nil {
-		if !p.LaxHostParsing && !strings.Contains(err.Error(), src) {
+		if !p.opts.laxHostParsing && !strings.Contains(err.Error(), src) {
 			return "", err
 		}
 		a = p.PercentEncodeString(src, HostPercentEncodeSet)
 	}
 	return a, nil
+}
+
+func (p *parser) stringToUnicode(src string) (string, error) {
+	var bb []byte
+	for _, r := range []rune(src) {
+		if b, ok := p.opts.encodingOverride.EncodeRune(r); ok && b > 31 {
+			bb = append(bb, b)
+		} else {
+			return "", fmt.Errorf("Could not conver %v to Unicode using %v", src, p.opts.encodingOverride.String())
+		}
+	}
+	return string(bb), nil
+}
+
+func percentEncodeString(s string, tr *PercentEncodeSet) string {
+	sb := strings.Builder{}
+	for _, b := range []byte(s) {
+		sb.WriteString(percentEncodeByte(b, tr))
+	}
+	return sb.String()
+}
+
+func percentEncodeByte(b byte, tr *PercentEncodeSet) string {
+	if tr != nil && !tr.ByteShouldBeEncoded(b) {
+		return string(b)
+	}
+
+	percentEncoded := make([]byte, 3)
+	percentEncoded[0] = '%'
+	percentEncoded[1] = "0123456789ABCDEF"[b>>4]
+	percentEncoded[2] = "0123456789ABCDEF"[b&15]
+	return string(percentEncoded)
 }

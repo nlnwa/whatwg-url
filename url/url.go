@@ -33,7 +33,9 @@ type Url struct {
 	cannotBeABaseUrl bool
 	searchParams     *searchParams
 	validationErrors []error
-	parser           *Parser
+	parser           *parser
+	isIPv4           bool
+	isIPv6           bool
 }
 
 func (u *Url) Href(excludeFragment bool) string {
@@ -47,11 +49,21 @@ func (u *Url) Href(excludeFragment bool) string {
 			}
 			output += "@"
 		}
-		output += u.Host()
-	} else if u.host == nil && u.protocol == "file" {
-		output += "//"
+		output += *u.host
+		if u.port != nil {
+			output += ":" + *u.port
+		}
 	}
-	output += u.Pathname()
+	if u.cannotBeABaseUrl && len(u.path) > 0 {
+		output += u.path[0]
+	} else {
+		if u.host == nil && len(u.path) > 1 && u.path[0] == "" {
+			output += "/."
+		}
+		for _, p := range u.path {
+			output += "/" + p
+		}
+	}
 
 	if u.search != nil {
 		output += "?" + *u.search
@@ -158,7 +170,7 @@ func (u *Url) Pathname() string {
 }
 
 func (u *Url) SetPathname(path string) {
-	if u.cannotBeABaseUrl && !u.parser.AllowSettingPathForNonBaseUrl {
+	if u.cannotBeABaseUrl && !u.parser.opts.allowSettingPathForNonBaseUrl {
 		return
 	}
 	if u.path != nil {
@@ -237,4 +249,12 @@ func (u *Url) newUrlSearchParams() {
 		usp.init(*u.search)
 	}
 	u.searchParams = usp
+}
+
+func (u *Url) IsIPv4() bool {
+	return u.isIPv4
+}
+
+func (u *Url) IsIPv6() bool {
+	return u.isIPv6
 }

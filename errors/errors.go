@@ -23,12 +23,19 @@ import (
 // UrlError is the struct of url error
 type UrlError struct {
 	code  ErrorCode
+	descr string
 	url   string
 	cause error // the root cause for this error
 }
 
 func (e *UrlError) Error() string {
-	errMsg := fmt.Sprintf("Error: %s, Url: %s", e.code, e.url)
+	errMsg := fmt.Sprintf("Error: %s", e.code)
+	if e.descr != "" {
+		errMsg += fmt.Sprintf(" '%s'", e.descr)
+	}
+	if e.url != "" {
+		errMsg += fmt.Sprintf(", Url: %s", e.url)
+	}
 	if nil == e.cause {
 		return errMsg
 	}
@@ -61,7 +68,20 @@ func Code(err error) ErrorCode {
 	return cd.Code()
 }
 
-// Message returns the error message
+// Description returns the error description
+func Description(err error) string {
+	type descr interface {
+		Description() string
+	}
+
+	m, ok := err.(descr)
+	if !ok {
+		return ""
+	}
+	return m.Description()
+}
+
+// Url returns the url causing the error
 func Url(err error) string {
 	type url interface {
 		Url() string
@@ -82,10 +102,29 @@ func Error(code ErrorCode, url string) error {
 	}
 }
 
+// Error constructs a new error
+func ErrorWithDescr(code ErrorCode, descr string, url string) error {
+	return &UrlError{
+		code:  code,
+		descr: descr,
+		url:   url,
+	}
+}
+
 // Wrap waps an error with an error and a message
 func Wrap(err error, code ErrorCode, url string) error {
 	return &UrlError{
 		code:  code,
+		url:   url,
+		cause: err,
+	}
+}
+
+// Wrap waps an error with an error and a message
+func WrapWithDescr(err error, code ErrorCode, descr string, url string) error {
+	return &UrlError{
+		code:  code,
+		descr: descr,
 		url:   url,
 		cause: err,
 	}
