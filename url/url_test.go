@@ -479,3 +479,132 @@ func BenchmarkParse(b *testing.B) {
 		}
 	}
 }
+
+func TestUrl_Getters(t *testing.T) {
+	tests := []struct {
+		name        string
+		inputUrl    string
+		href        string
+		protocol    string
+		scheme      string
+		username    string
+		password    string
+		host        string
+		port        string
+		decodedPort int
+		path        string
+		search      string
+		query       string
+		hash        string
+		fragment    string
+	}{
+		{"1",
+			"HTTP://u:p@example.com:80/foo?q=1#bar",
+			"http://u:p@example.com/foo?q=1#bar",
+			"http:",
+			"http",
+			"u",
+			"p",
+			"example.com",
+			"",
+			80,
+			"/foo",
+			"?q=1",
+			"q=1",
+			"#bar",
+			"bar",
+		},
+		{"2",
+			"HTTP://u:p@example.com/foo?q=1#bar",
+			"http://u:p@example.com/foo?q=1#bar",
+			"http:",
+			"http",
+			"u",
+			"p",
+			"example.com",
+			"",
+			80,
+			"/foo",
+			"?q=1",
+			"q=1",
+			"#bar",
+			"bar",
+		},
+		{"3",
+			"HTTP://u:p@example.com:8080/foo?q=1#bar",
+			"http://u:p@example.com:8080/foo?q=1#bar",
+			"http:",
+			"http",
+			"u",
+			"p",
+			"example.com",
+			"8080",
+			8080,
+			"/foo",
+			"?q=1",
+			"q=1",
+			"#bar",
+			"bar",
+		},
+		{"4",
+			"HTTPs://example.com",
+			"https://example.com/",
+			"https:",
+			"https",
+			"",
+			"",
+			"example.com",
+			"",
+			443,
+			"/",
+			"",
+			"",
+			"",
+			"",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u, _ := Parse(tt.inputUrl)
+			if got := u.Href(false); got != tt.href {
+				t.Errorf("Href() = %v, want %v", got, tt.href)
+			}
+			if got := u.Protocol(); got != tt.protocol {
+				t.Errorf("Protocol() = %v, want %v", got, tt.protocol)
+			}
+			if got := u.Scheme(); got != tt.scheme {
+				t.Errorf("Scheme() = %v, want %v", got, tt.scheme)
+			}
+			if got := u.Username(); got != tt.username {
+				t.Errorf("Username() = %v, want %v", got, tt.username)
+			}
+			if got := u.Password(); got != tt.password {
+				t.Errorf("Password() = %v, want %v", got, tt.password)
+			}
+			if got := u.Hostname(); got != tt.host {
+				t.Errorf("Hostname() = %v, want %v", got, tt.host)
+			}
+			if got := u.Port(); got != tt.port {
+				t.Errorf("Port() = %v, want %v", got, tt.port)
+			}
+			if got := u.DecodedPort(); got != tt.decodedPort {
+				t.Errorf("DecodedPort() = %v, want %v", got, tt.decodedPort)
+			}
+			if got := u.Pathname(); got != tt.path {
+				t.Errorf("Pathname() = %v, want %v", got, tt.path)
+			}
+			if got := u.Search(); got != tt.search {
+				t.Errorf("Search() = %v, want %v", got, tt.search)
+			}
+			if got := u.Query(); got != tt.query {
+				t.Errorf("Query() = %v, want %v", got, tt.query)
+			}
+			if got := u.Hash(); got != tt.hash {
+				t.Errorf("Hash() = %v, want %v", got, tt.hash)
+			}
+			if got := u.Fragment(); got != tt.fragment {
+				t.Errorf("Fragment() = %v, want %v", got, tt.fragment)
+			}
+		})
+	}
+}

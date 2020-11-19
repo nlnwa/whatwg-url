@@ -18,6 +18,15 @@ package url
 
 import "golang.org/x/text/encoding/charmap"
 
+var defaultSpecialSchemes = map[string]string{
+	"ftp":   "21",
+	"file":  "",
+	"http":  "80",
+	"https": "443",
+	"ws":    "80",
+	"wss":   "443",
+}
+
 // parserOptions configure a url parser. parserOptions are set by the ParserOption
 // values passed to NewParser.
 type parserOptions struct {
@@ -75,6 +84,7 @@ func defaultParserOptions() parserOptions {
 		queryPercentEncodeSet:           QueryPercentEncodeSet,
 		specialFragmentPercentEncodeSet: FragmentPercentEncodeSet,
 		fragmentPercentEncodeSet:        FragmentPercentEncodeSet,
+		specialSchemes:                  defaultSpecialSchemes,
 	}
 }
 
@@ -180,7 +190,6 @@ func WithSkipWindowsDriveLetterNormalization() ParserOption {
 //                        "wss":    "443",
 //                        "gopher": "70",
 //                }
-// NewParser(WithSpecialSchemes(special))
 //
 // This API is EXPERIMENTAL.
 func WithSpecialSchemes(special map[string]string) ParserOption {

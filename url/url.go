@@ -27,6 +27,7 @@ type Url struct {
 	password         string
 	host             *string
 	port             *string
+	decodedPort      int
 	path             []string
 	search           *string
 	hash             *string
@@ -38,6 +39,7 @@ type Url struct {
 	isIPv6           bool
 }
 
+// Href implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) Href(excludeFragment bool) string {
 	output := u.protocol + ":"
 	if u.host != nil {
@@ -76,18 +78,29 @@ func (u *Url) Href(excludeFragment bool) string {
 	return output
 }
 
+// Protocol implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) Protocol() string {
 	return u.protocol + ":"
 }
 
+// SetProtocol implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) SetProtocol(scheme string) {
-	u.parser.basicParser(scheme+":", nil, u, stateSchemeStart)
+	if !strings.HasSuffix(scheme, ":") {
+		scheme = scheme + ":"
+	}
+	u.parser.basicParser(scheme, nil, u, stateSchemeStart)
 }
 
+func (u *Url) Scheme() string {
+	return u.protocol
+}
+
+// Username implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) Username() string {
 	return u.username
 }
 
+// SetUsername implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) SetUsername(username string) {
 	if u.host == nil || *u.host == "" || u.cannotBeABaseUrl || u.protocol == "file" {
 		return
@@ -95,10 +108,12 @@ func (u *Url) SetUsername(username string) {
 	u.username = u.parser.PercentEncodeString(username, UserInfoPercentEncodeSet)
 }
 
+// Password implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) Password() string {
 	return u.password
 }
 
+// SetPassword implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) SetPassword(password string) {
 	if u.host == nil || *u.host == "" || u.cannotBeABaseUrl || u.protocol == "file" {
 		return
@@ -106,6 +121,7 @@ func (u *Url) SetPassword(password string) {
 	u.password = u.parser.PercentEncodeString(password, UserInfoPercentEncodeSet)
 }
 
+// Host implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) Host() string {
 	if u.host == nil {
 		return ""
@@ -116,6 +132,7 @@ func (u *Url) Host() string {
 	return *u.host + ":" + *u.port
 }
 
+// SetHost implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) SetHost(host string) {
 	if u.cannotBeABaseUrl {
 		return
@@ -123,6 +140,7 @@ func (u *Url) SetHost(host string) {
 	u.parser.basicParser(host, nil, u, stateHost)
 }
 
+// Hostname implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) Hostname() string {
 	if u.host == nil {
 		return ""
@@ -130,6 +148,7 @@ func (u *Url) Hostname() string {
 	return *u.host
 }
 
+// SetHostname implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) SetHostname(host string) {
 	if u.cannotBeABaseUrl {
 		return
@@ -137,6 +156,7 @@ func (u *Url) SetHostname(host string) {
 	u.parser.basicParser(host, nil, u, stateHostname)
 }
 
+// Port implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) Port() string {
 	if u.port == nil {
 		return ""
@@ -144,6 +164,7 @@ func (u *Url) Port() string {
 	return *u.port
 }
 
+// SetPort implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) SetPort(port string) {
 	if u.host == nil || *u.host == "" || u.cannotBeABaseUrl || u.protocol == "file" {
 		return
@@ -155,6 +176,15 @@ func (u *Url) SetPort(port string) {
 	}
 }
 
+func (u *Url) DecodedPort() int {
+	if u.decodedPort == 0 {
+		return u.getDefaultPort()
+	} else {
+		return u.decodedPort
+	}
+}
+
+// Pathname implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) Pathname() string {
 	if u.cannotBeABaseUrl {
 		if len(u.path) == 0 {
@@ -169,6 +199,7 @@ func (u *Url) Pathname() string {
 	return "/" + strings.Join(u.path, "/")
 }
 
+// SetPathname implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) SetPathname(path string) {
 	if u.cannotBeABaseUrl && !u.parser.opts.allowSettingPathForNonBaseUrl {
 		return
@@ -183,6 +214,7 @@ func (u *Url) SetPathname(path string) {
 	}
 }
 
+// Search implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) Search() string {
 	if u.search == nil || len(*u.search) == 0 {
 		return ""
@@ -190,6 +222,7 @@ func (u *Url) Search() string {
 	return "?" + *u.search
 }
 
+// SetSearch implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) SetSearch(query string) {
 	if query == "" {
 		u.search = nil
@@ -211,6 +244,7 @@ func (u *Url) SetSearch(query string) {
 	}
 }
 
+// SearchParams implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) SearchParams() *searchParams {
 	if u.searchParams == nil {
 		u.newUrlSearchParams()
@@ -218,6 +252,14 @@ func (u *Url) SearchParams() *searchParams {
 	return u.searchParams
 }
 
+func (u *Url) Query() string {
+	if u.search == nil || len(*u.search) == 0 {
+		return ""
+	}
+	return *u.search
+}
+
+// Hash implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) Hash() string {
 	if u.hash == nil || len(*u.hash) == 0 {
 		return ""
@@ -225,6 +267,7 @@ func (u *Url) Hash() string {
 	return "#" + *u.hash
 }
 
+// SetHash implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) SetHash(fragment string) {
 	if fragment == "" {
 		u.hash = nil
@@ -233,6 +276,13 @@ func (u *Url) SetHash(fragment string) {
 	fragment = strings.TrimPrefix(fragment, "#")
 	u.hash = new(string)
 	u.parser.basicParser(fragment, nil, u, stateFragment)
+}
+
+func (u *Url) Fragment() string {
+	if u.hash == nil || len(*u.hash) == 0 {
+		return ""
+	}
+	return *u.hash
 }
 
 func (u *Url) String() string {
