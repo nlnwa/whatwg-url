@@ -250,6 +250,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				url.password = base.password
 				url.host = base.host
 				url.port = base.port
+				url.decodedPort = base.decodedPort
 				url.path = base.path // TODO: Ensure copy????
 				url.search = base.search
 				if r == '?' {
@@ -409,6 +410,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 						return p.handleFailure(url, errors.FailIllegalPort, nil)
 					}
 					portString := strconv.Itoa(port)
+					url.decodedPort = port
 					url.port = &portString
 					url.cleanDefaultPort()
 					buffer.Reset()
@@ -860,15 +862,6 @@ func remove(s string, tr *bitset.BitSet) (string, bool) {
 	return string(r), changed
 }
 
-var specialSchemes = map[string]string{
-	"ftp":   "21",
-	"file":  "",
-	"http":  "80",
-	"https": "443",
-	"ws":    "80",
-	"wss":   "443",
-}
-
 func (u *Url) IsSpecialScheme() bool {
 	return u.isSpecialScheme(u.protocol)
 }
@@ -879,13 +872,8 @@ func (u *Url) isSpecialScheme(s string) bool {
 }
 
 func (u *Url) getSpecialScheme(s string) (string, bool) {
-	if u.parser.opts.specialSchemes != nil {
-		dp, ok := u.parser.opts.specialSchemes[s]
-		return dp, ok
-	} else {
-		dp, ok := specialSchemes[s]
-		return dp, ok
-	}
+	dp, ok := u.parser.opts.specialSchemes[s]
+	return dp, ok
 }
 
 func (u *Url) isSpecialSchemeAndBackslash(r rune) bool {
@@ -897,4 +885,13 @@ func (u *Url) cleanDefaultPort() {
 	if dp, ok := u.getSpecialScheme(u.protocol); ok && (u.port == nil || dp == *u.port) {
 		u.port = nil
 	}
+}
+
+func (u *Url) getDefaultPort() int {
+	if dp, ok := u.getSpecialScheme(u.protocol); ok {
+		if p, err := strconv.Atoi(dp); err == nil {
+			return p
+		}
+	}
+	return 0
 }
