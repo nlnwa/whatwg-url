@@ -18,13 +18,15 @@ package url
 
 import (
 	"fmt"
-	"github.com/nlnwa/whatwg-url/errors"
-	"golang.org/x/net/idna"
 	"math"
 	"net/url"
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"golang.org/x/net/idna"
+
+	"github.com/nlnwa/whatwg-url/errors"
 )
 
 func (p *parser) parseHost(u *Url, parser *parser, input string, isNotSpecial bool) (string, error) {
@@ -387,7 +389,7 @@ func (p *parser) stringToUnicode(src string) (string, error) {
 		if b, ok := p.opts.encodingOverride.EncodeRune(r); ok && b > 31 {
 			bb = append(bb, b)
 		} else {
-			return "", fmt.Errorf("Could not conver %v to Unicode using %v", src, p.opts.encodingOverride.String())
+			return "", fmt.Errorf("could not conver %v to Unicode using %v", src, p.opts.encodingOverride.String())
 		}
 	}
 	return string(bb), nil

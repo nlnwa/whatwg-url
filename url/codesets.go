@@ -17,8 +17,9 @@
 package url
 
 import (
-	"github.com/willf/bitset"
 	"unicode"
+
+	"github.com/bits-and-blooms/bitset"
 )
 
 type PercentEncodeSet struct {
