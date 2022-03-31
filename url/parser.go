@@ -17,13 +17,15 @@
 package url
 
 import (
-	"github.com/nlnwa/whatwg-url/errors"
-	"github.com/willf/bitset"
 	u2 "net/url"
 	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/bits-and-blooms/bitset"
+
+	"github.com/nlnwa/whatwg-url/errors"
 )
 
 func NewParser(opts ...ParserOption) Parser {
@@ -152,19 +154,19 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				buffer.WriteRune(unicode.ToLower(r))
 			} else if r == ':' {
 				if stateOverridden {
-					//If url’s scheme is a special scheme and buffer is not a special scheme, then return.
+					// If url’s scheme is a special scheme and buffer is not a special scheme, then return.
 					if url.isSpecialScheme(url.protocol) && !url.isSpecialScheme(buffer.String()) {
 						return url, nil
 					}
-					//If url’s scheme is not a special scheme and buffer is a special scheme, then return.
+					// If url’s scheme is not a special scheme and buffer is a special scheme, then return.
 					if !url.isSpecialScheme(url.protocol) && url.isSpecialScheme(buffer.String()) {
 						return url, nil
 					}
-					//If url includes credentials or has a non-null port, and buffer is "file", then return.
+					// If url includes credentials or has a non-null port, and buffer is "file", then return.
 					if (url.username != "" || url.password != "" || url.port != nil) && buffer.String() == "file" {
 						return url, nil
 					}
-					//If url’s scheme is "file" and its host is an empty host or null, then return.
+					// If url’s scheme is "file" and its host is an empty host or null, then return.
 					if url.protocol == "file" && *url.host == "" {
 						return url, nil
 					}

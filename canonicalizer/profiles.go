@@ -17,10 +17,12 @@
 package canonicalizer
 
 import (
-	"github.com/nlnwa/whatwg-url/url"
-	"golang.org/x/text/encoding/charmap"
 	"regexp"
 	"strings"
+
+	"golang.org/x/text/encoding/charmap"
+
+	"github.com/nlnwa/whatwg-url/url"
 )
 
 var LaxPathPercentEncodeSet = url.PathPercentEncodeSet.Clear(0x2E, 0x3C, 0x3E)
