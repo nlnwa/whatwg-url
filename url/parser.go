@@ -194,6 +194,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 					input.nextCodePoint()
 				} else {
 					url.cannotBeABaseUrl = true
+					buffer.Reset()
 					state = stateCannotBeABaseUrl
 				}
 			} else if !stateOverridden {
@@ -601,9 +602,19 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 			if r == '?' {
 				url.search = new(string)
 				state = stateQuery
+				if len(url.path) == 0 {
+					url.path = append(url.path, "")
+				}
+				url.path[0] += buffer.String()
+				buffer.Reset()
 			} else if r == '#' {
 				url.hash = new(string)
 				state = stateFragment
+				if len(url.path) == 0 {
+					url.path = append(url.path, "")
+				}
+				url.path[0] += buffer.String()
+				buffer.Reset()
 			} else {
 				if !input.eof && !isURLCodePoint(r) && r != '%' {
 					if err := p.handleError(url, errors.IllegalCodePoint); err != nil {
@@ -617,16 +628,18 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 					}
 				}
 				if !input.eof {
+					if invalidPercentEncoding {
+						buffer.WriteString(p.percentEncodeInvalidRune(r, C0PercentEncodeSet))
+					} else {
+						buffer.WriteString(p.percentEncodeRune(r, C0PercentEncodeSet))
+					}
+				} else {
 					if len(url.path) == 0 {
 						url.path = append(url.path, "")
 					}
-					if invalidPercentEncoding {
-						url.path[0] += p.percentEncodeInvalidRune(r, C0PercentEncodeSet)
-					} else {
-						url.path[0] += p.percentEncodeRune(r, C0PercentEncodeSet)
-					}
+					url.path[0] += buffer.String()
+					buffer.Reset()
 				}
-
 			}
 		case stateQuery:
 			if !stateOverridden && r == '#' {

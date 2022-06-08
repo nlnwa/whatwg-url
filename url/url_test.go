@@ -18,9 +18,11 @@ package url
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -604,6 +606,25 @@ func TestUrl_Getters(t *testing.T) {
 			}
 			if got := u.Fragment(); got != tt.fragment {
 				t.Errorf("Fragment() = %v, want %v", got, tt.fragment)
+			}
+		})
+	}
+}
+
+func BenchmarkIssue6(b *testing.B) {
+	// https://github.com/nlnwa/whatwg-url/issues/6
+	for i := 10; i <= 20; i++ {
+		n := 1 << i
+		b.Run(fmt.Sprint(n), func(b *testing.B) {
+			var buf strings.Builder
+			buf.Grow(n + 32)
+			buf.WriteString("data:text/javascript,")
+			for j := 0; j <= n; j++ {
+				buf.WriteString("A")
+			}
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, _ = Parse(buf.String())
 			}
 		})
 	}
