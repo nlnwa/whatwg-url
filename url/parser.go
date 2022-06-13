@@ -625,12 +625,13 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				}
 			} else {
 				url.path = append(url.path, buffer.String())
-				buffer.Reset()
 			}
 		case stateQuery:
 			if !stateOverridden && r == '#' {
 				url.hash = new(string)
 				state = stateFragment
+				*url.search = buffer.String()
+				buffer.Reset()
 			} else if !input.eof {
 				if !isURLCodePoint(r) && r != '%' {
 					if err := p.handleError(url, errors.IllegalCodePoint); err != nil {
@@ -646,7 +647,9 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				if url.isSpecialScheme(url.protocol) {
 					encodeSet = p.opts.specialQueryPercentEncodeSet
 				}
-				*url.search += p.percentEncodeRune(r, encodeSet)
+				buffer.WriteString(p.percentEncodeRune(r, encodeSet))
+			} else {
+				*url.search = buffer.String()
 			}
 		case stateFragment:
 			if !input.eof {
@@ -664,7 +667,9 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				if url.isSpecialScheme(url.protocol) {
 					encodeSet = p.opts.specialFragmentPercentEncodeSet
 				}
-				*url.hash += p.percentEncodeRune(r, encodeSet)
+				buffer.WriteString(p.percentEncodeRune(r, encodeSet))
+			} else {
+				*url.hash = buffer.String()
 			}
 		}
 
