@@ -194,7 +194,6 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 					input.nextCodePoint()
 				} else {
 					url.cannotBeABaseUrl = true
-					buffer.Reset()
 					state = stateCannotBeABaseUrl
 				}
 			} else if !stateOverridden {
