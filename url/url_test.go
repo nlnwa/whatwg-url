@@ -629,3 +629,22 @@ func BenchmarkIssue6(b *testing.B) {
 		})
 	}
 }
+
+func BenchmarkIssue8(b *testing.B) {
+	// https://github.com/nlnwa/whatwg-url/issues/8
+	for i := 10; i <= 20; i++ {
+		n := 1 << i
+		b.Run(fmt.Sprint(n), func(b *testing.B) {
+			var buf strings.Builder
+			buf.Grow(n + 32)
+			buf.WriteString("http://example.com/?foo=bar")
+			for j := 0; j <= n; j++ {
+				buf.WriteString("&foo=bar")
+			}
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				_, _ = Parse(buf.String())
+			}
+		})
+	}
+}
