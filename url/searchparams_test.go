@@ -151,6 +151,7 @@ func TestUrlSearchParams_Set(t *testing.T) {
 		{"4", "http://example.com?foo=bar&foo=bar2", "foo", "xyz", "foo=xyz"},
 		{"5", "http://example.com?xyz=aaa&foo=bar2&xyz=aaa&foo=bar", "foo", "xyz", "xyz=aaa&foo=xyz&xyz=aaa"},
 		{"6", "http://example.com?xyz=aaa&foo=bar2&xyz=aaa&foo=bar", "foo2", "xyz", "xyz=aaa&foo=bar2&xyz=aaa&foo=bar&foo2=xyz"},
+		{"7", "http://example.com?foo=bar&foo=fuzz&foo=barfuzz", "foo", "xyz", "foo=xyz"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
