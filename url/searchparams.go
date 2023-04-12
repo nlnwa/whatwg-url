@@ -102,14 +102,18 @@ func (s *searchParams) Has(name string) bool {
 
 func (s *searchParams) Set(name, value string) {
 	isSet := false
-	for idx, nvp := range s.params {
+	idx := 0
+	for _, nvp := range s.params {
 		if nvp.Name == name {
 			if isSet {
 				s.params = append(s.params[:idx], s.params[idx+1:]...)
 			} else {
 				nvp.Value = value
 				isSet = true
+				idx++
 			}
+		} else {
+			idx++
 		}
 	}
 	if !isSet {
