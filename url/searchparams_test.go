@@ -164,3 +164,28 @@ func TestUrlSearchParams_Set(t *testing.T) {
 		})
 	}
 }
+
+func TestUrlSearchParams_String(t *testing.T) {
+	tests := []struct {
+		name           string
+		url            string
+		wantSerialized string
+	}{
+		{"1", "http://example.com?foo=bar", "foo=bar"},
+		{"2", "http://example.com?foo=bar&foo 2=bar+2", "foo=bar&foo+2=bar+2"},
+		{"3", "http://example.com?foo2=bar2&foo=bar", "foo2=bar2&foo=bar"},
+		{"4", "http://example.com?foo=bar&foo=bar2", "foo=bar&foo=bar2"},
+		{"5", "http://example.com?xyz=aaa&foo=bar2&xyz=aaa&foo=bar", "xyz=aaa&foo=bar2&xyz=aaa&foo=bar"},
+		{"6", "http://example.com?foo=bar&foo=fuzz&foo=barfuzz", "foo=bar&foo=fuzz&foo=barfuzz"},
+		{"7", "http://example.com?foo", "foo="},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			url, _ := Parse(tt.url)
+			s := url.SearchParams()
+			if got := s.String(); got != tt.wantSerialized {
+				t.Errorf("got %v, want %v", got, tt.wantSerialized)
+			}
+		})
+	}
+}

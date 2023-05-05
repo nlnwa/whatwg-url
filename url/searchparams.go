@@ -151,8 +151,8 @@ func (s *searchParams) String() string {
 		}
 
 		s.QueryEscape(nvp.Name, &output)
+		output.WriteRune('=')
 		if nvp.Value != "" {
-			output.WriteRune('=')
 			s.QueryEscape(nvp.Value, &output)
 		}
 	}
