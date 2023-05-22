@@ -151,8 +151,10 @@ func (s *searchParams) String() string {
 		}
 
 		s.QueryEscape(nvp.Name, &output)
-		if nvp.Value != "" {
+		if !s.url.parser.opts.skipEqualsForEmptySearchParamsValue || nvp.Value != "" {
 			output.WriteRune('=')
+		}
+		if nvp.Value != "" {
 			s.QueryEscape(nvp.Value, &output)
 		}
 	}
