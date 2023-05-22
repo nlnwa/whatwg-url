@@ -47,6 +47,7 @@ var GoogleSafeBrowsing = New(
 		host = re.ReplaceAllString(host, ".")
 		return host
 	}),
+	url.WithSkipEqualsForEmptySearchParamsValue(),
 	WithRemovePort(),
 	WithRemoveFragment(),
 	WithRepeatedPercentDecoding(),

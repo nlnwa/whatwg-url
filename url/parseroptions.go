@@ -48,6 +48,7 @@ type parserOptions struct {
 	queryPercentEncodeSet               *PercentEncodeSet
 	specialFragmentPercentEncodeSet     *PercentEncodeSet
 	fragmentPercentEncodeSet            *PercentEncodeSet
+	skipEqualsForEmptySearchParamsValue bool
 }
 
 // ParserOption configures how we parse a URL.
@@ -181,15 +182,16 @@ func WithSkipWindowsDriveLetterNormalization() ParserOption {
 // special is a map of 'scheme' => 'default port'
 //
 // WhatWg standard removed gopher from special schemes. This is how you add it back:
-// special := map[string]string{
-//                        "ftp":    "21",
-//                        "file":   "",
-//                        "http":   "80",
-//                        "https":  "443",
-//                        "ws":     "80",
-//                        "wss":    "443",
-//                        "gopher": "70",
-//                }
+//
+//	special := map[string]string{
+//	                       "ftp":    "21",
+//	                       "file":   "",
+//	                       "http":   "80",
+//	                       "https":  "443",
+//	                       "ws":     "80",
+//	                       "wss":    "443",
+//	                       "gopher": "70",
+//	               }
 //
 // This API is EXPERIMENTAL.
 func WithSpecialSchemes(special map[string]string) ParserOption {
@@ -262,5 +264,16 @@ func WithSpecialFragmentPathPercentEncodeSet(encodeSet *PercentEncodeSet) Parser
 func WithSkipTrailingSlashNormalization() ParserOption {
 	return newFuncParserOption(func(o *parserOptions) {
 		o.skipTrailingSlashNormalization = true
+	})
+}
+
+// WithSkipEqualsForEmptySearchParamsValue skips writing '=' when setting an empty value for a search parameter.
+//
+// e.g. url.SearchParams().Set("name", "") gives 'http://...?name' instead of 'http://...?name='
+//
+// This API is EXPERIMENTAL.
+func WithSkipEqualsForEmptySearchParamsValue() ParserOption {
+	return newFuncParserOption(func(o *parserOptions) {
+		o.skipEqualsForEmptySearchParamsValue = true
 	})
 }
