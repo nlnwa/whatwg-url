@@ -19,7 +19,7 @@ package url
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -51,7 +51,7 @@ func TestParse(t *testing.T) {
 		t.Error(err)
 	}
 	defer jsonFile.Close()
-	data, _ := ioutil.ReadAll(jsonFile)
+	data, _ := io.ReadAll(jsonFile)
 	json.Unmarshal(data, &tests)
 
 	empty := args{}
@@ -63,15 +63,15 @@ func TestParse(t *testing.T) {
 			t.Run(strconv.Itoa(testNum), func(t *testing.T) {
 				got, err := ParseRef(tt.Base, tt.Input)
 				if (err != nil) != tt.Failure {
-					t.Errorf("ParseRef(%v, %v) error = %v, wantErr %v", tt.Base, tt.Input, err, tt.Failure)
+					t.Errorf("ParseRef(%v, %v) = '%v', error = '%v', wantErr %v", tt.Base, tt.Input, got, err, tt.Failure)
 					return
 				}
 				if err != nil && tt.Failure {
 					return
 				}
 				if err != nil {
-					t.Logf("Base: %v, Input: %v, Expected: %v, GOT: %v", tt.Base, tt.Input, tt.Href, got)
-					t.Errorf("ParseRef(%v, %v) error = %v, wantErr %v", tt.Base, tt.Input, err, tt.Failure)
+					t.Logf("Base: '%v', Input: '%v', Expected: '%v', GOT: '%v'", tt.Base, tt.Input, tt.Href, got)
+					t.Errorf("ParseRef(%v, %v) error = '%v', wantErr %v", tt.Base, tt.Input, err, tt.Failure)
 					return
 				}
 
@@ -81,15 +81,15 @@ func TestParse(t *testing.T) {
 				}
 
 				if got.protocol+":" != tt.Protocol {
-					t.Errorf("Scheme got = %v, want %v", got.protocol, tt.Protocol)
+					t.Errorf("Scheme got = '%v', want '%v'", got.protocol, tt.Protocol)
 				}
 
 				if got.username != tt.Username {
-					t.Errorf("User.Username() got = %v, want %v", got.username, tt.Username)
+					t.Errorf("User.Username() got = '%v', want '%v'", got.username, tt.Username)
 				}
 
 				if got.password != tt.Password {
-					t.Errorf("User.Password() got = %v, want %v", got.password, tt.Password)
+					t.Errorf("User.Password() got = '%v', want '%v'", got.password, tt.Password)
 				}
 
 				if got.Host() != tt.Host {
@@ -97,32 +97,32 @@ func TestParse(t *testing.T) {
 				}
 
 				if got.Hostname() != tt.Hostname {
-					t.Errorf("Hostname() got = %v, want %v", got.Hostname(), tt.Hostname)
+					t.Errorf("Hostname() got = '%v', want '%v'", got.Hostname(), tt.Hostname)
 				}
 
 				if got.Port() != tt.Port {
-					t.Errorf("Port() got = %v, want %v", got.port, tt.Port)
+					t.Errorf("Port() got = '%v', want '%v'", got.port, tt.Port)
 				}
 
 				if got.Pathname() != tt.Pathname {
-					t.Errorf("Path got = %v, want %v", got.Pathname(), tt.Pathname)
+					t.Errorf("Path got = '%v', want '%v'", got.Pathname(), tt.Pathname)
 				}
 
 				if got.Search() != tt.Search {
-					t.Errorf("RawQuery got = %v, want %v", got.Search(), tt.Search)
+					t.Errorf("RawQuery got = '%v', want '%v'", got.Search(), tt.Search)
 				}
 
 				if got.Hash() != tt.Hash {
-					t.Errorf("Fragment got = %v, want %v", got.Hash(), tt.Hash)
+					t.Errorf("Fragment got = '%v', want '%v'", got.Hash(), tt.Hash)
 				}
 
 				reparsed, err := Parse(got.String())
 				if err != nil {
-					t.Errorf("Parse() error = %v", err)
+					t.Errorf("Parse() error = '%v'", err)
 					return
 				}
 				if got.String() != reparsed.String() {
-					t.Errorf("Reparsing expected same result got = %v, want %v", reparsed.String(), got.String())
+					t.Errorf("Reparsing expected same result got = '%v', want '%v'", reparsed.String(), got.String())
 				}
 			})
 		}
@@ -156,7 +156,7 @@ func TestUrl_SetProtocol(t *testing.T) {
 		t.Error(err)
 	}
 	defer jsonFile.Close()
-	data, _ := ioutil.ReadAll(jsonFile)
+	data, _ := io.ReadAll(jsonFile)
 	json.Unmarshal(data, &tests)
 
 	var testNum int
@@ -185,7 +185,7 @@ func TestUrl_SetUsername(t *testing.T) {
 		t.Error(err)
 	}
 	defer jsonFile.Close()
-	data, _ := ioutil.ReadAll(jsonFile)
+	data, _ := io.ReadAll(jsonFile)
 	json.Unmarshal(data, &tests)
 
 	var testNum int
@@ -209,7 +209,7 @@ func TestUrl_SetPassword(t *testing.T) {
 		t.Error(err)
 	}
 	defer jsonFile.Close()
-	data, _ := ioutil.ReadAll(jsonFile)
+	data, _ := io.ReadAll(jsonFile)
 	json.Unmarshal(data, &tests)
 
 	var testNum int
@@ -233,7 +233,7 @@ func TestUrl_SetHost(t *testing.T) {
 		t.Error(err)
 	}
 	defer jsonFile.Close()
-	data, _ := ioutil.ReadAll(jsonFile)
+	data, _ := io.ReadAll(jsonFile)
 	json.Unmarshal(data, &tests)
 
 	var testNum int
@@ -257,7 +257,7 @@ func TestUrl_SetHostname(t *testing.T) {
 		t.Error(err)
 	}
 	defer jsonFile.Close()
-	data, _ := ioutil.ReadAll(jsonFile)
+	data, _ := io.ReadAll(jsonFile)
 	json.Unmarshal(data, &tests)
 
 	var testNum int
@@ -281,7 +281,7 @@ func TestUrl_SetPort(t *testing.T) {
 		t.Error(err)
 	}
 	defer jsonFile.Close()
-	data, _ := ioutil.ReadAll(jsonFile)
+	data, _ := io.ReadAll(jsonFile)
 	json.Unmarshal(data, &tests)
 
 	var testNum int
@@ -305,7 +305,7 @@ func TestUrl_SetPathname(t *testing.T) {
 		t.Error(err)
 	}
 	defer jsonFile.Close()
-	data, _ := ioutil.ReadAll(jsonFile)
+	data, _ := io.ReadAll(jsonFile)
 	json.Unmarshal(data, &tests)
 
 	var testNum int
@@ -329,7 +329,7 @@ func TestUrl_SetSearch(t *testing.T) {
 		t.Error(err)
 	}
 	defer jsonFile.Close()
-	data, _ := ioutil.ReadAll(jsonFile)
+	data, _ := io.ReadAll(jsonFile)
 	json.Unmarshal(data, &tests)
 
 	var testNum int
@@ -353,7 +353,7 @@ func TestUrl_SetHash(t *testing.T) {
 		t.Error(err)
 	}
 	defer jsonFile.Close()
-	data, _ := ioutil.ReadAll(jsonFile)
+	data, _ := io.ReadAll(jsonFile)
 	json.Unmarshal(data, &tests)
 
 	var testNum int
@@ -464,7 +464,7 @@ func BenchmarkParse(b *testing.B) {
 		b.Error(err)
 	}
 	defer jsonFile.Close()
-	data, _ := ioutil.ReadAll(jsonFile)
+	data, _ := io.ReadAll(jsonFile)
 	json.Unmarshal(data, &tests)
 
 	empty := args{}

@@ -102,7 +102,7 @@ func Error(code ErrorCode, url string) error {
 	}
 }
 
-// Error constructs a new error
+// ErrorWithDescr constructs a new error
 func ErrorWithDescr(code ErrorCode, descr string, url string) error {
 	return &UrlError{
 		code:  code,
@@ -111,7 +111,7 @@ func ErrorWithDescr(code ErrorCode, descr string, url string) error {
 	}
 }
 
-// Wrap waps an error with an error and a message
+// Wrap wraps an error with an error code and url
 func Wrap(err error, code ErrorCode, url string) error {
 	return &UrlError{
 		code:  code,
@@ -120,7 +120,7 @@ func Wrap(err error, code ErrorCode, url string) error {
 	}
 }
 
-// Wrap waps an error with an error and a message
+// WrapWithDescr wraps an error with an error code, url and a description
 func WrapWithDescr(err error, code ErrorCode, descr string, url string) error {
 	return &UrlError{
 		code:  code,

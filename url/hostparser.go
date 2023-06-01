@@ -17,6 +17,7 @@
 package url
 
 import (
+	goerrors "errors"
 	"fmt"
 	"math"
 	"net/url"
@@ -29,6 +30,7 @@ import (
 	"github.com/nlnwa/whatwg-url/errors"
 )
 
+// parseHost parses the host part of the input string.
 func (p *parser) parseHost(u *Url, parser *parser, input string, isNotSpecial bool) (string, error) {
 	if p.opts.preParseHostFunc != nil {
 		input = p.opts.preParseHostFunc(u, input)
@@ -70,7 +72,7 @@ func (p *parser) parseHost(u *Url, parser *parser, input string, isNotSpecial bo
 		return "", errors.Wrap(err, errors.CouldNotDecodeHost, "")
 	}
 	for _, c := range asciiDomain {
-		if ForbiddenHostCodePoint.Test(uint(c)) {
+		if ForbiddenDomainCodePoint.Test(uint(c)) {
 			if p.opts.laxHostParsing {
 				return parser.PercentEncodeString(asciiDomain, HostPercentEncodeSet), nil
 			} else {
@@ -79,75 +81,99 @@ func (p *parser) parseHost(u *Url, parser *parser, input string, isNotSpecial bo
 		}
 	}
 
-	ipv4Host, ok, err := p.parseIPv4(u, asciiDomain)
-	if ok || err != nil {
+	if p.endsInANumber(asciiDomain) {
+		ipv4Host, err := p.parseIPv4(u, asciiDomain)
 		return ipv4Host, err
 	}
+
 	if p.opts.postParseHostFunc != nil {
 		asciiDomain = p.opts.postParseHostFunc(u, asciiDomain)
 	}
 	return asciiDomain, nil
 }
 
-func (p *parser) parseIPv4Number(input string, validationError *bool) (int64, error) {
+func (p *parser) endsInANumber(input string) bool {
+	parts := strings.Split(input, ".")
+	if parts[len(parts)-1] == "" {
+		if len(parts) == 1 {
+			return false
+		}
+		parts = parts[0 : len(parts)-1]
+	}
+	last := parts[len(parts)-1]
+	if last != "" && containsOnly(last, ASCIIDigit) {
+		return true
+	}
+	if _, _, err := p.parseIPv4Number(last); err == nil || goerrors.Is(err, strconv.ErrRange) {
+		return true
+	}
+	return false
+}
+
+func (p *parser) parseIPv4Number(input string) (number int64, validationError bool, err error) {
+	if input == "" {
+		err = errors.ErrorWithDescr(errors.CouldNotDecodeHost, "empty IPv4 number", "")
+		return
+	}
 	R := 10
 	if len(input) >= 2 && (strings.HasPrefix(input, "0x") || strings.HasPrefix(input, "0X")) {
-		*validationError = true
+		validationError = true
 		input = input[2:]
 		R = 16
 	} else if len(input) >= 2 && strings.HasPrefix(input, "0") {
-		*validationError = true
+		validationError = true
 		input = input[1:]
 		R = 8
 	}
 	if input == "" {
-		return 0, nil
+		validationError = true
+		return
 	}
-	return strconv.ParseInt(input, R, 64)
+	number, err = strconv.ParseInt(input, R, 64)
+	return
 }
 
-func (p *parser) parseIPv4(u *Url, input string) (string, bool, error) {
-	validationError := false
+func (p *parser) parseIPv4(u *Url, input string) (string, error) {
 	parts := strings.Split(input, ".")
 	if parts[len(parts)-1] == "" {
-		validationError = true
+		if err := p.handleError(u, errors.IllegalIPv4Address); err != nil {
+			return input, err
+		}
 		if len(parts) > 1 {
 			parts = parts[:len(parts)-1]
 		}
 	}
 	if len(parts) > 4 {
-		return input, false, nil
+		_, err := p.handleFailure(u, errors.IllegalIPv4Address, fmt.Errorf("IPv4 too many parts"))
+		return "", err
 	}
 	var numbers []int64
 	for _, part := range parts {
-		if part == "" {
-			return input, false, nil
-		}
-		n, err := p.parseIPv4Number(part, &validationError)
+		n, validationError, err := p.parseIPv4Number(part)
 		if err != nil {
-			return input, false, nil
+			return input, err
+		}
+		if validationError {
+			if err := p.handleError(u, errors.IllegalIPv4Address); err != nil {
+				return input, err
+			}
 		}
 		numbers = append(numbers, n)
-	}
-	if validationError {
-		if err := p.handleError(u, errors.IllegalIPv4Address); err != nil {
-			return input, false, err
-		}
 	}
 	for _, n := range numbers {
 		if n > 255 {
 			if err := p.handleError(u, errors.IllegalIPv4Address); err != nil {
-				return input, false, err
+				return input, err
 			}
 		}
 	}
 	for _, n := range numbers[:len(numbers)-1] {
 		if n > 255 {
-			return "", false, errors.Error(errors.IllegalIPv4Address, "")
+			return "", errors.Error(errors.IllegalIPv4Address, "")
 		}
 	}
 	if numbers[len(numbers)-1] >= int64(math.Pow(256, float64(5-len(numbers)))) {
-		return "", false, errors.Error(errors.IllegalIPv4Address, "")
+		return "", errors.Error(errors.IllegalIPv4Address, "")
 	}
 	var ipv4 = IPv4Addr(numbers[len(numbers)-1])
 	numbers = numbers[:len(numbers)-1]
@@ -156,7 +182,7 @@ func (p *parser) parseIPv4(u *Url, input string) (string, bool, error) {
 	}
 
 	u.isIPv4 = true
-	return ipv4.String(), true, nil
+	return ipv4.String(), nil
 }
 
 func (p *parser) parseIPv6(u *Url, input *inputString) (string, error) {
@@ -361,7 +387,10 @@ var idnaProfile = idna.New(
 	idna.BidiRule(),
 	idna.VerifyDNSLength(true),
 	idna.StrictDomainName(false),
-	idna.ValidateLabels(false),
+	idna.ValidateLabels(true),
+	idna.CheckHyphens(false),
+	idna.CheckJoiners(true),
+	idna.Transitional(false),
 )
 
 func (p *parser) ToASCII(src string) (string, error) {

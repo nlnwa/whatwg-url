@@ -31,6 +31,7 @@ type searchParams struct {
 }
 
 func (s *searchParams) init(query string) {
+	s.params = s.params[:0]
 	p := strings.Split(query, "&")
 	for _, q := range p {
 		if q == "" {
@@ -50,6 +51,9 @@ func (s *searchParams) init(query string) {
 }
 
 func (s *searchParams) update() {
+	if s.url == nil {
+		return
+	}
 	query := s.String()
 	if (query == "" && s.url.search != nil) || query != "" {
 		s.url.search = &query

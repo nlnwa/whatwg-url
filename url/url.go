@@ -28,10 +28,9 @@ type Url struct {
 	host             *string
 	port             *string
 	decodedPort      int
-	path             []string
+	path             *path
 	search           *string
 	hash             *string
-	cannotBeABaseUrl bool
 	searchParams     *searchParams
 	validationErrors []error
 	parser           *parser
@@ -56,16 +55,11 @@ func (u *Url) Href(excludeFragment bool) string {
 			output += ":" + *u.port
 		}
 	}
-	if u.cannotBeABaseUrl && len(u.path) > 0 {
-		output += u.path[0]
-	} else {
-		if u.host == nil && len(u.path) > 1 && u.path[0] == "" {
-			output += "/."
-		}
-		for _, p := range u.path {
-			output += "/" + p
-		}
+	if u.host == nil && !u.path.isOpaque() && len(u.path.p) > 1 && u.path.p[0] == "" {
+		output += "/."
 	}
+
+	output += u.path.String()
 
 	if u.search != nil {
 		output += "?" + *u.search
@@ -102,7 +96,7 @@ func (u *Url) Username() string {
 
 // SetUsername implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) SetUsername(username string) {
-	if u.host == nil || *u.host == "" || u.cannotBeABaseUrl || u.protocol == "file" {
+	if u.host == nil || *u.host == "" || u.protocol == "file" {
 		return
 	}
 	u.username = u.parser.PercentEncodeString(username, UserInfoPercentEncodeSet)
@@ -115,7 +109,7 @@ func (u *Url) Password() string {
 
 // SetPassword implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) SetPassword(password string) {
-	if u.host == nil || *u.host == "" || u.cannotBeABaseUrl || u.protocol == "file" {
+	if u.host == nil || *u.host == "" || u.protocol == "file" {
 		return
 	}
 	u.password = u.parser.PercentEncodeString(password, UserInfoPercentEncodeSet)
@@ -134,7 +128,7 @@ func (u *Url) Host() string {
 
 // SetHost implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) SetHost(host string) {
-	if u.cannotBeABaseUrl {
+	if u.path.isOpaque() {
 		return
 	}
 	u.parser.basicParser(host, nil, u, stateHost)
@@ -150,7 +144,7 @@ func (u *Url) Hostname() string {
 
 // SetHostname implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) SetHostname(host string) {
-	if u.cannotBeABaseUrl {
+	if u.path.isOpaque() {
 		return
 	}
 	u.parser.basicParser(host, nil, u, stateHostname)
@@ -166,7 +160,7 @@ func (u *Url) Port() string {
 
 // SetPort implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) SetPort(port string) {
-	if u.host == nil || *u.host == "" || u.cannotBeABaseUrl || u.protocol == "file" {
+	if u.host == nil || *u.host == "" || u.protocol == "file" {
 		return
 	}
 	if port == "" {
@@ -186,32 +180,16 @@ func (u *Url) DecodedPort() int {
 
 // Pathname implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) Pathname() string {
-	if u.cannotBeABaseUrl {
-		if len(u.path) == 0 {
-			return ""
-		} else {
-			return u.path[0]
-		}
-	}
-	if len(u.path) == 0 {
-		return ""
-	}
-	return "/" + strings.Join(u.path, "/")
+	return u.path.String()
 }
 
 // SetPathname implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) SetPathname(path string) {
-	if u.cannotBeABaseUrl && !u.parser.opts.allowSettingPathForNonBaseUrl {
+	if u.path.isOpaque() {
 		return
 	}
-	if u.path != nil {
-		u.path = u.path[:0]
-	}
-	if u.cannotBeABaseUrl {
-		u.parser.basicParser(path, nil, u, stateCannotBeABaseUrl)
-	} else {
-		u.parser.basicParser(path, nil, u, statePathStart)
-	}
+	u.path.init()
+	u.parser.basicParser(path, nil, u, statePathStart)
 }
 
 // Search implements WHATWG url api (https://url.spec.whatwg.org/#api)
@@ -229,13 +207,15 @@ func (u *Url) SetSearch(query string) {
 		if u.searchParams != nil {
 			u.searchParams.params = u.searchParams.params[:0]
 		}
+		if u.hash == nil && u.search == nil {
+			u.path.stripTrailingSpacesIfOpaque()
+		}
 		return
 	}
 	query = strings.TrimPrefix(query, "?")
 	if u.search == nil {
 		u.search = new(string)
 	}
-	*u.search = ""
 	_, _ = u.parser.basicParser(query, nil, u, stateQuery)
 	if u.searchParams == nil {
 		u.newUrlSearchParams()
@@ -271,6 +251,9 @@ func (u *Url) Hash() string {
 func (u *Url) SetHash(fragment string) {
 	if fragment == "" {
 		u.hash = nil
+		if u.hash == nil && u.search == nil {
+			u.path.stripTrailingSpacesIfOpaque()
+		}
 		return
 	}
 	fragment = strings.TrimPrefix(fragment, "#")
