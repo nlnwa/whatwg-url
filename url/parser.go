@@ -17,6 +17,7 @@
 package url
 
 import (
+	goerrors "errors"
 	u2 "net/url"
 	"strconv"
 	"strings"
@@ -108,7 +109,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 	if url == nil {
 		url = &Url{inputUrl: urlOrRef, path: &path{}}
 		if i, changed := trim(url.inputUrl, C0OrSpacePercentEncodeSet); changed {
-			if err := p.handleError(url, errors.IllegalLeadingOrTrailingChar); err != nil {
+			if err := p.handleError(url, errors.InvalidURLUnit, false); err != nil {
 				return nil, err
 			}
 			url.inputUrl = i
@@ -119,7 +120,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 	url.parser = p
 
 	if i, changed := remove(url.inputUrl, ASCIITabOrNewline); changed {
-		if err := p.handleError(url, errors.IllegalTabOrNewline); err != nil {
+		if err := p.handleError(url, errors.InvalidURLUnit, false); err != nil {
 			return nil, err
 		}
 		url.inputUrl = i
@@ -150,7 +151,9 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				state = stateNoScheme
 				input.rewindLast()
 			} else {
-				return p.handleFailure(url, errors.FailIllegalCodePoint, nil)
+				if err := p.handleError(url, errors.InvalidURLUnit, true); err != nil {
+					return nil, err
+				}
 			}
 		case stateScheme:
 			tr := ASCIIAlphanumeric.Clone().Set(0x2b).Set(0x2d).Set(0x2e)
@@ -183,7 +186,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				buffer.Reset()
 				if url.protocol == "file" {
 					if !input.remainingStartsWith("//") {
-						if err := p.handleError(url, errors.IllegalSlashes); err != nil {
+						if err := p.handleError(url, errors.SpecialSchemeMissingFollowingSolidus, false); err != nil {
 							return nil, err
 						}
 					}
@@ -204,11 +207,15 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				state = stateNoScheme
 				input.reset()
 			} else {
-				return p.handleFailure(url, errors.FailIllegalScheme, nil)
+				if err := p.handleError(url, errors.InvalidURLUnit, true); err != nil {
+					return nil, err
+				}
 			}
 		case stateNoScheme:
 			if base == nil || (base.path.isOpaque() && r != '#') {
-				return p.handleFailure(url, errors.FailRelativeUrlWithNoBase, nil)
+				if err := p.handleError(url, errors.MissingSchemeNonRelativeURL, true); err != nil {
+					return nil, err
+				}
 			} else if base != nil && base.path.isOpaque() && r == '#' {
 				url.protocol = base.protocol
 				url.path = base.path // TODO: Ensure copy????
@@ -227,7 +234,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				state = stateSpecialAuthorityIgnoreSlashes
 				input.nextCodePoint()
 			} else {
-				if err := p.handleError(url, errors.IllegalSlashes); err != nil {
+				if err := p.handleError(url, errors.SpecialSchemeMissingFollowingSolidus, false); err != nil {
 					return nil, err
 				}
 				state = stateRelative
@@ -245,7 +252,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 			if r == '/' {
 				state = stateRelativeSlash
 			} else if url.isSpecialSchemeAndBackslash(r) {
-				if err := p.handleError(url, errors.IllegalSlashes); err != nil {
+				if err := p.handleError(url, errors.InvalidReverseSolidus, false); err != nil {
 					return nil, err
 				}
 				state = stateRelativeSlash
@@ -273,7 +280,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 		case stateRelativeSlash:
 			if url.IsSpecialScheme() && (r == '/' || r == '\\') {
 				if r == '\\' {
-					if err := p.handleError(url, errors.IllegalSlashes); err != nil {
+					if err := p.handleError(url, errors.InvalidReverseSolidus, false); err != nil {
 						return nil, err
 					}
 				}
@@ -293,7 +300,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				state = stateSpecialAuthorityIgnoreSlashes
 				input.nextCodePoint()
 			} else {
-				if err := p.handleError(url, errors.IllegalSlashes); err != nil {
+				if err := p.handleError(url, errors.SpecialSchemeMissingFollowingSolidus, false); err != nil {
 					return nil, err
 				}
 				state = stateSpecialAuthorityIgnoreSlashes
@@ -304,13 +311,13 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				state = stateAuthority
 				input.rewindLast()
 			} else {
-				if err := p.handleError(url, errors.IllegalSlashes); err != nil {
+				if err := p.handleError(url, errors.SpecialSchemeMissingFollowingSolidus, false); err != nil {
 					return nil, err
 				}
 			}
 		case stateAuthority:
 			if r == '@' {
-				if err := p.handleError(url, errors.AtInAuthority); err != nil {
+				if err := p.handleError(url, errors.InvalidCredentials, false); err != nil {
 					return nil, err
 				}
 				if atFlag {
@@ -340,7 +347,9 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				buffer.Reset()
 			} else if (input.eof || r == '/' || r == '?' || r == '#') || url.isSpecialSchemeAndBackslash(r) {
 				if atFlag && buffer.Len() == 0 {
-					return p.handleFailure(url, errors.FailMissingHost, nil)
+					if err := p.handleError(url, errors.InvalidCredentials, true); err != nil {
+						return nil, err
+					}
 				}
 				input.rewind(len([]rune(buffer.String())) + 1)
 				buffer.Reset()
@@ -356,14 +365,16 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				state = stateFileHost
 			} else if r == ':' && !bracketFlag {
 				if buffer.Len() == 0 {
-					return p.handleFailure(url, errors.FailMissingHost, nil)
+					if err := p.handleError(url, errors.HostMissing, true); err != nil {
+						return nil, err
+					}
 				}
 				if stateOverride == stateHostname {
 					return url, nil
 				}
 				host, err := p.parseHost(url, p, buffer.String(), !url.IsSpecialScheme())
 				if err != nil {
-					return p.handleFailure(url, errors.FailIllegalHost, err)
+					return url, err
 				}
 				url.host = &host
 				buffer.Reset()
@@ -371,13 +382,15 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 			} else if (input.eof || r == '/' || r == '?' || r == '#') || url.isSpecialSchemeAndBackslash(r) {
 				input.rewindLast()
 				if url.IsSpecialScheme() && buffer.Len() == 0 {
-					return p.handleFailure(url, errors.FailMissingHost, nil)
+					if err := p.handleError(url, errors.HostMissing, true); err != nil {
+						return nil, err
+					}
 				} else if stateOverridden && buffer.Len() == 0 && (url.username != "" || url.password != "" || url.port != nil) {
 					return url, nil
 				} else {
 					host, err := p.parseHost(url, p, buffer.String(), !url.IsSpecialScheme())
 					if err != nil {
-						return p.handleFailure(url, errors.FailIllegalHost, err)
+						return url, err
 					}
 					url.host = &host
 					buffer.Reset()
@@ -404,11 +417,10 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 			} else if (input.eof || r == '/' || r == '?' || r == '#') || url.isSpecialSchemeAndBackslash(r) || stateOverridden {
 				if buffer.Len() > 0 {
 					port, err := strconv.Atoi(buffer.String())
-					if err != nil {
-						return p.handleFailure(url, errors.FailIllegalPort, nil)
-					}
-					if port > 65535 {
-						return p.handleFailure(url, errors.FailIllegalPort, nil)
+					if port > 65535 || goerrors.Is(err, strconv.ErrRange) {
+						if err := p.handleWrappedError(url, errors.PortOutOfRange, true, err); err != nil {
+							return nil, err
+						}
 					}
 					portString := strconv.Itoa(port)
 					url.decodedPort = port
@@ -422,14 +434,16 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				state = statePathStart
 				input.rewindLast()
 			} else {
-				return p.handleFailure(url, errors.FailIllegalPort, nil)
+				if err := p.handleError(url, errors.PortInvalid, true); err != nil {
+					return nil, err
+				}
 			}
 		case stateFile:
 			url.protocol = "file"
 			url.host = new(string)
 			if r == '/' || r == '\\' {
 				if r == '\\' {
-					if err := p.handleError(url, errors.IllegalSlashes); err != nil {
+					if err := p.handleError(url, errors.InvalidReverseSolidus, false); err != nil {
 						return nil, err
 					}
 				}
@@ -449,7 +463,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 					if !startsWithAWindowsDriveLetter(input.remainingFromPointer()) {
 						url.path.shortenPath(url.protocol)
 					} else {
-						if err := p.handleError(url, errors.BadWindowsDriveLetter); err != nil {
+						if err := p.handleError(url, errors.FileInvalidWindowsDriveLetter, false); err != nil {
 							return nil, err
 						}
 						url.path.init()
@@ -464,7 +478,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 		case stateFileSlash:
 			if r == '/' || r == '\\' {
 				if r == '\\' {
-					if err := p.handleError(url, errors.IllegalSlashes); err != nil {
+					if err := p.handleError(url, errors.InvalidReverseSolidus, false); err != nil {
 						return nil, err
 					}
 				}
@@ -484,7 +498,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 			if input.eof || r == '/' || r == '\\' || r == '?' || r == '#' {
 				input.rewindLast()
 				if !stateOverridden && isWindowsDriveLetter(buffer.String()) {
-					if err := p.handleError(url, errors.BadWindowsDriveLetter); err != nil {
+					if err := p.handleError(url, errors.FileInvalidWindowsDriveLetterHost, false); err != nil {
 						return nil, err
 					}
 					state = statePath
@@ -497,7 +511,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				} else {
 					host, err := p.parseHost(url, p, buffer.String(), !url.IsSpecialScheme())
 					if err != nil {
-						return p.handleFailure(url, errors.FailIllegalHost, err)
+						return url, err
 					}
 					if host == "localhost" {
 						host = ""
@@ -515,7 +529,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 		case statePathStart:
 			if url.IsSpecialScheme() && !p.opts.skipTrailingSlashNormalization {
 				if r == '\\' {
-					if err := p.handleError(url, errors.IllegalSlashes); err != nil {
+					if err := p.handleError(url, errors.InvalidReverseSolidus, false); err != nil {
 						return nil, err
 					}
 				}
@@ -543,7 +557,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				(!stateOverridden && (r == '?' || r == '#')) {
 
 				if url.isSpecialSchemeAndBackslash(r) {
-					if err := p.handleError(url, errors.IllegalSlashes); err != nil {
+					if err := p.handleError(url, errors.InvalidReverseSolidus, false); err != nil {
 						return nil, err
 					}
 				}
@@ -581,13 +595,13 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				}
 			} else {
 				if !isURLCodePoint(r) && r != '%' {
-					if err := p.handleError(url, errors.IllegalCodePoint); err != nil {
+					if err := p.handleError(url, errors.InvalidURLUnit, false); err != nil {
 						return nil, err
 					}
 				}
-				invalidPercentEncoding := input.remainingIsInvalidPercentEncoded()
+				invalidPercentEncoding, d := input.remainingIsInvalidPercentEncoded()
 				if invalidPercentEncoding {
-					if err := p.handleError(url, errors.InvalidPercentEncoding); err != nil {
+					if err := p.handleErrorWithDescription(url, errors.InvalidURLUnit, false, d); err != nil {
 						return nil, err
 					}
 				}
@@ -608,13 +622,13 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				buffer.Reset()
 			} else if !input.eof {
 				if !isURLCodePoint(r) && r != '%' {
-					if err := p.handleError(url, errors.IllegalCodePoint); err != nil {
+					if err := p.handleError(url, errors.InvalidURLUnit, false); err != nil {
 						return nil, err
 					}
 				}
-				invalidPercentEncoding := input.remainingIsInvalidPercentEncoded()
+				invalidPercentEncoding, d := input.remainingIsInvalidPercentEncoded()
 				if invalidPercentEncoding {
-					if err := p.handleError(url, errors.InvalidPercentEncoding); err != nil {
+					if err := p.handleErrorWithDescription(url, errors.InvalidURLUnit, false, d); err != nil {
 						return nil, err
 					}
 					buffer.WriteString(p.percentEncodeInvalidRune(r, C0PercentEncodeSet))
@@ -631,12 +645,13 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				buffer.Reset()
 			} else if !input.eof {
 				if !isURLCodePoint(r) && r != '%' {
-					if err := p.handleError(url, errors.IllegalCodePoint); err != nil {
+					if err := p.handleError(url, errors.InvalidURLUnit, false); err != nil {
 						return nil, err
 					}
 				}
-				if input.remainingIsInvalidPercentEncoded() {
-					if err := p.handleError(url, errors.InvalidPercentEncoding); err != nil {
+				invalidPercentEncoding, d := input.remainingIsInvalidPercentEncoded()
+				if invalidPercentEncoding {
+					if err := p.handleErrorWithDescription(url, errors.InvalidURLUnit, false, d); err != nil {
 						return nil, err
 					}
 				}
@@ -651,12 +666,13 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 		case stateFragment:
 			if !input.eof {
 				if !isURLCodePoint(r) && r != '%' {
-					if err := p.handleError(url, errors.IllegalCodePoint); err != nil {
+					if err := p.handleError(url, errors.InvalidURLUnit, false); err != nil {
 						return nil, err
 					}
 				}
-				if input.remainingIsInvalidPercentEncoded() {
-					if err := p.handleError(url, errors.InvalidPercentEncoding); err != nil {
+				invalidPercentEncoding, d := input.remainingIsInvalidPercentEncoded()
+				if invalidPercentEncoding {
+					if err := p.handleErrorWithDescription(url, errors.InvalidURLUnit, false, d); err != nil {
 						return nil, err
 					}
 				}

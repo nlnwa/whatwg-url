@@ -49,7 +49,7 @@ type profile struct {
 func (p *profile) Parse(rawUrl string) (*url.Url, error) {
 	u, err := p.Parser.Parse(rawUrl)
 	if err != nil {
-		if errors.Code(err) == errors.FailRelativeUrlWithNoBase && p.defaultScheme != "" {
+		if errors.Type(err) == errors.MissingSchemeNonRelativeURL && p.defaultScheme != "" {
 			rawUrl = p.defaultScheme + "://" + rawUrl
 			u, err = p.Parser.Parse(rawUrl)
 		}
@@ -64,7 +64,7 @@ func (p *profile) Parse(rawUrl string) (*url.Url, error) {
 func (p *profile) ParseRef(rawUrl, ref string) (*url.Url, error) {
 	b, err := p.Parser.Parse(rawUrl)
 	if err != nil {
-		if errors.Code(err) == errors.FailRelativeUrlWithNoBase && p.defaultScheme != "" {
+		if errors.Type(err) == errors.MissingSchemeNonRelativeURL && p.defaultScheme != "" {
 			rawUrl = p.defaultScheme + "://" + rawUrl
 			b, err = p.Parser.Parse(rawUrl)
 		}

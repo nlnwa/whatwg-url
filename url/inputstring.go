@@ -93,13 +93,24 @@ func (i *inputString) remainingStartsWith(s string) bool {
 	return strings.HasPrefix(string(i.runes[i.pointer+1:]), s)
 }
 
-func (i *inputString) remainingIsInvalidPercentEncoded() bool {
-	if !i.eof && i.runes[i.pointer] == '%' &&
-		(len(i.runes) < (i.pointer+3) ||
-			(!ASCIIHexDigit.Test(uint(i.runes[i.pointer+1])) || !ASCIIHexDigit.Test(uint(i.runes[i.pointer+2])))) {
-		return true
+// remainingIsInvalidPercentEncoded returns true if the first three characters in the rune array are not '%' followed by two hex digits.
+// If true, the second return value is the invalid percent encoded string.
+func (i *inputString) remainingIsInvalidPercentEncoded() (bool, string) {
+	return remainingIsInvalidPercentEncoded(i.runes[i.pointer:])
+}
+
+// remainingIsInvalidPercentEncoded returns true if the first three characters in the rune array are not '%' followed by two hex digits.
+// If true, the second return value is the invalid percent encoded string.
+func remainingIsInvalidPercentEncoded(runes []rune) (bool, string) {
+	if len(runes) >= 1 && runes[0] == '%' &&
+		(len(runes) < 3 || (!ASCIIHexDigit.Test(uint(runes[1])) || !ASCIIHexDigit.Test(uint(runes[2])))) {
+		l := 3
+		if len(runes) < 3 {
+			l = len(runes)
+		}
+		return true, string(runes[0:l])
 	}
-	return false
+	return false, ""
 }
 
 func (i *inputString) String() string {
