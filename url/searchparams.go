@@ -55,8 +55,8 @@ func (s *searchParams) update() {
 		return
 	}
 	query := s.String()
-	if (query == "" && s.url.search != nil) || query != "" {
-		s.url.search = &query
+	if (query == "" && s.url.query != nil) || query != "" {
+		s.url.query = &query
 	}
 }
 
