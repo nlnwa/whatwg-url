@@ -61,7 +61,7 @@ func (p *parser) parseHost(u *Url, parser *parser, input string, isNotSpecial bo
 		}
 	}
 
-	asciiDomain, err := p.ToASCII(domain)
+	asciiDomain, err := p.ToASCII(domain, false)
 	if err != nil {
 		if p.opts.laxHostParsing {
 			return domain, nil
@@ -436,15 +436,21 @@ func (address *IPv4Addr) String() string {
 var idnaProfile = idna.New(
 	idna.MapForLookup(),
 	idna.BidiRule(),
-	idna.VerifyDNSLength(true),
-	idna.StrictDomainName(false),
+	idna.VerifyDNSLength(false),
+	idna.StrictDomainName(true),
 	idna.ValidateLabels(true),
 	idna.CheckHyphens(false),
 	idna.CheckJoiners(true),
 	idna.Transitional(false),
 )
 
-func (p *parser) ToASCII(src string) (string, error) {
+// ToASCII converts a string to ASCII using IDNA
+// https://url.spec.whatwg.org/#concept-domain-to-ascii
+func (p *parser) ToASCII(src string, beStrict bool) (string, error) {
+	if src == "" {
+		return "", nil
+	}
+
 	// If encoding is set, convert to Unicode
 	if p.opts.encodingOverride != nil {
 		if u, err := p.stringToUnicode(src); err == nil {
@@ -455,12 +461,47 @@ func (p *parser) ToASCII(src string) (string, error) {
 	// Convert to punycode
 	a, err := idnaProfile.ToASCII(src)
 	if err != nil {
-		if !p.opts.laxHostParsing && !strings.Contains(err.Error(), src) {
-			return "", err
+		if !beStrict {
+			if containsOnlyASCIIOrMiscAndNoPunycode(src) {
+				return a, nil
+			}
 		}
-		a = p.PercentEncodeString(src, HostPercentEncodeSet)
+
+		if !p.opts.laxHostParsing {
+			return a, err
+		}
+	}
+	if a == "" {
+		return "", fmt.Errorf("idna toAscii returned empty string")
 	}
 	return a, nil
+}
+
+// containsOnlyASCIIOrMiscAndNoPunycode returns true if the string contains only ASCII characters or characters from Section 4.1.1 in UTS #46
+// and does not contain any labels starting with acePrefix (xn--)
+func containsOnlyASCIIOrMiscAndNoPunycode(s string) bool {
+	s = strings.ToLower(s)
+	p := 0
+	for _, r := range []rune(s) {
+		if r >= utf8.RuneSelf && r != '\u2260' && r != '\u226e' && r != '\u226f' {
+			return false
+		}
+		switch {
+		case r == '.':
+			p = 0
+		case p == 0 && r == 'x':
+			p = 1
+		case p == 1 && r == 'n':
+			p = 2
+		case p == 2 && r == '-':
+			p = 3
+		case p == 3 && r == '-':
+			return false
+		default:
+			p = -1
+		}
+	}
+	return true
 }
 
 func (p *parser) stringToUnicode(src string) (string, error) {
