@@ -16,65 +16,45 @@
 
 package errors
 
-import (
-	"fmt"
-)
+type ErrorType string
 
-// ErrorCode is data type of error codes for different kind of errors
-type ErrorCode int32
-
-// Validation errors
+// IDNA errors
 const (
-	IllegalCodePoint ErrorCode = iota + 100
-	InvalidPercentEncoding
-	IllegalLeadingOrTrailingChar
-	IllegalTabOrNewline
-	AtInAuthority
-	IllegalSlashes
-	IllegalLocalFileAndHostCombo
-	BadWindowsDriveLetter
-	IllegalIPv4Address
-	IllegalIPv6Address
-	CouldNotDecodeHost
+	DomainToASCII   ErrorType = "Unicode ToASCII records an error or returns the empty string"
+	DomainToUnicode ErrorType = "Unicode ToUnicode records an error"
 )
 
-// Validation failures
+// Host parsing errors
 const (
-	FailIllegalCodePoint ErrorCode = iota + 500
-	FailIllegalScheme
-	FailRelativeUrlWithNoBase
-	FailMissingHost
-	FailIllegalHost
-	FailIllegalPort
+	DomainInvalidCodePoint     ErrorType = "The host contains a forbidden domain code point"
+	HostInvalidCodePoint       ErrorType = "An opaque host (in a URL that is not special) contains a forbidden host code point"
+	IPv4EmptyPart              ErrorType = "An IPv4 address ends with a U+002E (.)"
+	IPv4TooManyParts           ErrorType = "An IPv4 address has more than four parts"
+	IPv4NonNumericPart         ErrorType = "An IPv4 address contains a non-numeric part"
+	IPv4NonDecimalPart         ErrorType = "The IPv4 address contains numbers expressed using hexadecimal or octal digits"
+	IPv4OutOfRangePart         ErrorType = "An IPv4 address contains a part that is greater than 255"
+	IPv6Unclosed               ErrorType = "An IPv6 address is missing the closing U+005D (])"
+	IPv6InvalidCompression     ErrorType = "An IPv6 address begins with improper compression"
+	IPv6TooManyPieces          ErrorType = "An IPv6 address has more than eight pieces"
+	IPv6MultipleCompression    ErrorType = "An IPv6 address contains multiple instances of '::'"
+	IPv6InvalidCodePoint       ErrorType = "An IPv6 address contains a code point that is neither an ASCII hex digit nor a U+003A (:). Or it unexpectedly ends"
+	IPv6TooFewPieces           ErrorType = "An uncompressed IPv6 address contains fewer than 8 pieces"
+	IPv4InIPv6TooManyPieces    ErrorType = "An IPv4 address is found in an IPv6 address, but the IPv6 address has more than 6 pieces"
+	IPv4InIPv6InvalidCodePoint ErrorType = "An IPv4 address is found in an IPv6 address and one of the following is true: 1. An IPv4 part is empty or contains a non-ASCII digit. 2. An IPv4 part contains a leading 0. 3. There are too many IPv4 parts"
+	IPv4InIPv6OutOfRangePart   ErrorType = "An IPv4 address is found in an IPv6 address and one of the IPv4 parts is greater than 255"
+	IPv4InIPv6TooFewParts      ErrorType = "An IPv4 address is found in an IPv6 address and there are too few IPv4 parts"
 )
 
-func (e ErrorCode) String() string {
-	return fmt.Sprintf("%d: %s", e, messages[e])
-}
-
-func (e ErrorCode) Int32() int32 {
-	return int32(e)
-}
-
-var messages = map[ErrorCode]string{
-	// Validation errors
-	IllegalCodePoint:             "illegal code point",
-	InvalidPercentEncoding:       "invalid percent encoding",
-	IllegalLeadingOrTrailingChar: "illegal leading or trailing character",
-	IllegalTabOrNewline:          "illegal tab or newline",
-	AtInAuthority:                "'@' in authority",
-	IllegalSlashes:               "illegal combination of slashes",
-	IllegalLocalFileAndHostCombo: "illegal combination of host and local file reference",
-	BadWindowsDriveLetter:        "badly formatted windows drive letter",
-	IllegalIPv4Address:           "illegal IPv4 address",
-	IllegalIPv6Address:           "illegal IPv6 address",
-	CouldNotDecodeHost:           "could not decode host",
-
-	// Validation failures
-	FailIllegalCodePoint:      "illegal code point",
-	FailIllegalScheme:         "illegal scheme",
-	FailRelativeUrlWithNoBase: "relative url with missing or invalid base url",
-	FailMissingHost:           "missing host",
-	FailIllegalHost:           "illegal host",
-	FailIllegalPort:           "illegal port",
-}
+// URL parsing errors
+const (
+	InvalidURLUnit                       ErrorType = "A code point is found that is not a URL unit"
+	SpecialSchemeMissingFollowingSolidus ErrorType = "The input’s scheme is not followed by '//'"
+	MissingSchemeNonRelativeURL          ErrorType = "The input is missing a scheme, because it does not begin with an ASCII alpha, and either no base URL was provided or the base URL cannot be used as a base URL because it has an opaque path"
+	InvalidReverseSolidus                ErrorType = "The URL has a special scheme and it uses U+005C (\\) instead of U+002F (/)"
+	InvalidCredentials                   ErrorType = "The input includes credentials"
+	HostMissing                          ErrorType = "The input has a special scheme, but does not contain a host"
+	PortOutOfRange                       ErrorType = "The input's port is outside the range [0-65535]"
+	PortInvalid                          ErrorType = "The input's port is not a number"
+	FileInvalidWindowsDriveLetter        ErrorType = "The input is a relative-URL string that starts with a Windows drive letter and the base URL’s scheme is 'file'"
+	FileInvalidWindowsDriveLetterHost    ErrorType = "A file: URL’s host is a Windows drive letter"
+)

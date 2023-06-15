@@ -22,22 +22,19 @@ import (
 )
 
 func TestError(t *testing.T) {
-	type args struct {
-		code ErrorCode
-		url  string
-	}
 	tests := []struct {
-		name string
-		code ErrorCode
-		url  string
+		name      string
+		errorType ErrorType
+		url       string
+		failure   bool
 	}{
-		{"1", IllegalLeadingOrTrailingChar, "http://example.com\t"},
+		{"1", HostInvalidCodePoint, "http://example.com\t", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := Error(tt.code, tt.url)
+			err := Error(tt.errorType, tt.url, false)
 			fmt.Printf("Error: %s\n", err)
-			fmt.Printf("Code: %s\n", Code(err))
+			fmt.Printf("Type: %s\n", Type(err))
 			fmt.Printf("Url: %s\n", Url(err))
 			//if err := Error(tt.args.code, tt.args.url); (err != nil) != tt.wantErr {
 			//	t.Errorf("Error() error = %v, wantErr %v", err, tt.wantErr)

@@ -20,16 +20,50 @@ import (
 	"github.com/nlnwa/whatwg-url/errors"
 )
 
-func (p *parser) handleError(u *Url, code errors.ErrorCode) error {
+// handleError handles an error according to the options set for the parser
+func (p *parser) handleError(u *Url, errorType errors.ErrorType, failure bool) error {
+	e := errors.Error(errorType, u.inputUrl, failure)
 	if p.opts.reportValidationErrors {
-		u.validationErrors = append(u.validationErrors, errors.Error(code, u.inputUrl))
+		u.validationErrors = append(u.validationErrors, e)
 	}
-	if p.opts.failOnValidationError {
-		return errors.Error(code, u.inputUrl)
+	if failure || p.opts.failOnValidationError {
+		return e
 	}
 	return nil
 }
 
-func (p *parser) handleFailure(u *Url, code errors.ErrorCode, err error) (*Url, error) {
-	return nil, errors.Wrap(err, code, u.inputUrl)
+// handleErrorWithDescription handles an error according to the options set for the parser
+func (p *parser) handleErrorWithDescription(u *Url, errorType errors.ErrorType, failure bool, descr string) error {
+	e := errors.ErrorWithDescr(errorType, descr, u.inputUrl, failure)
+	if p.opts.reportValidationErrors {
+		u.validationErrors = append(u.validationErrors, e)
+	}
+	if failure || p.opts.failOnValidationError {
+		return e
+	}
+	return nil
+}
+
+// handleWrappedError handles an error according to the options set for the parser
+func (p *parser) handleWrappedError(u *Url, errorType errors.ErrorType, failure bool, cause error) error {
+	e := errors.Wrap(cause, errorType, u.inputUrl, failure)
+	if p.opts.reportValidationErrors {
+		u.validationErrors = append(u.validationErrors, e)
+	}
+	if failure || p.opts.failOnValidationError {
+		return e
+	}
+	return nil
+}
+
+// handleWrappedErrorWithDescription handles an error according to the options set for the parser
+func (p *parser) handleWrappedErrorWithDescription(u *Url, errorType errors.ErrorType, failure bool, cause error, descr string) error {
+	e := errors.WrapWithDescr(cause, errorType, descr, u.inputUrl, failure)
+	if p.opts.reportValidationErrors {
+		u.validationErrors = append(u.validationErrors, e)
+	}
+	if failure || p.opts.failOnValidationError {
+		return e
+	}
+	return nil
 }

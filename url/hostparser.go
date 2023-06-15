@@ -20,7 +20,6 @@ import (
 	goerrors "errors"
 	"fmt"
 	"math"
-	"net/url"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -40,28 +39,26 @@ func (p *parser) parseHost(u *Url, parser *parser, input string, isNotSpecial bo
 	}
 	if input[0] == '[' {
 		if !strings.HasSuffix(input, "]") {
-			return "", errors.Error(errors.IllegalIPv6Address, "")
+			if err := p.handleError(u, errors.IPv6Unclosed, true); err != nil {
+				return "", err
+			}
 		}
 		input = strings.Trim(input, "[]")
 		return p.parseIPv6(u, newInputString(input))
 	}
 	if isNotSpecial {
-		return p.parseOpaqueHost(input)
+		return p.parseOpaqueHost(u, input)
 	}
 
-	domain, err := url.PathUnescape(input)
-	if err != nil {
-		if p.opts.laxHostParsing {
-			return input, nil
-		}
-		return "", errors.Wrap(err, errors.CouldNotDecodeHost, "")
-	}
+	domain := p.DecodePercentEncoded(input)
 
 	if !utf8.ValidString(domain) {
 		if p.opts.laxHostParsing {
 			return percentEncodeString(input, HostPercentEncodeSet), nil
 		}
-		return "", errors.ErrorWithDescr(errors.CouldNotDecodeHost, "not a valid UTF-8 string", "")
+		if err := p.handleErrorWithDescription(u, errors.DomainToASCII, true, "not a valid UTF-8 string"); err != nil {
+			return "", err
+		}
 	}
 
 	asciiDomain, err := p.ToASCII(domain)
@@ -69,19 +66,23 @@ func (p *parser) parseHost(u *Url, parser *parser, input string, isNotSpecial bo
 		if p.opts.laxHostParsing {
 			return domain, nil
 		}
-		return "", errors.Wrap(err, errors.CouldNotDecodeHost, "")
+		if err := p.handleWrappedError(u, errors.DomainToASCII, true, err); err != nil {
+			return "", err
+		}
 	}
 	for _, c := range asciiDomain {
 		if ForbiddenDomainCodePoint.Test(uint(c)) {
 			if p.opts.laxHostParsing {
 				return parser.PercentEncodeString(asciiDomain, HostPercentEncodeSet), nil
 			} else {
-				return "", errors.ErrorWithDescr(errors.IllegalCodePoint, string(c), "")
+				if err := p.handleErrorWithDescription(u, errors.DomainInvalidCodePoint, true, string(c)); err != nil {
+					return "", err
+				}
 			}
 		}
 	}
 
-	if p.endsInANumber(asciiDomain) {
+	if p.endsInANumber(u, asciiDomain) {
 		ipv4Host, err := p.parseIPv4(u, asciiDomain)
 		return ipv4Host, err
 	}
@@ -92,7 +93,7 @@ func (p *parser) parseHost(u *Url, parser *parser, input string, isNotSpecial bo
 	return asciiDomain, nil
 }
 
-func (p *parser) endsInANumber(input string) bool {
+func (p *parser) endsInANumber(u *Url, input string) bool {
 	parts := strings.Split(input, ".")
 	if parts[len(parts)-1] == "" {
 		if len(parts) == 1 {
@@ -104,16 +105,17 @@ func (p *parser) endsInANumber(input string) bool {
 	if last != "" && containsOnly(last, ASCIIDigit) {
 		return true
 	}
-	if _, _, err := p.parseIPv4Number(last); err == nil || goerrors.Is(err, strconv.ErrRange) {
+	if _, _, err := p.parseIPv4Number(u, last); err == nil || goerrors.Is(err, strconv.ErrRange) {
 		return true
 	}
 	return false
 }
 
-func (p *parser) parseIPv4Number(input string) (number int64, validationError bool, err error) {
+func (p *parser) parseIPv4Number(u *Url, input string) (number int64, validationError bool, err error) {
 	if input == "" {
-		err = errors.ErrorWithDescr(errors.CouldNotDecodeHost, "empty IPv4 number", "")
-		return
+		if err = p.handleError(u, errors.IPv4EmptyPart, true); err != nil {
+			return
+		}
 	}
 	R := 10
 	if len(input) >= 2 && (strings.HasPrefix(input, "0x") || strings.HasPrefix(input, "0X")) {
@@ -136,7 +138,7 @@ func (p *parser) parseIPv4Number(input string) (number int64, validationError bo
 func (p *parser) parseIPv4(u *Url, input string) (string, error) {
 	parts := strings.Split(input, ".")
 	if parts[len(parts)-1] == "" {
-		if err := p.handleError(u, errors.IllegalIPv4Address); err != nil {
+		if err := p.handleError(u, errors.IPv4EmptyPart, false); err != nil {
 			return input, err
 		}
 		if len(parts) > 1 {
@@ -144,17 +146,20 @@ func (p *parser) parseIPv4(u *Url, input string) (string, error) {
 		}
 	}
 	if len(parts) > 4 {
-		_, err := p.handleFailure(u, errors.IllegalIPv4Address, fmt.Errorf("IPv4 too many parts"))
-		return "", err
+		if err := p.handleError(u, errors.IPv4TooManyParts, true); err != nil {
+			return input, err
+		}
 	}
 	var numbers []int64
 	for _, part := range parts {
-		n, validationError, err := p.parseIPv4Number(part)
+		n, validationError, err := p.parseIPv4Number(u, part)
 		if err != nil {
-			return input, err
+			if err := p.handleWrappedError(u, errors.IPv4NonNumericPart, true, err); err != nil {
+				return input, err
+			}
 		}
 		if validationError {
-			if err := p.handleError(u, errors.IllegalIPv4Address); err != nil {
+			if err := p.handleError(u, errors.IPv4NonDecimalPart, false); err != nil {
 				return input, err
 			}
 		}
@@ -162,18 +167,22 @@ func (p *parser) parseIPv4(u *Url, input string) (string, error) {
 	}
 	for _, n := range numbers {
 		if n > 255 {
-			if err := p.handleError(u, errors.IllegalIPv4Address); err != nil {
+			if err := p.handleError(u, errors.IPv4OutOfRangePart, false); err != nil {
 				return input, err
 			}
 		}
 	}
 	for _, n := range numbers[:len(numbers)-1] {
 		if n > 255 {
-			return "", errors.Error(errors.IllegalIPv4Address, "")
+			if err := p.handleError(u, errors.IPv4OutOfRangePart, true); err != nil {
+				return "", err
+			}
 		}
 	}
 	if numbers[len(numbers)-1] >= int64(math.Pow(256, float64(5-len(numbers)))) {
-		return "", errors.Error(errors.IllegalIPv4Address, "")
+		if err := p.handleError(u, errors.IPv4OutOfRangePart, true); err != nil {
+			return "", err
+		}
 	}
 	var ipv4 = IPv4Addr(numbers[len(numbers)-1])
 	numbers = numbers[:len(numbers)-1]
@@ -193,7 +202,9 @@ func (p *parser) parseIPv6(u *Url, input *inputString) (string, error) {
 	c := input.nextCodePoint()
 	if c == ':' {
 		if !input.remainingStartsWith(":") {
-			return "", errors.Error(errors.IllegalIPv6Address, "")
+			if err := p.handleError(u, errors.IPv6InvalidCompression, true); err != nil {
+				return "", err
+			}
 		}
 		input.nextCodePoint()
 		c = input.nextCodePoint()
@@ -202,11 +213,15 @@ func (p *parser) parseIPv6(u *Url, input *inputString) (string, error) {
 	}
 	for !input.eof {
 		if pieceIdx == 8 {
-			return "", errors.Error(errors.IllegalIPv6Address, "")
+			if err := p.handleError(u, errors.IPv6TooManyPieces, true); err != nil {
+				return "", err
+			}
 		}
 		if c == ':' {
 			if compress >= 0 {
-				return "", errors.Error(errors.IllegalIPv6Address, "")
+				if err := p.handleError(u, errors.IPv6MultipleCompression, true); err != nil {
+					return "", err
+				}
 			}
 			c = input.nextCodePoint()
 			pieceIdx++
@@ -225,12 +240,16 @@ func (p *parser) parseIPv6(u *Url, input *inputString) (string, error) {
 
 		if c == '.' {
 			if length == 0 {
-				return "", errors.Error(errors.IllegalIPv6Address, "")
+				if err := p.handleError(u, errors.IPv4InIPv6InvalidCodePoint, true); err != nil {
+					return "", err
+				}
 			}
 			input.rewind(length + 1)
 			c = input.nextCodePoint()
 			if pieceIdx > 6 {
-				return "", errors.Error(errors.IllegalIPv6Address, "")
+				if err := p.handleError(u, errors.IPv4InIPv6TooManyPieces, true); err != nil {
+					return "", err
+				}
 			}
 			numbersSeen := 0
 			for !input.eof {
@@ -239,24 +258,32 @@ func (p *parser) parseIPv6(u *Url, input *inputString) (string, error) {
 					if c == '.' && numbersSeen < 4 {
 						c = input.nextCodePoint()
 					} else {
-						return "", errors.Error(errors.IllegalIPv6Address, "")
+						if err := p.handleError(u, errors.IPv4InIPv6InvalidCodePoint, true); err != nil {
+							return "", err
+						}
 					}
 				}
 				if !ASCIIDigit.Test(uint(c)) {
-					return "", errors.Error(errors.IllegalIPv6Address, "")
+					if err := p.handleError(u, errors.IPv4InIPv6InvalidCodePoint, true); err != nil {
+						return "", err
+					}
 				}
 				for ASCIIDigit.Test(uint(c)) {
 					number, _ := strconv.Atoi(string(c))
 					if ipv4Piece < 0 {
 						ipv4Piece = number
 					} else if ipv4Piece == 0 {
-						return "", errors.Error(errors.IllegalIPv6Address, "")
+						if err := p.handleError(u, errors.IPv4InIPv6InvalidCodePoint, true); err != nil {
+							return "", err
+						}
 					} else {
 						ipv4Piece = ipv4Piece*10 + number
 					}
 
 					if ipv4Piece > 255 {
-						return "", errors.Error(errors.IllegalIPv6Address, "")
+						if err := p.handleError(u, errors.IPv4InIPv6OutOfRangePart, true); err != nil {
+							return "", err
+						}
 					}
 					c = input.nextCodePoint()
 				}
@@ -267,16 +294,22 @@ func (p *parser) parseIPv6(u *Url, input *inputString) (string, error) {
 				}
 			}
 			if numbersSeen != 4 {
-				return "", errors.Error(errors.IllegalIPv6Address, "")
+				if err := p.handleError(u, errors.IPv4InIPv6TooFewParts, true); err != nil {
+					return "", err
+				}
 			}
 			break
 		} else if c == ':' {
 			c = input.nextCodePoint()
 			if input.eof {
-				return "", errors.Error(errors.IllegalIPv6Address, "")
+				if err := p.handleError(u, errors.IPv6InvalidCodePoint, true); err != nil {
+					return "", err
+				}
 			}
 		} else if !input.eof {
-			return "", errors.Error(errors.IllegalIPv6Address, "")
+			if err := p.handleError(u, errors.IPv6InvalidCodePoint, true); err != nil {
+				return "", err
+			}
 		}
 		address[pieceIdx] = uint16(value)
 		pieceIdx++
@@ -292,22 +325,40 @@ func (p *parser) parseIPv6(u *Url, input *inputString) (string, error) {
 			swaps--
 		}
 	} else if compress < 0 && pieceIdx != 8 {
-		return "", errors.Error(errors.IllegalIPv6Address, "")
+		if err := p.handleError(u, errors.IPv6TooFewPieces, true); err != nil {
+			return "", err
+		}
 	}
 	u.isIPv6 = true
 	return "[" + address.String() + "]", nil
 }
 
-func (p *parser) parseOpaqueHost(input string) (string, error) {
+func (p *parser) parseOpaqueHost(u *Url, input string) (string, error) {
 	output := ""
 	for _, c := range input {
-		if ForbiddenHostCodePoint.Test(uint(c)) && c != '%' {
+		if ForbiddenHostCodePoint.Test(uint(c)) {
 			if p.opts.laxHostParsing {
 				return input, nil
 			} else {
-				return "", errors.ErrorWithDescr(errors.IllegalCodePoint, string(c), "")
+				if err := p.handleErrorWithDescription(u, errors.HostInvalidCodePoint, true, string(c)); err != nil {
+					return "", err
+				}
 			}
 		}
+		if !isURLCodePoint(c) && c != '%' {
+			if err := p.handleErrorWithDescription(u, errors.InvalidURLUnit, false, string(c)); err != nil {
+				return input, err
+			}
+		}
+		if c == '%' {
+			invalidPercentEncoding, d := remainingIsInvalidPercentEncoded([]rune(input))
+			if invalidPercentEncoding {
+				if err := p.handleErrorWithDescription(u, errors.InvalidURLUnit, false, d); err != nil {
+					return input, err
+				}
+			}
+		}
+
 		output += p.percentEncodeRune(c, C0PercentEncodeSet)
 	}
 	return output, nil
