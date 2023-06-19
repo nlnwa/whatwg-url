@@ -390,7 +390,6 @@ func (address *IPv6Addr) String() string {
 	}
 	if currentLength > 1 && currentLength > compressLength {
 		compress = currentIdx
-		compressLength = currentLength
 	}
 
 	ignore0 := false
@@ -428,7 +427,7 @@ func (address *IPv4Addr) String() string {
 		if i != 4 {
 			output = "." + output
 		}
-		n = int(math.Floor(float64(n / 256)))
+		n = n / 256
 	}
 	return output
 }
@@ -482,7 +481,7 @@ func (p *parser) ToASCII(src string, beStrict bool) (string, error) {
 func containsOnlyASCIIOrMiscAndNoPunycode(s string) bool {
 	s = strings.ToLower(s)
 	p := 0
-	for _, r := range []rune(s) {
+	for _, r := range s {
 		if r >= utf8.RuneSelf && r != '\u2260' && r != '\u226e' && r != '\u226f' {
 			return false
 		}
@@ -506,7 +505,7 @@ func containsOnlyASCIIOrMiscAndNoPunycode(s string) bool {
 
 func (p *parser) stringToUnicode(src string) (string, error) {
 	var bb []byte
-	for _, r := range []rune(src) {
+	for _, r := range src {
 		if b, ok := p.opts.encodingOverride.EncodeRune(r); ok && b > 31 {
 			bb = append(bb, b)
 		} else {

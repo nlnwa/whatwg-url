@@ -52,7 +52,7 @@ func TestParse(t *testing.T) {
 	}
 	defer jsonFile.Close()
 	data, _ := io.ReadAll(jsonFile)
-	json.Unmarshal(data, &tests)
+	_ = json.Unmarshal(data, &tests)
 
 	empty := args{}
 	var testNum int
@@ -157,7 +157,7 @@ func BenchmarkParse(b *testing.B) {
 	}
 	defer jsonFile.Close()
 	data, _ := io.ReadAll(jsonFile)
-	json.Unmarshal(data, &tests)
+	_ = json.Unmarshal(data, &tests)
 
 	empty := args{}
 	for testNum, tt := range tests {

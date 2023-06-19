@@ -52,7 +52,7 @@ func TestUrl_SetProtocol(t *testing.T) {
 	}
 	defer jsonFile.Close()
 	data, _ := io.ReadAll(jsonFile)
-	json.Unmarshal(data, &tests)
+	_ = json.Unmarshal(data, &tests)
 
 	var testNum int
 	for _, tt := range tests.Protocol {
@@ -81,7 +81,7 @@ func TestUrl_SetUsername(t *testing.T) {
 	}
 	defer jsonFile.Close()
 	data, _ := io.ReadAll(jsonFile)
-	json.Unmarshal(data, &tests)
+	_ = json.Unmarshal(data, &tests)
 
 	var testNum int
 	for _, tt := range tests.Username {
@@ -105,7 +105,7 @@ func TestUrl_SetPassword(t *testing.T) {
 	}
 	defer jsonFile.Close()
 	data, _ := io.ReadAll(jsonFile)
-	json.Unmarshal(data, &tests)
+	_ = json.Unmarshal(data, &tests)
 
 	var testNum int
 	for _, tt := range tests.Password {
@@ -129,7 +129,7 @@ func TestUrl_SetHost(t *testing.T) {
 	}
 	defer jsonFile.Close()
 	data, _ := io.ReadAll(jsonFile)
-	json.Unmarshal(data, &tests)
+	_ = json.Unmarshal(data, &tests)
 
 	var testNum int
 	for _, tt := range tests.Host {
@@ -153,7 +153,7 @@ func TestUrl_SetHostname(t *testing.T) {
 	}
 	defer jsonFile.Close()
 	data, _ := io.ReadAll(jsonFile)
-	json.Unmarshal(data, &tests)
+	_ = json.Unmarshal(data, &tests)
 
 	var testNum int
 	for _, tt := range tests.Hostname {
@@ -177,7 +177,7 @@ func TestUrl_SetPort(t *testing.T) {
 	}
 	defer jsonFile.Close()
 	data, _ := io.ReadAll(jsonFile)
-	json.Unmarshal(data, &tests)
+	_ = json.Unmarshal(data, &tests)
 
 	var testNum int
 	for _, tt := range tests.Port {
@@ -201,7 +201,7 @@ func TestUrl_SetPathname(t *testing.T) {
 	}
 	defer jsonFile.Close()
 	data, _ := io.ReadAll(jsonFile)
-	json.Unmarshal(data, &tests)
+	_ = json.Unmarshal(data, &tests)
 
 	var testNum int
 	for _, tt := range tests.Pathname {
@@ -225,7 +225,7 @@ func TestUrl_SetSearch(t *testing.T) {
 	}
 	defer jsonFile.Close()
 	data, _ := io.ReadAll(jsonFile)
-	json.Unmarshal(data, &tests)
+	_ = json.Unmarshal(data, &tests)
 
 	var testNum int
 	for _, tt := range tests.Search {
@@ -249,7 +249,7 @@ func TestUrl_SetHash(t *testing.T) {
 	}
 	defer jsonFile.Close()
 	data, _ := io.ReadAll(jsonFile)
-	json.Unmarshal(data, &tests)
+	_ = json.Unmarshal(data, &tests)
 
 	var testNum int
 	for _, tt := range tests.Hash {

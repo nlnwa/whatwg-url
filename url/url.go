@@ -82,7 +82,7 @@ func (u *Url) SetProtocol(scheme string) {
 	if !strings.HasSuffix(scheme, ":") {
 		scheme = scheme + ":"
 	}
-	u.parser.basicParser(scheme, nil, u, stateSchemeStart)
+	_, _ = u.parser.basicParser(scheme, nil, u, stateSchemeStart)
 }
 
 func (u *Url) Scheme() string {
@@ -131,7 +131,7 @@ func (u *Url) SetHost(host string) {
 	if u.path.isOpaque() {
 		return
 	}
-	u.parser.basicParser(host, nil, u, stateHost)
+	_, _ = u.parser.basicParser(host, nil, u, stateHost)
 }
 
 // Hostname implements WHATWG url api (https://url.spec.whatwg.org/#api)
@@ -147,7 +147,7 @@ func (u *Url) SetHostname(host string) {
 	if u.path.isOpaque() {
 		return
 	}
-	u.parser.basicParser(host, nil, u, stateHostname)
+	_, _ = u.parser.basicParser(host, nil, u, stateHostname)
 }
 
 // Port implements WHATWG url api (https://url.spec.whatwg.org/#api)
@@ -166,7 +166,7 @@ func (u *Url) SetPort(port string) {
 	if port == "" {
 		u.port = nil
 	} else {
-		u.parser.basicParser(port, nil, u, statePort)
+		_, _ = u.parser.basicParser(port, nil, u, statePort)
 	}
 }
 
@@ -189,7 +189,7 @@ func (u *Url) SetPathname(path string) {
 		return
 	}
 	u.path.init()
-	u.parser.basicParser(path, nil, u, statePathStart)
+	_, _ = u.parser.basicParser(path, nil, u, statePathStart)
 }
 
 // Search implements WHATWG url api (https://url.spec.whatwg.org/#api)
@@ -258,7 +258,7 @@ func (u *Url) SetHash(fragment string) {
 	}
 	fragment = strings.TrimPrefix(fragment, "#")
 	u.fragment = new(string)
-	u.parser.basicParser(fragment, nil, u, stateFragment)
+	_, _ = u.parser.basicParser(fragment, nil, u, stateFragment)
 }
 
 func (u *Url) Fragment() string {

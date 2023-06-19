@@ -25,7 +25,7 @@ func TestToASCII(t *testing.T) {
 	}
 	defer jsonFile.Close()
 	data, _ := io.ReadAll(jsonFile)
-	json.Unmarshal(data, &tests)
+	_ = json.Unmarshal(data, &tests)
 
 	empty := args{}
 	var testNum int
@@ -73,7 +73,7 @@ func TestIdnaV2(t *testing.T) {
 	}
 	defer jsonFile.Close()
 	data, _ := io.ReadAll(jsonFile)
-	json.Unmarshal(data, &tests)
+	_ = json.Unmarshal(data, &tests)
 
 	empty := args{}
 	var testNum int

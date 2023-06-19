@@ -777,10 +777,7 @@ func isSingleDotPathSegment(s string) bool {
 		return true
 	}
 	s = strings.ToLower(s)
-	if s == "%2e" {
-		return true
-	}
-	return false
+	return s == "%2e"
 }
 
 func isDoubleDotPathSegment(s string) bool {
@@ -861,7 +858,7 @@ func remove(s string, tr *bitset.BitSet) (string, bool) {
 		if tr.Test(uint(c)) {
 			changed = true
 		} else {
-			r = append(r, byte(c))
+			r = append(r, c)
 		}
 	}
 	return string(r), changed
