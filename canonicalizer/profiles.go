@@ -43,7 +43,7 @@ var GoogleSafeBrowsing = New(
 	url.WithPercentEncodeSinglePercentSign(),
 	url.WithPreParseHostFunc(func(u *url.Url, host string) string {
 		host = strings.Trim(host, ".")
-		var re = regexp.MustCompile("\\.\\.+")
+		var re = regexp.MustCompile(`\.\.+`)
 		host = re.ReplaceAllString(host, ".")
 		return host
 	}),
@@ -66,7 +66,7 @@ var Semantic = New(
 	url.WithPreParseHostFunc(func(u *url.Url, host string) string {
 		if host != "" {
 			host = strings.Trim(host, ".")
-			var re = regexp.MustCompile("\\.\\.+")
+			var re = regexp.MustCompile(`\.\.+`)
 			host = re.ReplaceAllString(host, ".")
 			if host == "" {
 				host = "0.0.0.0"

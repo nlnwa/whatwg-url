@@ -162,11 +162,11 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 			} else if r == ':' {
 				if stateOverridden {
 					// If url’s scheme is a special scheme and buffer is not a special scheme, then return.
-					if url.isSpecialScheme(url.protocol) && !url.isSpecialScheme(buffer.String()) {
+					if url.isSpecialScheme(url.scheme) && !url.isSpecialScheme(buffer.String()) {
 						return url, nil
 					}
 					// If url’s scheme is not a special scheme and buffer is a special scheme, then return.
-					if !url.isSpecialScheme(url.protocol) && url.isSpecialScheme(buffer.String()) {
+					if !url.isSpecialScheme(url.scheme) && url.isSpecialScheme(buffer.String()) {
 						return url, nil
 					}
 					// If url includes credentials or has a non-null port, and buffer is "file", then return.
@@ -174,24 +174,24 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 						return url, nil
 					}
 					// If url’s scheme is "file" and its host is an empty host or null, then return.
-					if url.protocol == "file" && *url.host == "" {
+					if url.scheme == "file" && *url.host == "" {
 						return url, nil
 					}
 				}
-				url.protocol = buffer.String()
+				url.scheme = buffer.String()
 				if stateOverridden {
 					url.cleanDefaultPort()
 					return url, nil
 				}
 				buffer.Reset()
-				if url.protocol == "file" {
+				if url.scheme == "file" {
 					if !input.remainingStartsWith("//") {
 						if err := p.handleError(url, errors.SpecialSchemeMissingFollowingSolidus, false); err != nil {
 							return nil, err
 						}
 					}
 					state = stateFile
-				} else if url.IsSpecialScheme() && base != nil && base.protocol == url.protocol {
+				} else if url.IsSpecialScheme() && base != nil && base.scheme == url.scheme {
 					state = stateSpecialRelativeOrAuthority
 				} else if url.IsSpecialScheme() {
 					state = stateSpecialAuthoritySlashes
@@ -217,12 +217,12 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 					return nil, err
 				}
 			} else if base != nil && base.path.isOpaque() && r == '#' {
-				url.protocol = base.protocol
+				url.scheme = base.scheme
 				url.path = base.path // TODO: Ensure copy????
-				url.search = base.search
-				url.hash = new(string)
+				url.query = base.query
+				url.fragment = new(string)
 				state = stateFragment
-			} else if base != nil && base.protocol != "file" {
+			} else if base != nil && base.scheme != "file" {
 				state = stateRelative
 				input.rewindLast()
 			} else {
@@ -248,7 +248,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				input.rewindLast()
 			}
 		case stateRelative:
-			url.protocol = base.protocol
+			url.scheme = base.scheme
 			if r == '/' {
 				state = stateRelativeSlash
 			} else if url.isSpecialSchemeAndBackslash(r) {
@@ -263,16 +263,16 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				url.port = base.port
 				url.decodedPort = base.decodedPort
 				url.path = base.path // TODO: Ensure copy????
-				url.search = base.search
+				url.query = base.query
 				if r == '?' {
-					url.search = new(string)
+					url.query = new(string)
 					state = stateQuery
 				} else if r == '#' {
-					url.hash = new(string)
+					url.fragment = new(string)
 					state = stateFragment
 				} else if !input.eof {
-					url.search = nil
-					url.path.shortenPath(url.protocol)
+					url.query = nil
+					url.path.shortenPath(url.scheme)
 					state = statePath
 					input.rewindLast()
 				}
@@ -360,7 +360,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 		case stateHost:
 			fallthrough
 		case stateHostname:
-			if stateOverridden && url.protocol == "file" {
+			if stateOverridden && url.scheme == "file" {
 				input.rewindLast()
 				state = stateFileHost
 			} else if r == ':' && !bracketFlag {
@@ -439,7 +439,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				}
 			}
 		case stateFile:
-			url.protocol = "file"
+			url.scheme = "file"
 			url.host = new(string)
 			if r == '/' || r == '\\' {
 				if r == '\\' {
@@ -448,20 +448,20 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 					}
 				}
 				state = stateFileSlash
-			} else if base != nil && base.protocol == "file" {
+			} else if base != nil && base.scheme == "file" {
 				url.host = base.host
 				url.path = base.path // TODO: Ensure copy????
-				url.search = base.search
+				url.query = base.query
 				if r == '?' {
-					url.search = new(string)
+					url.query = new(string)
 					state = stateQuery
 				} else if r == '#' {
-					url.hash = new(string)
+					url.fragment = new(string)
 					state = stateFragment
 				} else if !input.eof {
-					url.search = nil
+					url.query = nil
 					if !startsWithAWindowsDriveLetter(input.remainingFromPointer()) {
-						url.path.shortenPath(url.protocol)
+						url.path.shortenPath(url.scheme)
 					} else {
 						if err := p.handleError(url, errors.FileInvalidWindowsDriveLetter, false); err != nil {
 							return nil, err
@@ -484,7 +484,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				}
 				state = stateFileHost
 			} else {
-				if base != nil && base.protocol == "file" {
+				if base != nil && base.scheme == "file" {
 					url.host = base.host
 					if !startsWithAWindowsDriveLetter(input.remainingFromPointer()) && base.path != nil && isNormalizedWindowsDriveLetter(base.path.p[0]) {
 						// This is a (platform-independent) Windows drive letter quirk. Both url’s and base’s host are null under these conditions and therefore not copied
@@ -538,10 +538,10 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 					input.rewindLast()
 				}
 			} else if !stateOverridden && r == '?' {
-				url.search = new(string)
+				url.query = new(string)
 				state = stateQuery
 			} else if !stateOverridden && r == '#' {
-				url.hash = new(string)
+				url.fragment = new(string)
 				state = stateFragment
 			} else if !input.eof {
 				state = statePath
@@ -562,7 +562,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 					}
 				}
 				if isDoubleDotPathSegment(buffer.String()) {
-					url.path.shortenPath(url.protocol)
+					url.path.shortenPath(url.scheme)
 
 					if r != '/' && !url.isSpecialSchemeAndBackslash(r) {
 						url.path.addSegment("")
@@ -570,7 +570,7 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				} else if isSingleDotPathSegment(buffer.String()) && r != '/' && !url.isSpecialSchemeAndBackslash(r) {
 					url.path.addSegment("")
 				} else if !isSingleDotPathSegment(buffer.String()) {
-					if url.protocol == "file" && url.path.isEmpty() && isWindowsDriveLetter(buffer.String()) {
+					if url.scheme == "file" && url.path.isEmpty() && isWindowsDriveLetter(buffer.String()) {
 						// replace second code point in buffer with U+003A (:).
 						// This is a (platform-independent) Windows drive letter quirk.
 						if !p.opts.skipWindowsDriveLetterNormalization {
@@ -587,10 +587,10 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				}
 				buffer.Reset()
 				if r == '?' {
-					url.search = new(string)
+					url.query = new(string)
 					state = stateQuery
 				} else if r == '#' {
-					url.hash = new(string)
+					url.fragment = new(string)
 					state = stateFragment
 				}
 			} else {
@@ -613,11 +613,11 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 			}
 		case stateOpaquePath:
 			if r == '?' {
-				url.search = new(string)
+				url.query = new(string)
 				state = stateQuery
 				buffer.Reset()
 			} else if r == '#' {
-				url.hash = new(string)
+				url.fragment = new(string)
 				state = stateFragment
 				buffer.Reset()
 			} else if !input.eof {
@@ -639,9 +639,9 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 			}
 		case stateQuery:
 			if !stateOverridden && r == '#' {
-				url.hash = new(string)
+				url.fragment = new(string)
 				state = stateFragment
-				*url.search = buffer.String()
+				*url.query = buffer.String()
 				buffer.Reset()
 			} else if !input.eof {
 				if !isURLCodePoint(r) && r != '%' {
@@ -656,12 +656,12 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 					}
 				}
 				encodeSet := p.opts.queryPercentEncodeSet
-				if url.isSpecialScheme(url.protocol) {
+				if url.isSpecialScheme(url.scheme) {
 					encodeSet = p.opts.specialQueryPercentEncodeSet
 				}
 				buffer.WriteString(p.percentEncodeRune(r, encodeSet))
 			} else {
-				*url.search = buffer.String()
+				*url.query = buffer.String()
 			}
 		case stateFragment:
 			if !input.eof {
@@ -677,12 +677,12 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 					}
 				}
 				encodeSet := p.opts.fragmentPercentEncodeSet
-				if url.isSpecialScheme(url.protocol) {
+				if url.isSpecialScheme(url.scheme) {
 					encodeSet = p.opts.specialFragmentPercentEncodeSet
 				}
 				buffer.WriteString(p.percentEncodeRune(r, encodeSet))
 			} else {
-				*url.hash = buffer.String()
+				*url.fragment = buffer.String()
 			}
 		}
 
@@ -777,10 +777,7 @@ func isSingleDotPathSegment(s string) bool {
 		return true
 	}
 	s = strings.ToLower(s)
-	if s == "%2e" {
-		return true
-	}
-	return false
+	return s == "%2e"
 }
 
 func isDoubleDotPathSegment(s string) bool {
@@ -861,7 +858,7 @@ func remove(s string, tr *bitset.BitSet) (string, bool) {
 		if tr.Test(uint(c)) {
 			changed = true
 		} else {
-			r = append(r, byte(c))
+			r = append(r, c)
 		}
 	}
 	return string(r), changed
@@ -877,7 +874,7 @@ func containsOnly(s string, tr *bitset.BitSet) bool {
 }
 
 func (u *Url) IsSpecialScheme() bool {
-	return u.isSpecialScheme(u.protocol)
+	return u.isSpecialScheme(u.scheme)
 }
 
 func (u *Url) isSpecialScheme(s string) bool {
@@ -896,13 +893,13 @@ func (u *Url) isSpecialSchemeAndBackslash(r rune) bool {
 }
 
 func (u *Url) cleanDefaultPort() {
-	if dp, ok := u.getSpecialScheme(u.protocol); ok && (u.port == nil || dp == *u.port) {
+	if dp, ok := u.getSpecialScheme(u.scheme); ok && (u.port == nil || dp == *u.port) {
 		u.port = nil
 	}
 }
 
 func (u *Url) getDefaultPort() int {
-	if dp, ok := u.getSpecialScheme(u.protocol); ok {
+	if dp, ok := u.getSpecialScheme(u.scheme); ok {
 		if p, err := strconv.Atoi(dp); err == nil {
 			return p
 		}

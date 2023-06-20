@@ -22,16 +22,16 @@ import (
 
 type Url struct {
 	inputUrl         string
-	protocol         string
+	scheme           string
 	username         string
 	password         string
 	host             *string
 	port             *string
 	decodedPort      int
 	path             *path
-	search           *string
-	hash             *string
-	searchParams     *searchParams
+	query            *string
+	fragment         *string
+	searchParams     *SearchParams
 	validationErrors []error
 	parser           *parser
 	isIPv4           bool
@@ -40,7 +40,7 @@ type Url struct {
 
 // Href implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) Href(excludeFragment bool) string {
-	output := u.protocol + ":"
+	output := u.scheme + ":"
 	if u.host != nil {
 		output += "//"
 		if u.username != "" || u.password != "" {
@@ -61,12 +61,12 @@ func (u *Url) Href(excludeFragment bool) string {
 
 	output += u.path.String()
 
-	if u.search != nil {
-		output += "?" + *u.search
+	if u.query != nil {
+		output += "?" + *u.query
 	}
 
-	if !excludeFragment && u.hash != nil {
-		output += "#" + *u.hash
+	if !excludeFragment && u.fragment != nil {
+		output += "#" + *u.fragment
 	}
 
 	return output
@@ -74,7 +74,7 @@ func (u *Url) Href(excludeFragment bool) string {
 
 // Protocol implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) Protocol() string {
-	return u.protocol + ":"
+	return u.scheme + ":"
 }
 
 // SetProtocol implements WHATWG url api (https://url.spec.whatwg.org/#api)
@@ -82,11 +82,11 @@ func (u *Url) SetProtocol(scheme string) {
 	if !strings.HasSuffix(scheme, ":") {
 		scheme = scheme + ":"
 	}
-	u.parser.basicParser(scheme, nil, u, stateSchemeStart)
+	_, _ = u.parser.basicParser(scheme, nil, u, stateSchemeStart)
 }
 
 func (u *Url) Scheme() string {
-	return u.protocol
+	return u.scheme
 }
 
 // Username implements WHATWG url api (https://url.spec.whatwg.org/#api)
@@ -96,7 +96,7 @@ func (u *Url) Username() string {
 
 // SetUsername implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) SetUsername(username string) {
-	if u.host == nil || *u.host == "" || u.protocol == "file" {
+	if u.host == nil || *u.host == "" || u.scheme == "file" {
 		return
 	}
 	u.username = u.parser.PercentEncodeString(username, UserInfoPercentEncodeSet)
@@ -109,7 +109,7 @@ func (u *Url) Password() string {
 
 // SetPassword implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) SetPassword(password string) {
-	if u.host == nil || *u.host == "" || u.protocol == "file" {
+	if u.host == nil || *u.host == "" || u.scheme == "file" {
 		return
 	}
 	u.password = u.parser.PercentEncodeString(password, UserInfoPercentEncodeSet)
@@ -131,7 +131,7 @@ func (u *Url) SetHost(host string) {
 	if u.path.isOpaque() {
 		return
 	}
-	u.parser.basicParser(host, nil, u, stateHost)
+	_, _ = u.parser.basicParser(host, nil, u, stateHost)
 }
 
 // Hostname implements WHATWG url api (https://url.spec.whatwg.org/#api)
@@ -147,7 +147,7 @@ func (u *Url) SetHostname(host string) {
 	if u.path.isOpaque() {
 		return
 	}
-	u.parser.basicParser(host, nil, u, stateHostname)
+	_, _ = u.parser.basicParser(host, nil, u, stateHostname)
 }
 
 // Port implements WHATWG url api (https://url.spec.whatwg.org/#api)
@@ -160,13 +160,13 @@ func (u *Url) Port() string {
 
 // SetPort implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) SetPort(port string) {
-	if u.host == nil || *u.host == "" || u.protocol == "file" {
+	if u.host == nil || *u.host == "" || u.scheme == "file" {
 		return
 	}
 	if port == "" {
 		u.port = nil
 	} else {
-		u.parser.basicParser(port, nil, u, statePort)
+		_, _ = u.parser.basicParser(port, nil, u, statePort)
 	}
 }
 
@@ -189,43 +189,43 @@ func (u *Url) SetPathname(path string) {
 		return
 	}
 	u.path.init()
-	u.parser.basicParser(path, nil, u, statePathStart)
+	_, _ = u.parser.basicParser(path, nil, u, statePathStart)
 }
 
 // Search implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) Search() string {
-	if u.search == nil || len(*u.search) == 0 {
+	if u.query == nil || len(*u.query) == 0 {
 		return ""
 	}
-	return "?" + *u.search
+	return "?" + *u.query
 }
 
 // SetSearch implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) SetSearch(query string) {
 	if query == "" {
-		u.search = nil
+		u.query = nil
 		if u.searchParams != nil {
 			u.searchParams.params = u.searchParams.params[:0]
 		}
-		if u.hash == nil && u.search == nil {
+		if u.fragment == nil && u.query == nil {
 			u.path.stripTrailingSpacesIfOpaque()
 		}
 		return
 	}
 	query = strings.TrimPrefix(query, "?")
-	if u.search == nil {
-		u.search = new(string)
+	if u.query == nil {
+		u.query = new(string)
 	}
 	_, _ = u.parser.basicParser(query, nil, u, stateQuery)
 	if u.searchParams == nil {
 		u.newUrlSearchParams()
 	} else {
-		u.searchParams.init(*u.search)
+		u.searchParams.init(*u.query)
 	}
 }
 
 // SearchParams implements WHATWG url api (https://url.spec.whatwg.org/#api)
-func (u *Url) SearchParams() *searchParams {
+func (u *Url) SearchParams() *SearchParams {
 	if u.searchParams == nil {
 		u.newUrlSearchParams()
 	}
@@ -233,39 +233,39 @@ func (u *Url) SearchParams() *searchParams {
 }
 
 func (u *Url) Query() string {
-	if u.search == nil || len(*u.search) == 0 {
+	if u.query == nil || len(*u.query) == 0 {
 		return ""
 	}
-	return *u.search
+	return *u.query
 }
 
 // Hash implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) Hash() string {
-	if u.hash == nil || len(*u.hash) == 0 {
+	if u.fragment == nil || len(*u.fragment) == 0 {
 		return ""
 	}
-	return "#" + *u.hash
+	return "#" + *u.fragment
 }
 
 // SetHash implements WHATWG url api (https://url.spec.whatwg.org/#api)
 func (u *Url) SetHash(fragment string) {
 	if fragment == "" {
-		u.hash = nil
-		if u.hash == nil && u.search == nil {
+		u.fragment = nil
+		if u.fragment == nil && u.query == nil {
 			u.path.stripTrailingSpacesIfOpaque()
 		}
 		return
 	}
 	fragment = strings.TrimPrefix(fragment, "#")
-	u.hash = new(string)
-	u.parser.basicParser(fragment, nil, u, stateFragment)
+	u.fragment = new(string)
+	_, _ = u.parser.basicParser(fragment, nil, u, stateFragment)
 }
 
 func (u *Url) Fragment() string {
-	if u.hash == nil || len(*u.hash) == 0 {
+	if u.fragment == nil || len(*u.fragment) == 0 {
 		return ""
 	}
-	return *u.hash
+	return *u.fragment
 }
 
 func (u *Url) String() string {
@@ -277,9 +277,9 @@ func (u *Url) ValidationErrors() []error {
 }
 
 func (u *Url) newUrlSearchParams() {
-	usp := &searchParams{url: u}
-	if u.search != nil {
-		usp.init(*u.search)
+	usp := &SearchParams{url: u}
+	if u.query != nil {
+		usp.init(*u.query)
 	}
 	u.searchParams = usp
 }

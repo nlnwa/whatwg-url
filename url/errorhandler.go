@@ -55,15 +55,3 @@ func (p *parser) handleWrappedError(u *Url, errorType errors.ErrorType, failure 
 	}
 	return nil
 }
-
-// handleWrappedErrorWithDescription handles an error according to the options set for the parser
-func (p *parser) handleWrappedErrorWithDescription(u *Url, errorType errors.ErrorType, failure bool, cause error, descr string) error {
-	e := errors.WrapWithDescr(cause, errorType, descr, u.inputUrl, failure)
-	if p.opts.reportValidationErrors {
-		u.validationErrors = append(u.validationErrors, e)
-	}
-	if failure || p.opts.failOnValidationError {
-		return e
-	}
-	return nil
-}
