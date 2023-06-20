@@ -25,12 +25,12 @@ type NameValuePair struct {
 	Name, Value string
 }
 
-type searchParams struct {
+type SearchParams struct {
 	url    *Url
 	params []*NameValuePair
 }
 
-func (s *searchParams) init(query string) {
+func (s *SearchParams) init(query string) {
 	s.params = s.params[:0]
 	p := strings.Split(query, "&")
 	for _, q := range p {
@@ -50,7 +50,7 @@ func (s *searchParams) init(query string) {
 	}
 }
 
-func (s *searchParams) update() {
+func (s *SearchParams) update() {
 	if s.url == nil {
 		return
 	}
@@ -60,12 +60,12 @@ func (s *searchParams) update() {
 	}
 }
 
-func (s *searchParams) Append(name, value string) {
+func (s *SearchParams) Append(name, value string) {
 	s.params = append(s.params, &NameValuePair{Name: name, Value: value})
 	s.update()
 }
 
-func (s *searchParams) Delete(name string) {
+func (s *SearchParams) Delete(name string) {
 	var result []*NameValuePair
 	for _, nvp := range s.params {
 		if nvp.Name != name {
@@ -76,7 +76,7 @@ func (s *searchParams) Delete(name string) {
 	s.update()
 }
 
-func (s *searchParams) Get(name string) string {
+func (s *SearchParams) Get(name string) string {
 	for _, nvp := range s.params {
 		if nvp.Name == name {
 			return nvp.Value
@@ -85,7 +85,7 @@ func (s *searchParams) Get(name string) string {
 	return ""
 }
 
-func (s *searchParams) GetAll(name string) []string {
+func (s *SearchParams) GetAll(name string) []string {
 	var result []string
 	for _, nvp := range s.params {
 		if nvp.Name == name {
@@ -95,7 +95,7 @@ func (s *searchParams) GetAll(name string) []string {
 	return result
 }
 
-func (s *searchParams) Has(name string) bool {
+func (s *SearchParams) Has(name string) bool {
 	for _, nvp := range s.params {
 		if nvp.Name == name {
 			return true
@@ -104,7 +104,7 @@ func (s *searchParams) Has(name string) bool {
 	return false
 }
 
-func (s *searchParams) Set(name, value string) {
+func (s *SearchParams) Set(name, value string) {
 	isSet := false
 	params := s.params[:0]
 	for i, nvp := range s.params {
@@ -126,28 +126,28 @@ func (s *searchParams) Set(name, value string) {
 	s.update()
 }
 
-func (s *searchParams) Sort() {
+func (s *SearchParams) Sort() {
 	sort.SliceStable(s.params, func(i, j int) bool {
 		return s.params[i].Name < s.params[j].Name
 	})
 	s.update()
 }
 
-func (s *searchParams) SortAbsolute() {
+func (s *SearchParams) SortAbsolute() {
 	sort.SliceStable(s.params, func(i, j int) bool {
 		return s.params[i].Name+s.params[i].Value < s.params[j].Name+s.params[j].Value
 	})
 	s.update()
 }
 
-func (s *searchParams) Iterate(f func(pair *NameValuePair)) {
+func (s *SearchParams) Iterate(f func(pair *NameValuePair)) {
 	for _, nvp := range s.params {
 		f(nvp)
 	}
 	s.update()
 }
 
-func (s *searchParams) String() string {
+func (s *SearchParams) String() string {
 	output := strings.Builder{}
 	for idx, nvp := range s.params {
 		if idx > 0 {
@@ -165,7 +165,7 @@ func (s *searchParams) String() string {
 	return output.String()
 }
 
-func (s *searchParams) QueryEscape(st string, output *strings.Builder) {
+func (s *SearchParams) QueryEscape(st string, output *strings.Builder) {
 	for _, b := range st {
 		if b == 0x0020 {
 			output.WriteRune(0x002B)

@@ -31,7 +31,7 @@ type Url struct {
 	path             *path
 	query            *string
 	fragment         *string
-	searchParams     *searchParams
+	searchParams     *SearchParams
 	validationErrors []error
 	parser           *parser
 	isIPv4           bool
@@ -225,7 +225,7 @@ func (u *Url) SetSearch(query string) {
 }
 
 // SearchParams implements WHATWG url api (https://url.spec.whatwg.org/#api)
-func (u *Url) SearchParams() *searchParams {
+func (u *Url) SearchParams() *SearchParams {
 	if u.searchParams == nil {
 		u.newUrlSearchParams()
 	}
@@ -277,7 +277,7 @@ func (u *Url) ValidationErrors() []error {
 }
 
 func (u *Url) newUrlSearchParams() {
-	usp := &searchParams{url: u}
+	usp := &SearchParams{url: u}
 	if u.query != nil {
 		usp.init(*u.query)
 	}
