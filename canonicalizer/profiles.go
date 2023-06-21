@@ -29,12 +29,21 @@ var LaxPathPercentEncodeSet = url.PathPercentEncodeSet.Clear(0x2E, 0x3C, 0x3E)
 var LaxQueryPercentEncodeSet = url.QueryPercentEncodeSet.Clear(0x22, 0x25, 0x2F, 0x3B, 0x3F, 0x7B)
 var RepeatedQueryPercentDecodeSet = url.C0OrSpacePercentEncodeSet.Set('#', '%', '&', '=')
 
+// WhatWg is a profile that follows the canonicalization rules used by [WHATWG].
+//
+// [WHATWG]: https://url.spec.whatwg.org/
 var WhatWg = New()
 
+// WhatWgSortQuery is a profile that follows the canonicalization rules used by [WHATWG], but sorts query parameters.
+//
+// [WHATWG]: https://url.spec.whatwg.org/
 var WhatWgSortQuery = New(
 	WithSortQuery(SortKeys),
 )
 
+// GoogleSafeBrowsing is a profile that follows the canonicalization rules used by [Google Safe Browsing].
+//
+// [Google Safe Browsing]: https://developers.google.com/safe-browsing/v4/urls-hashing#canonicalization
 var GoogleSafeBrowsing = New(
 	url.WithLaxHostParsing(),
 	url.WithQueryPercentEncodeSet(LaxQueryPercentEncodeSet),
