@@ -25,6 +25,7 @@ type NameValuePair struct {
 	Name, Value string
 }
 
+// SearchParams represents a set of query parameters.
 type SearchParams struct {
 	url    *Url
 	params []*NameValuePair
@@ -60,11 +61,13 @@ func (s *SearchParams) update() {
 	}
 }
 
+// Append appends a new name/value pair to the search parameters.
 func (s *SearchParams) Append(name, value string) {
 	s.params = append(s.params, &NameValuePair{Name: name, Value: value})
 	s.update()
 }
 
+// Delete deletes the given search parameter, and its associated value(s), from the search parameters.
 func (s *SearchParams) Delete(name string) {
 	var result []*NameValuePair
 	for _, nvp := range s.params {
@@ -76,6 +79,7 @@ func (s *SearchParams) Delete(name string) {
 	s.update()
 }
 
+// Get returns the first value associated with the given search parameter name.
 func (s *SearchParams) Get(name string) string {
 	for _, nvp := range s.params {
 		if nvp.Name == name {
@@ -85,6 +89,7 @@ func (s *SearchParams) Get(name string) string {
 	return ""
 }
 
+// GetAll returns all the values associated with the given search parameter name.
 func (s *SearchParams) GetAll(name string) []string {
 	var result []string
 	for _, nvp := range s.params {
@@ -95,6 +100,7 @@ func (s *SearchParams) GetAll(name string) []string {
 	return result
 }
 
+// Has returns true if the search parameters contains a parameter with the given name.
 func (s *SearchParams) Has(name string) bool {
 	for _, nvp := range s.params {
 		if nvp.Name == name {
@@ -104,6 +110,7 @@ func (s *SearchParams) Has(name string) bool {
 	return false
 }
 
+// Set sets the value associated with name to value. It replaces any existing values associated with name.
 func (s *SearchParams) Set(name, value string) {
 	isSet := false
 	params := s.params[:0]
@@ -126,6 +133,7 @@ func (s *SearchParams) Set(name, value string) {
 	s.update()
 }
 
+// Sort sorts the search parameters by name.
 func (s *SearchParams) Sort() {
 	sort.SliceStable(s.params, func(i, j int) bool {
 		return s.params[i].Name < s.params[j].Name
@@ -133,6 +141,7 @@ func (s *SearchParams) Sort() {
 	s.update()
 }
 
+// SortAbsolute sorts the search parameters by name and value.
 func (s *SearchParams) SortAbsolute() {
 	sort.SliceStable(s.params, func(i, j int) bool {
 		return s.params[i].Name+s.params[i].Value < s.params[j].Name+s.params[j].Value
@@ -140,6 +149,7 @@ func (s *SearchParams) SortAbsolute() {
 	s.update()
 }
 
+// Iterate iterates over the search parameters.
 func (s *SearchParams) Iterate(f func(pair *NameValuePair)) {
 	for _, nvp := range s.params {
 		f(nvp)

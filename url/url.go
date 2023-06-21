@@ -20,6 +20,7 @@ import (
 	"strings"
 )
 
+// Url represents a URL.
 type Url struct {
 	inputUrl         string
 	scheme           string
@@ -39,6 +40,7 @@ type Url struct {
 }
 
 // Href implements WHATWG url api (https://url.spec.whatwg.org/#api)
+// If excludeFragment is true, the fragment component will be excluded from the output.
 func (u *Url) Href(excludeFragment bool) string {
 	output := u.scheme + ":"
 	if u.host != nil {
