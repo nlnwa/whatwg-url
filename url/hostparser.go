@@ -189,7 +189,6 @@ func (p *parser) parseIPv4(u *Url, input string) (string, error) {
 	for counter, n := range numbers {
 		ipv4 += IPv4Addr(n * int64(math.Pow(256, float64(3-counter))))
 	}
-
 	u.isIPv4 = true
 	return ipv4.String(), nil
 }
@@ -419,17 +418,11 @@ func (address *IPv6Addr) String() string {
 
 type IPv4Addr uint32
 
-func (address *IPv4Addr) String() string {
-	output := ""
-	n := int(*address)
-	for i := 1; i <= 4; i++ {
-		output = strconv.Itoa(n%256) + output
-		if i != 4 {
-			output = "." + output
-		}
-		n = n / 256
-	}
-	return output
+func (address IPv4Addr) String() string {
+	return strconv.Itoa(int(address>>24)) + "." +
+		strconv.Itoa(int((address>>16)&0xFF)) + "." +
+		strconv.Itoa(int((address>>8)&0xFF)) + "." +
+		strconv.Itoa(int(address&0xFF))
 }
 
 var idnaProfile = idna.New(
