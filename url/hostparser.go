@@ -334,7 +334,7 @@ func (p *parser) parseIPv6(u *Url, input *inputString) (string, error) {
 
 func (p *parser) parseOpaqueHost(u *Url, input string) (string, error) {
 	output := ""
-	for _, c := range input {
+	for i, c := range input {
 		if ForbiddenHostCodePoint.Test(uint(c)) {
 			if p.opts.laxHostParsing {
 				return input, nil
@@ -346,14 +346,14 @@ func (p *parser) parseOpaqueHost(u *Url, input string) (string, error) {
 		}
 		if !isURLCodePoint(c) && c != '%' {
 			if err := p.handleErrorWithDescription(u, errors.InvalidURLUnit, false, string(c)); err != nil {
-				return input, err
+				return "", err
 			}
 		}
 		if c == '%' {
-			invalidPercentEncoding, d := remainingIsInvalidPercentEncoded([]rune(input))
+			invalidPercentEncoding, d := remainingIsInvalidPercentEncoded([]rune(input[i:]))
 			if invalidPercentEncoding {
 				if err := p.handleErrorWithDescription(u, errors.InvalidURLUnit, false, d); err != nil {
-					return input, err
+					return "", err
 				}
 			}
 		}
