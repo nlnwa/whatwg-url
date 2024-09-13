@@ -84,7 +84,7 @@ func (u *Url) SetProtocol(scheme string) {
 	if !strings.HasSuffix(scheme, ":") {
 		scheme = scheme + ":"
 	}
-	_, _ = u.parser.basicParser(scheme, nil, u, stateSchemeStart)
+	_, _ = u.parser.BasicParser(scheme, nil, u, StateSchemeStart)
 }
 
 func (u *Url) Scheme() string {
@@ -133,7 +133,7 @@ func (u *Url) SetHost(host string) {
 	if u.path.isOpaque() {
 		return
 	}
-	_, _ = u.parser.basicParser(host, nil, u, stateHost)
+	_, _ = u.parser.BasicParser(host, nil, u, StateHost)
 }
 
 // Hostname implements WHATWG url api (https://url.spec.whatwg.org/#api)
@@ -149,7 +149,7 @@ func (u *Url) SetHostname(host string) {
 	if u.path.isOpaque() {
 		return
 	}
-	_, _ = u.parser.basicParser(host, nil, u, stateHostname)
+	_, _ = u.parser.BasicParser(host, nil, u, StateHostname)
 }
 
 // Port implements WHATWG url api (https://url.spec.whatwg.org/#api)
@@ -168,7 +168,7 @@ func (u *Url) SetPort(port string) {
 	if port == "" {
 		u.port = nil
 	} else {
-		_, _ = u.parser.basicParser(port, nil, u, statePort)
+		_, _ = u.parser.BasicParser(port, nil, u, StatePort)
 	}
 }
 
@@ -191,7 +191,12 @@ func (u *Url) SetPathname(path string) {
 		return
 	}
 	u.path.init()
-	_, _ = u.parser.basicParser(path, nil, u, statePathStart)
+	_, _ = u.parser.BasicParser(path, nil, u, StatePathStart)
+}
+
+// OpaquePath tells is the path is opaque (https://url.spec.whatwg.org/#url-opaque-path)
+func (u *Url) OpaquePath() bool {
+	return u.path.opaque
 }
 
 // Search implements WHATWG url api (https://url.spec.whatwg.org/#api)
@@ -218,7 +223,7 @@ func (u *Url) SetSearch(query string) {
 	if u.query == nil {
 		u.query = new(string)
 	}
-	_, _ = u.parser.basicParser(query, nil, u, stateQuery)
+	_, _ = u.parser.BasicParser(query, nil, u, StateQuery)
 	if u.searchParams == nil {
 		u.newUrlSearchParams()
 	} else {
@@ -260,7 +265,7 @@ func (u *Url) SetHash(fragment string) {
 	}
 	fragment = strings.TrimPrefix(fragment, "#")
 	u.fragment = new(string)
-	_, _ = u.parser.basicParser(fragment, nil, u, stateFragment)
+	_, _ = u.parser.BasicParser(fragment, nil, u, StateFragment)
 }
 
 func (u *Url) Fragment() string {
