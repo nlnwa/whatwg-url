@@ -41,6 +41,7 @@ type Parser interface {
 	Parse(rawUrl string) (*Url, error)
 	ParseRef(rawUrl, ref string) (*Url, error)
 	BasicParser(urlOrRef string, base *Url, url *Url, stateOverride State) (*Url, error)
+	PercentEncodeString(s string, tr *PercentEncodeSet) string
 	NewUrl() *Url
 }
 
