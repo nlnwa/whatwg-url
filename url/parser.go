@@ -216,13 +216,13 @@ func (p *parser) basicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				if err := p.handleError(url, errors.MissingSchemeNonRelativeURL, true); err != nil {
 					return nil, err
 				}
-			} else if base != nil && base.path.isOpaque() && r == '#' {
+			} else if base.path.isOpaque() && r == '#' {
 				url.scheme = base.scheme
 				url.path = base.path // TODO: Ensure copy????
 				url.query = base.query
 				url.fragment = new(string)
 				state = stateFragment
-			} else if base != nil && base.scheme != "file" {
+			} else if base.scheme != "file" {
 				state = stateRelative
 				input.rewindLast()
 			} else {
