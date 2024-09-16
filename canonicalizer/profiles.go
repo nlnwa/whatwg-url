@@ -96,6 +96,5 @@ var Semantic = New(
 	WithDefaultScheme("http"),
 	WithSortQuery(SortKeys),
 	WithRepeatedPercentDecoding(),
-	WithDefaultScheme("http"),
 	WithRemoveFragment(),
 )
