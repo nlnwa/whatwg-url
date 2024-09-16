@@ -194,7 +194,7 @@ func (u *Url) SetPathname(path string) {
 	_, _ = u.parser.BasicParser(path, nil, u, StatePathStart)
 }
 
-// OpaquePath tells is the path is opaque (https://url.spec.whatwg.org/#url-opaque-path)
+// OpaquePath tells if the path is opaque (https://url.spec.whatwg.org/#url-opaque-path)
 func (u *Url) OpaquePath() bool {
 	return u.path.opaque
 }
