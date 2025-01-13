@@ -297,6 +297,7 @@ func (p *parser) BasicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				url.password = base.password
 				url.host = base.host
 				url.port = base.port
+				url.decodedPort = base.decodedPort
 				state = StatePath
 				input.rewindLast()
 			}
@@ -912,6 +913,7 @@ func (u *Url) isSpecialSchemeAndBackslash(r rune) bool {
 func (u *Url) cleanDefaultPort() {
 	if dp, ok := u.getSpecialScheme(u.scheme); ok && (u.port == nil || dp == *u.port) {
 		u.port = nil
+		u.decodedPort = 0
 	}
 }
 
