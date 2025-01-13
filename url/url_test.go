@@ -460,3 +460,24 @@ func TestUrl_Getters(t *testing.T) {
 		})
 	}
 }
+
+// Test that DecodedPort returns the correct port number
+func Test_DecodedPort(t *testing.T) {
+	u, _ := Parse("http://example.com:8080")
+
+	u.SetPort("8081")
+	if u.DecodedPort() != 8081 {
+		t.Errorf("DecodedPort() = %v, want %v", u.DecodedPort(), 8081)
+	}
+
+	u.SetPort("")
+
+	// Determine default port for scheme
+	defaultPortString := defaultSpecialSchemes[u.Scheme()]
+	defaultPort, _ := strconv.Atoi(defaultPortString)
+
+	// DecodedPort() should return 80 by default
+	if u.DecodedPort() != defaultPort {
+		t.Errorf("DecodedPort() = %v, want %v", u.DecodedPort(), defaultPort)
+	}
+}

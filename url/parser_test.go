@@ -211,3 +211,25 @@ func BenchmarkIssue8(b *testing.B) {
 		})
 	}
 }
+
+func TestDecodedPort(t *testing.T) {
+	u, err := Parse("http://example.com:8080")
+	if err != nil {
+		t.Errorf("Parse() error = '%v'", err)
+		return
+	}
+
+	if u.decodedPort != 8080 {
+		t.Errorf("decodedPort got = '%v', want '%v'", u.decodedPort, 8080)
+	}
+
+	relative, err := ParseRef(u.String(), "/")
+	if err != nil {
+		t.Errorf("ParseRef() error = '%v'", err)
+		return
+	}
+
+	if u.decodedPort != relative.decodedPort {
+		t.Errorf("decodedPort got = '%v', want '%v'", relative.decodedPort, u.decodedPort)
+	}
+}
