@@ -167,6 +167,7 @@ func (u *Url) SetPort(port string) {
 	}
 	if port == "" {
 		u.port = nil
+		u.decodedPort = 0
 	} else {
 		_, _ = u.parser.BasicParser(port, nil, u, StatePort)
 	}
