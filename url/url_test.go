@@ -484,12 +484,26 @@ func Test_DecodedPort(t *testing.T) {
 
 func TestURL_BasePathShouldNotChange(t *testing.T) {
 
+	// Test for behaviour described in issue #32
+	//
+	// Base URL path erroneously changes during Parse(),
+	// due to path struct being shared between both
+	// base Url and newly minted Url.
+	//
+	// https://github.com/nlnwa/whatwg-url/issues/32
+
 	baseURL := "http://example.org/ns/foo"
 	p := NewParser()
 	base, _ := p.Parse(baseURL)
 
-	base.Parse("bar#") // Return values are ignored: they are as expected.
+	expected := "http://example.org/ns/bar#"
+	u, _ := base.Parse("bar#")
+	// Sanity check expected behaviour
+	if u.String() != expected {
+		t.Errorf("Parse() = %v, want %v", u, expected)
+	}
 
+	// Ensure the base path has not changed during Parse()
 	if base.String() != baseURL {
 		t.Errorf("base URL = %v, want %v", base.String(), baseURL)
 	}
