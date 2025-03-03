@@ -223,7 +223,7 @@ func (p *parser) BasicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				}
 			} else if base.path.isOpaque() && r == '#' {
 				url.scheme = base.scheme
-				url.path = base.path // TODO: Ensure copy????
+				url.path = base.path.copy()
 				url.query = base.query
 				url.fragment = new(string)
 				state = StateFragment
@@ -267,7 +267,7 @@ func (p *parser) BasicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				url.host = base.host
 				url.port = base.port
 				url.decodedPort = base.decodedPort
-				url.path = base.path // TODO: Ensure copy????
+				url.path = base.path.copy()
 				url.query = base.query
 				if r == '?' {
 					url.query = new(string)
@@ -456,7 +456,7 @@ func (p *parser) BasicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				state = StateFileSlash
 			} else if base != nil && base.scheme == "file" {
 				url.host = base.host
-				url.path = base.path // TODO: Ensure copy????
+				url.path = base.path.copy()
 				url.query = base.query
 				if r == '?' {
 					url.query = new(string)

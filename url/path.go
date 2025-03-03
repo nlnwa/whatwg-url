@@ -48,6 +48,10 @@ func (p *path) stripTrailingSpacesIfOpaque() {
 	}
 }
 
+func (p *path) copy() *path {
+	return &path{p: append([]string{}, p.p...), opaque: p.opaque}
+}
+
 func (p *path) String() string {
 	if p.opaque {
 		return p.p[0]
