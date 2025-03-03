@@ -481,3 +481,16 @@ func Test_DecodedPort(t *testing.T) {
 		t.Errorf("DecodedPort() = %v, want %v", u.DecodedPort(), defaultPort)
 	}
 }
+
+func TestURL_BasePathShouldNotChange(t *testing.T) {
+
+	baseURL := "http://example.org/ns/foo"
+	p := NewParser()
+	base, _ := p.Parse(baseURL)
+
+	base.Parse("bar#") // Return values are ignored: they are as expected.
+
+	if base.String() != baseURL {
+		t.Errorf("base URL = %v, want %v", base.String(), baseURL)
+	}
+}
