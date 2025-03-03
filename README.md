@@ -12,18 +12,18 @@ API is similar to [Chapter 6 in WHATWG URL Standard](https://url.spec.whatwg.org
 ```go
 import "github.com/nlnwa/whatwg-url/url"
 
-url, _ := url.Parse("http://example.com:80/a?b#c")
-fmt.Println(url.Scheme())    // http
-fmt.Println(url.Host())      // example.com
-fmt.Println(url.Port())      // ""
-fmt.Println(url.Pathname())  // "/a"
-fmt.Println(url.Href(false)) // http://example.com/a?b#c
-fmt.Println(url.Href(true))  // http://example.com/a?b
-fmt.Println(url.Hash())      // "#c"
-fmt.Println(url.Fragment())  // "c"
-fmt.Println(url.Search())    // "?b"
-fmt.Println(url.Query())     // "b"
-fmt.Println(url)             // http://example.com/a?b#c
+u, _ := url.Parse("http://example.com:80/a?b#c")
+fmt.Println(u.Scheme())    // http
+fmt.Println(u.Host())      // example.com
+fmt.Println(u.Port())      // ""
+fmt.Println(u.Pathname())  // "/a"
+fmt.Println(u.Href(false)) // http://example.com/a?b#c
+fmt.Println(u.Href(true))  // http://example.com/a?b
+fmt.Println(u.Hash())      // "#c"
+fmt.Println(u.Fragment())  // "c"
+fmt.Println(u.Search())    // "?b"
+fmt.Println(u.Query())     // "b"
+fmt.Println(u)             // http://example.com/a?b#c
 ```
 
 ### Options
@@ -37,17 +37,17 @@ p := url.NewParser(url.WithAcceptInvalidCodepoints(), url.WithCollapseConsecutiv
 ```
 
 ### Canonicalization
-If you want canonicalization beyond what's described in the standard, you can use the 
+If you want canonicalization beyond what's described in the standard, you can use the
 [Canonicalizer API](https://pkg.go.dev/github.com/nlnwa/whatwg-url/canonicalizer).
 You can define your own canonicalization profile:
 
 ```go
 c := canonicalizer.New(canonicalizer.WithRemoveUserInfo(), canonicalizer.WithRemoveFragment())
-url, err := c.Parse("http://user@example.com/a?b#c")
+u, err := c.Parse("http://user@example.com/a?b#c")
 ```
 
 Or use one of the predefined profiles:
 
 ```go
-url, err := canonicalizer.GoogleSafeBrowsing.Parse("http://user@example.com/a?b#c")
+u, err := canonicalizer.GoogleSafeBrowsing.Parse("http://user@example.com/a?b#c")
 ```
