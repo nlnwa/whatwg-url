@@ -240,6 +240,11 @@ func (u *Url) SearchParams() *SearchParams {
 	return u.searchParams
 }
 
+func (u *Url) SetSearchParams(searchParams *SearchParams) {
+	u.searchParams = searchParams
+	u.searchParams.update()
+}
+
 func (u *Url) Query() string {
 	if u.query == nil || len(*u.query) == 0 {
 		return ""
