@@ -184,3 +184,18 @@ func (s *SearchParams) QueryEscape(st string, output *strings.Builder) {
 		}
 	}
 }
+
+// Clone returns a deep copy of the search parameters.
+func (s *SearchParams) Clone() *SearchParams {
+	sp := &SearchParams{
+		url:    s.url,
+		params: make([]*NameValuePair, len(s.params)),
+	}
+	for i, nvp := range s.params {
+		sp.params[i] = &NameValuePair{
+			Name:  nvp.Name,
+			Value: nvp.Value,
+		}
+	}
+	return sp
+}

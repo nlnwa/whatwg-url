@@ -109,7 +109,7 @@ const (
 
 // BasicParser implements WHATWG basic URL parser (https://url.spec.whatwg.org/#concept-basic-url-parser)
 // In most cases, when possible, prefer using the higher level Parse method.
-func (p *parser) BasicParser(urlOrRef string, base *Url, url *Url, stateOverride State) (*Url, error) {
+func (p *parser) BasicParser(urlOrRef string, baseUrl *Url, url *Url, stateOverride State) (*Url, error) {
 	stateOverridden := stateOverride > NoState
 	if url == nil {
 		url = &Url{inputUrl: urlOrRef, path: &path{}}
@@ -143,6 +143,11 @@ func (p *parser) BasicParser(urlOrRef string, base *Url, url *Url, stateOverride
 	atFlag := false
 	bracketFlag := false
 	passwordTokenSeenFlag := false
+
+	var base *Url
+	if baseUrl != nil {
+		base = baseUrl.Clone()
+	}
 
 	for {
 		r := input.nextCodePoint()
@@ -223,7 +228,7 @@ func (p *parser) BasicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				}
 			} else if base.path.isOpaque() && r == '#' {
 				url.scheme = base.scheme
-				url.path = base.path // TODO: Ensure copy????
+				url.path = base.path
 				url.query = base.query
 				url.fragment = new(string)
 				state = StateFragment
@@ -267,7 +272,7 @@ func (p *parser) BasicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				url.host = base.host
 				url.port = base.port
 				url.decodedPort = base.decodedPort
-				url.path = base.path // TODO: Ensure copy????
+				url.path = base.path
 				url.query = base.query
 				if r == '?' {
 					url.query = new(string)
@@ -456,7 +461,7 @@ func (p *parser) BasicParser(urlOrRef string, base *Url, url *Url, stateOverride
 				state = StateFileSlash
 			} else if base != nil && base.scheme == "file" {
 				url.host = base.host
-				url.path = base.path // TODO: Ensure copy????
+				url.path = base.path
 				url.query = base.query
 				if r == '?' {
 					url.query = new(string)

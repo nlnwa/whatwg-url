@@ -240,6 +240,11 @@ func (u *Url) SearchParams() *SearchParams {
 	return u.searchParams
 }
 
+func (u *Url) SetSearchParams(searchParams *SearchParams) {
+	u.searchParams = searchParams
+	u.searchParams.update()
+}
+
 func (u *Url) Query() string {
 	if u.query == nil || len(*u.query) == 0 {
 		return ""
@@ -298,4 +303,32 @@ func (u *Url) IsIPv4() bool {
 
 func (u *Url) IsIPv6() bool {
 	return u.isIPv6
+}
+
+// Clone returns a deep copy of the URL.
+func (u *Url) Clone() *Url {
+	return &Url{
+		inputUrl:     u.inputUrl,
+		scheme:       u.scheme,
+		username:     u.username,
+		password:     u.password,
+		host:         cloneStringPointer(u.host),
+		port:         cloneStringPointer(u.port),
+		decodedPort:  u.decodedPort,
+		path:         u.path.clone(),
+		query:        cloneStringPointer(u.query),
+		fragment:     cloneStringPointer(u.fragment),
+		searchParams: u.SearchParams().Clone(),
+		parser:       u.parser,
+		isIPv4:       u.isIPv4,
+		isIPv6:       u.isIPv6,
+	}
+}
+
+func cloneStringPointer(s *string) *string {
+	if s == nil {
+		return nil
+	}
+	c := strings.Clone(*s)
+	return &c
 }
