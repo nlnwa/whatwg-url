@@ -233,3 +233,20 @@ func TestDecodedPort(t *testing.T) {
 		t.Errorf("decodedPort got = '%v', want '%v'", relative.decodedPort, u.decodedPort)
 	}
 }
+
+func TestParseShouldNotModifyBaseUrl(t *testing.T) {
+	rawUrl := "http://example.org/ns/foo?adc=ghi#frag"
+	base, err := Parse(rawUrl)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = base.Parse("bar?abc=def#fragment")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if base.String() != rawUrl {
+		t.Errorf("base URL = %v, want %v", base.String(), rawUrl)
+	}
+}
