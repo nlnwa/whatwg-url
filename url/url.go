@@ -329,6 +329,6 @@ func cloneStringPointer(s *string) *string {
 	if s == nil {
 		return nil
 	}
-	c := strings.Clone(*s)
+	c := *s
 	return &c
 }
