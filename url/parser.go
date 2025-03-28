@@ -440,7 +440,9 @@ func (p *parser) BasicParser(urlOrRef string, baseUrl *Url, url *Url, stateOverr
 					buffer.Reset()
 				}
 				if stateOverridden {
-					return url, nil
+					if err := p.handleError(url, errors.PortMissing, true); err != nil {
+						return nil, err
+					}
 				}
 				state = StatePathStart
 				input.rewindLast()
