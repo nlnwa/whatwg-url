@@ -53,6 +53,7 @@ const (
 	InvalidReverseSolidus                ErrorType = "The URL has a special scheme and it uses U+005C (\\) instead of U+002F (/)"
 	InvalidCredentials                   ErrorType = "The input includes credentials"
 	HostMissing                          ErrorType = "The input has a special scheme, but does not contain a host"
+	PortMissing                          ErrorType = "The input has a hostname followed by a ':' but is missing the port number"
 	PortOutOfRange                       ErrorType = "The input's port is outside the range [0-65535]"
 	PortInvalid                          ErrorType = "The input's port is not a number"
 	FileInvalidWindowsDriveLetter        ErrorType = "The input is a relative-URL string that starts with a Windows drive letter and the base URL’s scheme is 'file'"
