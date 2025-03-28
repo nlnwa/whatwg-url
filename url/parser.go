@@ -438,6 +438,10 @@ func (p *parser) BasicParser(urlOrRef string, baseUrl *Url, url *Url, stateOverr
 					url.port = &portString
 					url.cleanDefaultPort()
 					buffer.Reset()
+				} else if stateOverridden {
+					if err := p.handleError(url, errors.PortMissing, true); err != nil {
+						return nil, err
+					}
 				}
 				if stateOverridden {
 					return url, nil
