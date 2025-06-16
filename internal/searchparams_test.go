@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package url
+package internal
 
 import (
 	"reflect"
@@ -39,7 +39,7 @@ func TestUrlSearchParams_Get(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			url, _ := Parse(tt.url)
+			url, _ := DefaultParser.Parse(tt.url)
 			s := url.SearchParams()
 			if got := s.Get(tt.key); got != tt.want {
 				t.Errorf("Get() = %v, want %v", got, tt.want)
@@ -74,7 +74,7 @@ func TestUrlSearchParams_GetAll(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			url, _ := Parse(tt.url)
+			url, _ := DefaultParser.Parse(tt.url)
 			s := url.SearchParams()
 			if tt.sort {
 				s.Sort()
@@ -102,7 +102,7 @@ func TestUrlSearchParams_Append(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			url, _ := Parse(tt.url)
+			url, _ := DefaultParser.Parse(tt.url)
 			s := url.SearchParams()
 			s.Append(tt.key, tt.value)
 			if got := s.String(); got != tt.wantSerialized {
@@ -127,7 +127,7 @@ func TestUrlSearchParams_Delete(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			url, _ := Parse(tt.url)
+			url, _ := DefaultParser.Parse(tt.url)
 			s := url.SearchParams()
 			s.Delete(tt.key)
 			if got := s.String(); got != tt.wantSerialized {
@@ -157,7 +157,7 @@ func TestUrlSearchParams_Set(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			url, _ := Parse(tt.url)
+			url, _ := DefaultParser.Parse(tt.url)
 			s := url.SearchParams()
 			s.Set(tt.key, tt.value)
 			if got := s.String(); got != tt.wantSerialized {
@@ -183,7 +183,7 @@ func TestUrlSearchParams_String(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			url, _ := Parse(tt.url)
+			url, _ := DefaultParser.Parse(tt.url)
 			s := url.SearchParams()
 			if got := s.String(); got != tt.wantSerialized {
 				t.Errorf("got %v, want %v", got, tt.wantSerialized)

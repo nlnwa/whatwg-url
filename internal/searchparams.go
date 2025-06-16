@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package url
+package internal
 
 import (
 	"sort"
@@ -33,17 +33,16 @@ type SearchParams struct {
 
 func (s *SearchParams) init(query string) {
 	s.params = s.params[:0]
-	p := strings.Split(query, "&")
-	for _, q := range p {
+	for q := range strings.SplitSeq(query, "&") {
 		if q == "" {
 			continue
 		}
 		kv := strings.SplitN(q, "=", 2)
-		name := s.url.parser.DecodePercentEncoded(kv[0])
+		name := percentDecode(kv[0], nil)
 		name = strings.ReplaceAll(name, "+", " ")
 		nvp := &NameValuePair{Name: name}
 		if len(kv) == 2 {
-			value := s.url.parser.DecodePercentEncoded(kv[1])
+			value := percentDecode(kv[1], nil)
 			value = strings.ReplaceAll(value, "+", " ")
 			nvp.Value = value
 		}
@@ -56,8 +55,8 @@ func (s *SearchParams) update() {
 		return
 	}
 	query := s.String()
-	if (query == "" && s.url.query != nil) || query != "" {
-		s.url.query = &query
+	if (query == "" && s.url.hasQuery) || query != "" {
+		s.url.query = query
 	}
 }
 
@@ -161,12 +160,12 @@ func (s *SearchParams) String() string {
 	output := strings.Builder{}
 	for idx, nvp := range s.params {
 		if idx > 0 {
-			output.WriteRune('&')
+			output.WriteByte('&')
 		}
 
 		s.QueryEscape(nvp.Name, &output)
-		if !s.url.parser.opts.skipEqualsForEmptySearchParamsValue || nvp.Value != "" {
-			output.WriteRune('=')
+		if !s.url.parser.SkipEqualsForEmptySearchParamsValue || nvp.Value != "" {
+			output.WriteByte('=')
 		}
 		if nvp.Value != "" {
 			s.QueryEscape(nvp.Value, &output)
@@ -177,10 +176,10 @@ func (s *SearchParams) String() string {
 
 func (s *SearchParams) QueryEscape(st string, output *strings.Builder) {
 	for _, b := range st {
-		if b == 0x0020 {
-			output.WriteRune(0x002B)
+		if b == ' ' {
+			output.WriteByte('+')
 		} else {
-			output.WriteString(s.url.parser.percentEncodeRune(b, s.url.parser.opts.queryPercentEncodeSet))
+			output.Write(percentEncode(b, s.url.parser.QueryPercentEncodeSet))
 		}
 	}
 }

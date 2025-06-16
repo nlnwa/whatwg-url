@@ -20,14 +20,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/nationallibraryofnorway/whatwg-url/url"
 	"golang.org/x/text/encoding/charmap"
-
-	"github.com/nlnwa/whatwg-url/url"
 )
-
-var LaxPathPercentEncodeSet = url.PathPercentEncodeSet.Clear(0x2E, 0x3C, 0x3E)
-var LaxQueryPercentEncodeSet = url.QueryPercentEncodeSet.Clear(0x22, 0x25, 0x2F, 0x3B, 0x3F, 0x7B)
-var RepeatedQueryPercentDecodeSet = url.C0OrSpacePercentEncodeSet.Set('#', '%', '&', '=')
 
 // WhatWg is a profile that follows the canonicalization rules used by [WHATWG].
 //
@@ -46,6 +41,7 @@ var WhatWgSortQuery = New(
 // [Google Safe Browsing]: https://developers.google.com/safe-browsing/v4/urls-hashing#canonicalization
 var GoogleSafeBrowsing = New(
 	url.WithLaxHostParsing(),
+	url.WithPathPercentEncodeSet(LaxPathPercentEncodeSet),
 	url.WithQueryPercentEncodeSet(LaxQueryPercentEncodeSet),
 	url.WithCollapseConsecutiveSlashes(),
 	url.WithAcceptInvalidCodepoints(),
@@ -60,6 +56,7 @@ var GoogleSafeBrowsing = New(
 	WithRemovePort(),
 	WithRemoveFragment(),
 	WithRepeatedPercentDecoding(),
+	WithNormalizePercentEncodedSpaceToPlus(),
 	WithDefaultScheme("http"),
 )
 
@@ -83,14 +80,14 @@ var Semantic = New(
 		}
 		return host
 	}),
-	url.WithSpecialSchemes(map[string]string{
-		"ftp":    "21",
-		"file":   "",
-		"http":   "80",
-		"https":  "443",
-		"ws":     "80",
-		"wss":    "443",
-		"gopher": "70",
+	url.WithSpecialSchemes(map[string]uint16{
+		"ftp":    21,
+		"file":   0,
+		"http":   80,
+		"https":  443,
+		"ws":     80,
+		"wss":    443,
+		"gopher": 70,
 	}),
 	WithRemoveUserInfo(),
 	WithDefaultScheme("http"),

@@ -1,9 +1,8 @@
-module github.com/nlnwa/whatwg-url
+module github.com/nationallibraryofnorway/whatwg-url
 
-go 1.16
+go 1.24.0
 
 require (
-	github.com/bits-and-blooms/bitset v1.20.0
-	golang.org/x/net v0.34.0
-	golang.org/x/text v0.21.0
+	golang.org/x/net v0.49.0
+	golang.org/x/text v0.33.0
 )

@@ -1,97 +1,79 @@
 package canonicalizer
 
-import "github.com/nlnwa/whatwg-url/url"
+import (
+	"github.com/nationallibraryofnorway/whatwg-url/internal"
+	"github.com/nationallibraryofnorway/whatwg-url/url"
+)
 
-// canonParserOption configures how we canonicalize a URL.
-type canonParserOption interface {
-	applyProfile(*profile)
-}
-
-// funcCanonParserOption wraps a function that modifies profile into an
-// implementation of both the url.ParserOption and canonParserOption interface.
-type funcCanonParserOption struct {
-	url.EmptyParserOption
-	f func(*profile)
-}
-
-func (cpo *funcCanonParserOption) applyProfile(p *profile) {
-	cpo.f(p)
+func WithNormalizePercentEncodedSpaceToPlus() url.ParserOption {
+	return internal.NewCanonicalizerOption(func(p *internal.Canonicalizer) {
+		p.PercentEncodedSpaceToPlus = true
+	})
 }
 
 // WithRemoveUserInfo removes username and password from url.
 //
 // This API is EXPERIMENTAL.
 func WithRemoveUserInfo() url.ParserOption {
-	return &funcCanonParserOption{
-		f: func(p *profile) {
-			p.removeUserInfo = true
-		},
-	}
+	return internal.NewCanonicalizerOption(func(p *internal.Canonicalizer) {
+		p.RemoveUserInfo = true
+	})
 }
 
 // WithRemovePort always removes port from url. Default is to remove port if port is default port for scheme.
 //
 // This API is EXPERIMENTAL.
 func WithRemovePort() url.ParserOption {
-	return &funcCanonParserOption{
-		f: func(p *profile) {
-			p.removePort = true
-		},
-	}
+	return internal.NewCanonicalizerOption(func(p *internal.Canonicalizer) {
+		p.RemovePort = true
+	})
 }
 
 // WithRemoveFragment removes the fragment part of the url.
 //
 // This API is EXPERIMENTAL.
 func WithRemoveFragment() url.ParserOption {
-	return &funcCanonParserOption{
-		f: func(p *profile) {
-			p.removeFragment = true
-		},
-	}
+	return internal.NewCanonicalizerOption(func(p *internal.Canonicalizer) {
+		p.RemoveFragment = true
+	})
 }
 
-// WithRepeatedPercentDecoding.
+// WithRepeatedPercentDecoding enables repeated percent decoding.
+// This is used to decode percent encoded characters recursively.
+//
+// For example, "%2520" -> "%20" -> " " (space).
 //
 // This API is EXPERIMENTAL.
 func WithRepeatedPercentDecoding() url.ParserOption {
-	return &funcCanonParserOption{
-		f: func(p *profile) {
-			p.repeatedPercentDecoding = true
-		},
-	}
+	return internal.NewCanonicalizerOption(func(p *internal.Canonicalizer) {
+		p.RepeatedPercentDecoding = true
+	})
+}
+
+// WithRepeatedDecodeQueryPercentEncodeSet sets the percent encoding set applied after repeated percent decoding of the search parameters.
+//
+// This API is EXPERIMENTAL.
+func WithRepeatedDecodeQueryPercentEncodeSet(encodeSet *url.PercentEncodeSet) url.ParserOption {
+	return internal.NewCanonicalizerOption(func(o *internal.Canonicalizer) {
+		o.RepeatedQueryPercentEncodeSet = encodeSet
+	})
 }
 
 // WithDefaultScheme sets a scheme to add if url is missing scheme.
 //
 // This API is EXPERIMENTAL.
 func WithDefaultScheme(scheme string) url.ParserOption {
-	return &funcCanonParserOption{
-		f: func(p *profile) {
-			p.defaultScheme = scheme
-		},
-	}
+	return internal.NewCanonicalizerOption(func(p *internal.Canonicalizer) {
+		p.DefaultScheme = scheme
+	})
 }
 
 // WithSortQuery sets sort type for query parameters.
-// if query should be sorted: 0 = no sort, 1 = sort keys, but leave repeated keys in same order, 2 = sort key,value
+// [NoSort] = no sort, [SortKeys] = sort keys (but leave repeated keys in same order), [SortParameter] = sort key and value
 //
 // This API is EXPERIMENTAL.
-func WithSortQuery(sortType querySort) url.ParserOption {
-	return &funcCanonParserOption{
-		f: func(p *profile) {
-			p.sortQuery = sortType
-		},
-	}
+func WithSortQuery(sortType internal.QuerySort) url.ParserOption {
+	return internal.NewCanonicalizerOption(func(p *internal.Canonicalizer) {
+		p.SortQuery = sortType
+	})
 }
-
-type querySort int
-
-const (
-	// Do not sort query.
-	NoSort querySort = iota
-	// Stable sort on query parameter keys.
-	SortKeys
-	// Sort on entire query parameter.
-	SortParameter
-)

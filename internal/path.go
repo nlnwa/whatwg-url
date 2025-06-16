@@ -1,8 +1,6 @@
-package url
+package internal
 
-import (
-	"strings"
-)
+import "strings"
 
 type path struct {
 	p      []string
@@ -18,8 +16,9 @@ func (p *path) isEmpty() bool {
 }
 
 func (p *path) setOpaque(opaquePath string) {
-	p.p = []string{opaquePath}
 	p.opaque = true
+	p.p = p.p[:0]
+	p.p = append(p.p, opaquePath)
 }
 
 func (p *path) addSegment(segment string) {
@@ -28,7 +27,7 @@ func (p *path) addSegment(segment string) {
 }
 
 func (p *path) init() {
-	p.p = []string{}
+	p.p = p.p[:0]
 	p.opaque = false
 }
 
@@ -43,33 +42,50 @@ func (p *path) shortenPath(scheme string) {
 }
 
 func (p *path) stripTrailingSpacesIfOpaque() {
-	if p.opaque {
-		p.p[0] = strings.TrimRight(p.p[0], "\u0020")
+	if !p.opaque || len(p.p) == 0 {
+		return
 	}
+	s := p.p[0]
+	// fast check: no trailing space => no alloc
+	if len(s) == 0 || s[len(s)-1] != ' ' {
+		return
+	}
+	i := len(s)
+	for i > 0 && s[i-1] == ' ' {
+		i--
+	}
+	p.p[0] = s[:i] // slice header only; no alloc
 }
 
 func (p *path) clone() *path {
 	if p == nil {
 		return nil
 	}
-	newPath := &path{
+
+	newSegments := make([]string, len(p.p))
+	copy(newSegments, p.p)
+
+	return &path{
 		opaque: p.opaque,
+		p:      newSegments,
 	}
-	if p.p != nil {
-		newPath.p = make([]string, len(p.p))
-		copy(newPath.p, p.p)
-	}
-	return newPath
 }
 
 func (p *path) String() string {
-	if p.opaque {
+	if p.opaque && len(p.p) > 0 {
 		return p.p[0]
-	} else {
-		output := ""
-		for _, pp := range p.p {
-			output += "/" + pp
-		}
-		return output
 	}
+	size := 0
+	for _, pp := range p.p {
+		size += 1 + len(pp)
+	}
+
+	var sb strings.Builder
+	sb.Grow(size)
+	for _, pp := range p.p {
+		sb.WriteByte('/')
+		sb.WriteString(pp)
+	}
+
+	return sb.String()
 }

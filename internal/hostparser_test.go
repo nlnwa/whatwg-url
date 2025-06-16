@@ -1,4 +1,4 @@
-package url
+package internal
 
 import "testing"
 
@@ -47,9 +47,9 @@ func Test_parser_parseHost(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := &parser{opts: parserOptions{failOnValidationError: tt.failOnValidationError}}
+			p := &Parser{FailOnValidationError: tt.failOnValidationError}
 
-			got, err := p.parseHost(&Url{}, p, tt.args.input, tt.args.isNotSpecial)
+			got, err := p.parseHost(&Url{}, tt.args.input, tt.args.isNotSpecial)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("parseHost() error = %v, wantErr %v", err, tt.wantErr)
 				return

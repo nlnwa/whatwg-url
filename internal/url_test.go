@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package url
+package internal
 
 import (
 	"encoding/json"
@@ -50,7 +50,7 @@ func TestUrl_SetProtocol(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	defer jsonFile.Close()
+	defer func() { _ = jsonFile.Close() }()
 	data, _ := io.ReadAll(jsonFile)
 	_ = json.Unmarshal(data, &tests)
 
@@ -59,13 +59,12 @@ func TestUrl_SetProtocol(t *testing.T) {
 		testNum++
 
 		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
-			got, err := Parse(tt.Href)
-			got.SetProtocol(tt.New_value)
-
+			got, err := DefaultParser.Parse(tt.Href)
 			if err != nil {
 				t.Errorf("Input: '%v', New value: '%v', Parse() error = '%v'", tt.Href, tt.New_value, err)
 				return
 			}
+			got.SetProtocol(tt.New_value)
 
 			validateExpected(got, err, tt, t)
 		})
@@ -79,7 +78,7 @@ func TestUrl_SetUsername(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	defer jsonFile.Close()
+	defer func() { _ = jsonFile.Close() }()
 	data, _ := io.ReadAll(jsonFile)
 	_ = json.Unmarshal(data, &tests)
 
@@ -88,7 +87,7 @@ func TestUrl_SetUsername(t *testing.T) {
 		testNum++
 
 		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
-			got, err := Parse(tt.Href)
+			got, err := DefaultParser.Parse(tt.Href)
 			got.SetUsername(tt.New_value)
 
 			validateExpected(got, err, tt, t)
@@ -103,7 +102,7 @@ func TestUrl_SetPassword(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	defer jsonFile.Close()
+	defer func() { _ = jsonFile.Close() }()
 	data, _ := io.ReadAll(jsonFile)
 	_ = json.Unmarshal(data, &tests)
 
@@ -112,7 +111,7 @@ func TestUrl_SetPassword(t *testing.T) {
 		testNum++
 
 		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
-			got, err := Parse(tt.Href)
+			got, err := DefaultParser.Parse(tt.Href)
 			got.SetPassword(tt.New_value)
 
 			validateExpected(got, err, tt, t)
@@ -127,16 +126,15 @@ func TestUrl_SetHost(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	defer jsonFile.Close()
+	defer func() { _ = jsonFile.Close() }()
 	data, _ := io.ReadAll(jsonFile)
 	_ = json.Unmarshal(data, &tests)
 
 	var testNum int
 	for _, tt := range tests.Host {
 		testNum++
-
 		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
-			got, err := Parse(tt.Href)
+			got, err := DefaultParser.Parse(tt.Href)
 			got.SetHost(tt.New_value)
 
 			validateExpected(got, err, tt, t)
@@ -151,7 +149,7 @@ func TestUrl_SetHostname(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	defer jsonFile.Close()
+	defer func() { _ = jsonFile.Close() }()
 	data, _ := io.ReadAll(jsonFile)
 	_ = json.Unmarshal(data, &tests)
 
@@ -160,7 +158,7 @@ func TestUrl_SetHostname(t *testing.T) {
 		testNum++
 
 		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
-			got, err := Parse(tt.Href)
+			got, err := DefaultParser.Parse(tt.Href)
 			got.SetHostname(tt.New_value)
 
 			validateExpected(got, err, tt, t)
@@ -175,7 +173,7 @@ func TestUrl_SetPort(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	defer jsonFile.Close()
+	defer func() { _ = jsonFile.Close() }()
 	data, _ := io.ReadAll(jsonFile)
 	_ = json.Unmarshal(data, &tests)
 
@@ -184,7 +182,7 @@ func TestUrl_SetPort(t *testing.T) {
 		testNum++
 
 		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
-			got, err := Parse(tt.Href)
+			got, err := DefaultParser.Parse(tt.Href)
 			got.SetPort(tt.New_value)
 
 			validateExpected(got, err, tt, t)
@@ -199,7 +197,7 @@ func TestUrl_SetPathname(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	defer jsonFile.Close()
+	defer func() { _ = jsonFile.Close() }()
 	data, _ := io.ReadAll(jsonFile)
 	_ = json.Unmarshal(data, &tests)
 
@@ -208,7 +206,11 @@ func TestUrl_SetPathname(t *testing.T) {
 		testNum++
 
 		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
-			got, err := Parse(tt.Href)
+			got, err := DefaultParser.Parse(tt.Href)
+			if err != nil {
+				t.Errorf("Input: '%v', New value: '%v', Parse() error = '%v'", tt.Href, tt.New_value, err)
+				return
+			}
 			got.SetPathname(tt.New_value)
 
 			validateExpected(got, err, tt, t)
@@ -223,7 +225,7 @@ func TestUrl_SetSearch(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	defer jsonFile.Close()
+	defer func() { _ = jsonFile.Close() }()
 	data, _ := io.ReadAll(jsonFile)
 	_ = json.Unmarshal(data, &tests)
 
@@ -232,7 +234,7 @@ func TestUrl_SetSearch(t *testing.T) {
 		testNum++
 
 		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
-			got, err := Parse(tt.Href)
+			got, err := DefaultParser.Parse(tt.Href)
 			got.SetSearch(tt.New_value)
 
 			validateExpected(got, err, tt, t)
@@ -247,7 +249,7 @@ func TestUrl_SetHash(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	defer jsonFile.Close()
+	defer func() { _ = jsonFile.Close() }()
 	data, _ := io.ReadAll(jsonFile)
 	_ = json.Unmarshal(data, &tests)
 
@@ -256,7 +258,7 @@ func TestUrl_SetHash(t *testing.T) {
 		testNum++
 
 		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
-			got, err := Parse(tt.Href)
+			got, err := DefaultParser.Parse(tt.Href)
 			got.SetHash(tt.New_value)
 
 			validateExpected(got, err, tt, t)
@@ -272,7 +274,7 @@ func validateExpected(got *Url, err error, expected setterTest, t *testing.T) {
 
 	if href, ok := expected.Expected["href"]; ok {
 		if got.String() != href {
-			t.Errorf("Input: '%v', New value: '%v', String() got = '%v', want '%v'",
+			t.Errorf("Input: '%v', New value: '%v', String()\ngot  = '%v',\nwant = '%v'\n",
 				expected.Href, expected.New_value, got.String(), href)
 		}
 	}
@@ -343,7 +345,7 @@ func TestUrl_Getters(t *testing.T) {
 		password    string
 		host        string
 		port        string
-		decodedPort int
+		decodedPort uint16
 		path        string
 		search      string
 		query       string
@@ -417,7 +419,7 @@ func TestUrl_Getters(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			u, _ := Parse(tt.inputUrl)
+			u, _ := DefaultParser.Parse(tt.inputUrl)
 			if got := u.Href(false); got != tt.href {
 				t.Errorf("Href() = %v, want %v", got, tt.href)
 			}
@@ -463,21 +465,18 @@ func TestUrl_Getters(t *testing.T) {
 
 // Test that DecodedPort returns the correct port number
 func Test_DecodedPort(t *testing.T) {
-	u, _ := Parse("http://example.com:8080")
+	u, err := DefaultParser.Parse("http://example.com:8080")
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
 
 	u.SetPort("8081")
-	if u.DecodedPort() != 8081 {
-		t.Errorf("DecodedPort() = %v, want %v", u.DecodedPort(), 8081)
+	if got, want := u.DecodedPort(), uint16(8081); got != want {
+		t.Fatalf("DecodedPort() = %v, want %v", got, want)
 	}
 
 	u.SetPort("")
-
-	// Determine default port for scheme
-	defaultPortString := defaultSpecialSchemes[u.Scheme()]
-	defaultPort, _ := strconv.Atoi(defaultPortString)
-
-	// DecodedPort() should return 80 by default
-	if u.DecodedPort() != defaultPort {
-		t.Errorf("DecodedPort() = %v, want %v", u.DecodedPort(), defaultPort)
+	if got, want := u.DecodedPort(), uint16(80); got != want {
+		t.Fatalf("DecodedPort() after clearing port = %v, want %v", got, want)
 	}
 }

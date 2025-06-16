@@ -51,7 +51,7 @@ func TestGoogleSafeBrowsing(t *testing.T) {
 				return
 			}
 			if got.String() != tt.want {
-				t.Errorf("Parse(%v) = %v, want %v", tt.args, got, tt.want)
+				t.Errorf("Parse(%v)\ngot  = %v\nwant = %v\n", tt.args, got, tt.want)
 			}
 		})
 	}

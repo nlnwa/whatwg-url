@@ -2,7 +2,8 @@ package url_test
 
 import (
 	"fmt"
-	"github.com/nlnwa/whatwg-url/url"
+
+	"github.com/nationallibraryofnorway/whatwg-url/url"
 )
 
 func ExampleNewParser() {
