@@ -159,6 +159,11 @@ func (s *SearchParams) Iterate(f func(pair *NameValuePair)) {
 
 func (s *SearchParams) String() string {
 	output := strings.Builder{}
+	toGrow := 0
+	for _, nvp := range s.params {
+		toGrow += (len(nvp.Name) * 3) + (len(nvp.Value) * 3) + 2 // *3 worst case: every rune is percent-encoded; 2 for '=' and '&';
+	}
+	output.Grow(toGrow)
 	for idx, nvp := range s.params {
 		if idx > 0 {
 			output.WriteRune('&')
@@ -191,11 +196,6 @@ func (s *SearchParams) Clone() *SearchParams {
 		url:    s.url,
 		params: make([]*NameValuePair, len(s.params)),
 	}
-	for i, nvp := range s.params {
-		sp.params[i] = &NameValuePair{
-			Name:  nvp.Name,
-			Value: nvp.Value,
-		}
-	}
+	copy(sp.params, s.params)
 	return sp
 }

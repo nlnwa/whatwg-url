@@ -66,10 +66,9 @@ func (p *path) String() string {
 	if p.opaque {
 		return p.p[0]
 	} else {
-		output := ""
-		for _, pp := range p.p {
-			output += "/" + pp
+		if len(p.p) == 0 {
+			return ""
 		}
-		return output
+		return "/" + strings.Join(p.p, "/")
 	}
 }

@@ -42,36 +42,38 @@ type Url struct {
 // Href implements WHATWG url api (https://url.spec.whatwg.org/#api)
 // If excludeFragment is true, the fragment component will be excluded from the output.
 func (u *Url) Href(excludeFragment bool) string {
-	output := u.scheme + ":"
+	var output strings.Builder
+	output.Grow(len(u.inputUrl))
+	output.WriteString(u.scheme + ":")
 	if u.host != nil {
-		output += "//"
+		output.WriteString("//")
 		if u.username != "" || u.password != "" {
-			output += u.username
+			output.WriteString(u.username)
 			if u.password != "" {
-				output += ":" + u.password
+				output.WriteString(":" + u.password)
 			}
-			output += "@"
+			output.WriteString("@")
 		}
-		output += *u.host
+		output.WriteString(*u.host)
 		if u.port != nil {
-			output += ":" + *u.port
+			output.WriteString(":" + *u.port)
 		}
 	}
 	if u.host == nil && !u.path.isOpaque() && len(u.path.p) > 1 && u.path.p[0] == "" {
-		output += "/."
+		output.WriteString("/.")
 	}
 
-	output += u.path.String()
+	output.WriteString(u.path.String())
 
 	if u.query != nil {
-		output += "?" + *u.query
+		output.WriteString("?" + *u.query)
 	}
 
 	if !excludeFragment && u.fragment != nil {
-		output += "#" + *u.fragment
+		output.WriteString("#" + *u.fragment)
 	}
 
-	return output
+	return output.String()
 }
 
 // Protocol implements WHATWG url api (https://url.spec.whatwg.org/#api)

@@ -17,7 +17,6 @@
 package url
 
 import (
-	"strings"
 	"unicode/utf8"
 )
 
@@ -90,7 +89,12 @@ func (i *inputString) remainingStartsWith(s string) bool {
 		return false
 	}
 
-	return strings.HasPrefix(string(i.runes[i.pointer+1:]), s)
+	end := i.pointer + 1 + len(s)
+	if end > i.length {
+		return false
+	}
+
+	return string(i.runes[i.pointer+1:end]) == s
 }
 
 // remainingIsInvalidPercentEncoded returns true if the first three characters in the rune array are not '%' followed by two hex digits.

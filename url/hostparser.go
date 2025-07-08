@@ -50,7 +50,12 @@ func (p *parser) parseHost(u *Url, parser *parser, input string, isNotSpecial bo
 		return p.parseOpaqueHost(u, input)
 	}
 
-	domain := p.DecodePercentEncoded(input)
+	var domain string
+	if strings.IndexByte(input, '%') < 0 { // fast path for non '%' input
+		domain = input
+	} else {
+		domain = p.DecodePercentEncoded(input)
+	}
 
 	if !utf8.ValidString(domain) {
 		if p.opts.laxHostParsing {
@@ -61,13 +66,20 @@ func (p *parser) parseHost(u *Url, parser *parser, input string, isNotSpecial bo
 		}
 	}
 
-	asciiDomain, err := p.ToASCII(domain, false)
-	if err != nil {
-		if p.opts.laxHostParsing {
-			return domain, nil
-		}
-		if err := p.handleWrappedError(u, errors.DomainToASCII, true, err); err != nil {
-			return "", err
+	var asciiDomain string
+	// fast path for common ASCIIAlpha+single_dot+somgle_dash domain
+	if containsOnly(domain, ASCIIAlpha.Clone().Set('.').Set('-')) && !strings.Contains(domain, "..") && !strings.Contains(domain, "--") {
+		asciiDomain = strings.ToLower(domain)
+	} else {
+		var err error
+		asciiDomain, err = p.ToASCII(domain, false)
+		if err != nil {
+			if p.opts.laxHostParsing {
+				return domain, nil
+			}
+			if err := p.handleWrappedError(u, errors.DomainToASCII, true, err); err != nil {
+				return "", err
+			}
 		}
 	}
 	for _, c := range asciiDomain {
@@ -105,6 +117,16 @@ func (p *parser) endsInANumber(u *Url, input string) bool {
 	if last != "" && containsOnly(last, ASCIIDigit) {
 		return true
 	}
+
+	// fast path for common non-hex input
+	if last != "" {
+		tr := ASCIIHexDigit.Clone().Set('x').Set('X')
+		if !containsOnly(last, tr) {
+			return false
+		}
+	}
+
+	// slow path
 	if _, _, err := p.parseIPv4Number(u, last); err == nil || goerrors.Is(err, strconv.ErrRange) {
 		return true
 	}
@@ -510,6 +532,7 @@ func (p *parser) stringToUnicode(src string) (string, error) {
 
 func percentEncodeString(s string, tr *PercentEncodeSet) string {
 	sb := strings.Builder{}
+	sb.Grow(len(s) * 3) // worst case: every rune is percent-encoded
 	for _, b := range []byte(s) {
 		sb.WriteString(percentEncodeByte(b, tr))
 	}

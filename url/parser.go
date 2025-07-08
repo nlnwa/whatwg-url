@@ -149,6 +149,8 @@ func (p *parser) BasicParser(urlOrRef string, baseUrl *Url, url *Url, stateOverr
 		base = baseUrl.Clone()
 	}
 
+	tr := ASCIIAlphanumeric.Clone().Set(0x2b).Set(0x2d).Set(0x2e)
+
 	for {
 		r := input.nextCodePoint()
 
@@ -166,7 +168,6 @@ func (p *parser) BasicParser(urlOrRef string, baseUrl *Url, url *Url, stateOverr
 				}
 			}
 		case StateScheme:
-			tr := ASCIIAlphanumeric.Clone().Set(0x2b).Set(0x2d).Set(0x2e)
 			if tr.Test(uint(r)) {
 				buffer.WriteRune(unicode.ToLower(r))
 			} else if r == ':' {
@@ -747,6 +748,7 @@ func (p *parser) percentEncodeRune(r rune, tr *PercentEncodeSet) string {
 
 func (p *parser) PercentEncodeString(s string, tr *PercentEncodeSet) string {
 	buffer := &strings.Builder{}
+	buffer.Grow(len(s) * 3) // worst case: every rune is percent-encoded
 	runes := []rune(s)
 	for i, r := range runes {
 		if r == '%' {
@@ -765,6 +767,7 @@ func (p *parser) PercentEncodeString(s string, tr *PercentEncodeSet) string {
 
 func (p *parser) DecodePercentEncoded(s string) string {
 	sb := strings.Builder{}
+	sb.Grow(len(s)) // worst case: no percent-encoding, so same length
 	bytes := []byte(s)
 	for i := 0; i < len(bytes); i++ {
 		if bytes[i] != '%' {
@@ -803,8 +806,10 @@ func isSingleDotPathSegment(s string) bool {
 	if s == "." {
 		return true
 	}
-	s = strings.ToLower(s)
-	return s == "%2e"
+	if len(s) != 3 {
+		return false
+	}
+	return s == "%2e" || s == "%2E"
 }
 
 func isDoubleDotPathSegment(s string) bool {
@@ -880,7 +885,7 @@ func remove(s string, tr *bitset.BitSet) (string, bool) {
 		return s, false
 	}
 	changed := false
-	var r []byte
+	r := make([]byte, 0, len(s))
 	for _, c := range []byte(s) {
 		if tr.Test(uint(c)) {
 			changed = true
@@ -910,13 +915,12 @@ func (u *Url) isSpecialScheme(s string) bool {
 }
 
 func (u *Url) getSpecialScheme(s string) (string, bool) {
-	dp, ok := u.parser.opts.specialSchemes[s]
+	dp, ok := u.parser.opts.specialSchemes(s)
 	return dp, ok
 }
 
 func (u *Url) isSpecialSchemeAndBackslash(r rune) bool {
-	ok := u.IsSpecialScheme()
-	return ok && r == '\\'
+	return r == '\\' && u.IsSpecialScheme()
 }
 
 func (u *Url) cleanDefaultPort() {

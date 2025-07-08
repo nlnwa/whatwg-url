@@ -473,7 +473,7 @@ func Test_DecodedPort(t *testing.T) {
 	u.SetPort("")
 
 	// Determine default port for scheme
-	defaultPortString := defaultSpecialSchemes[u.Scheme()]
+	defaultPortString, _ := defaultSpecialSchemes(u.Scheme())
 	defaultPort, _ := strconv.Atoi(defaultPortString)
 
 	// DecodedPort() should return 80 by default

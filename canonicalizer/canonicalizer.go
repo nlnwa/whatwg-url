@@ -141,6 +141,7 @@ func repeatedDecode(s string) string {
 
 func percentEncode(s string, tr *url.PercentEncodeSet) string {
 	sb := strings.Builder{}
+	sb.Grow(len(s) * 3) // worst case: every rune is percent-encoded
 	for _, b := range []byte(s) {
 		sb.WriteString(percentEncodeByte(b, tr.Set('%')))
 	}
@@ -161,6 +162,7 @@ func percentEncodeByte(b byte, tr *url.PercentEncodeSet) string {
 
 func decodePercentEncoded(s string) string {
 	sb := strings.Builder{}
+	sb.Grow(len(s)) // worst case: no percent-encoding, so same length
 	bytes := []byte(s)
 	for i := 0; i < len(bytes); i++ {
 		if bytes[i] != '%' {

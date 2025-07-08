@@ -18,13 +18,23 @@ package url
 
 import "golang.org/x/text/encoding/charmap"
 
-var defaultSpecialSchemes = map[string]string{
-	"ftp":   "21",
-	"file":  "",
-	"http":  "80",
-	"https": "443",
-	"ws":    "80",
-	"wss":   "443",
+func defaultSpecialSchemes(scheme string) (defaultPort string, ok bool) {
+	switch scheme {
+	case "ftp":
+		return "21", true
+	case "file":
+		return "", true
+	case "http":
+		return "80", true
+	case "https":
+		return "443", true
+	case "ws":
+		return "80", true
+	case "wss":
+		return "443", true
+	default:
+		return "", false
+	}
 }
 
 // parserOptions configure a url parser. parserOptions are set by the ParserOption
@@ -40,7 +50,7 @@ type parserOptions struct {
 	percentEncodeSinglePercentSign      bool
 	allowSettingPathForNonBaseUrl       bool
 	skipWindowsDriveLetterNormalization bool
-	specialSchemes                      map[string]string
+	specialSchemes                      func(scheme string) (defaultPort string, ok bool)
 	skipTrailingSlashNormalization      bool
 	encodingOverride                    *charmap.Charmap
 	pathPercentEncodeSet                *PercentEncodeSet
@@ -196,7 +206,10 @@ func WithSkipWindowsDriveLetterNormalization() ParserOption {
 // This API is EXPERIMENTAL.
 func WithSpecialSchemes(special map[string]string) ParserOption {
 	return newFuncParserOption(func(o *parserOptions) {
-		o.specialSchemes = special
+		o.specialSchemes = func(scheme string) (defaultPort string, ok bool) {
+			defaultPort, ok = special[scheme]
+			return
+		}
 	})
 }
 
