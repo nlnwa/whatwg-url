@@ -40,6 +40,35 @@ p := url.NewParser(
 )
 ```
 
+### Error handling
+
+Use standard Go error handling with `errors.Is`/`errors.As`.
+
+```go
+import (
+    "errors"
+
+    urlerrors "github.com/nationallibraryofnorway/whatwg-url/errors"
+    "github.com/nationallibraryofnorway/whatwg-url/url"
+)
+
+u, err := url.Parse("https://example.org:7z")
+if err != nil {
+    if errors.Is(err, urlerrors.ErrPortInvalid) {
+        // handle invalid port
+    }
+}
+
+u, err = url.Parse(" https://example.org ")
+if err == nil {
+    for _, verr := range u.ValidationErrors() {
+        if errors.Is(verr, urlerrors.ErrInvalidURLUnit) {
+            // optional: report warning
+        }
+    }
+}
+```
+
 ### Canonicalization
 
 If you want canonicalization beyond what's described in the standard, you can use the

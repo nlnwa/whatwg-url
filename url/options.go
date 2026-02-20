@@ -23,7 +23,7 @@ import (
 )
 
 // WithReportValidationErrors is kept for backward compatibility.
-// Validation errors are now always recorded on the parsed URL.
+// Validation errors are recorded on returned URL values by default.
 //
 // This API is EXPERIMENTAL.
 func WithReportValidationErrors() internal.ParserOption {

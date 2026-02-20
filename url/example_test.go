@@ -1,8 +1,10 @@
 package url_test
 
 import (
+	"errors"
 	"fmt"
 
+	urlerrors "github.com/nationallibraryofnorway/whatwg-url/errors"
 	"github.com/nationallibraryofnorway/whatwg-url/url"
 )
 
@@ -70,4 +72,29 @@ func ExampleUrl_Query() {
 	u, _ := url.Parse("http://example.com:80/a?b#c")
 	fmt.Println(u.Query())
 	// Output: b
+}
+
+func ExampleParse_errorsIs() {
+	_, err := url.Parse("https://example.org:7z")
+	fmt.Println(errors.Is(err, urlerrors.ErrPortInvalid))
+	// Output: true
+}
+
+func ExampleUrl_ValidationErrors() {
+	u, err := url.Parse(" https://example.org ")
+	if err != nil {
+		fmt.Println(false)
+		return
+	}
+
+	hasInvalidURLUnit := false
+	for _, verr := range u.ValidationErrors() {
+		if errors.Is(verr, urlerrors.ErrInvalidURLUnit) {
+			hasInvalidURLUnit = true
+			break
+		}
+	}
+
+	fmt.Println(hasInvalidURLUnit)
+	// Output: true
 }

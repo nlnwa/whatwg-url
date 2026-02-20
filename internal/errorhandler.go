@@ -26,34 +26,29 @@ type errorUnwrapper interface {
 	Unwrap() error
 }
 
-func isValidationFailure(code errors.Code) bool {
-	switch code {
-	case errors.DomainToASCII,
-		errors.DomainInvalidCodePoint,
-		errors.HostInvalidCodePoint,
-		errors.IPv4TooManyParts,
-		errors.IPv4NonNumericPart,
-		errors.IPv4OutOfRangePart,
-		errors.IPv6Unclosed,
-		errors.IPv6InvalidCompression,
-		errors.IPv6TooManyPieces,
-		errors.IPv6MultipleCompression,
-		errors.IPv6InvalidCodePoint,
-		errors.IPv6TooFewPieces,
-		errors.IPv4InIPv6TooManyPieces,
-		errors.IPv4InIPv6InvalidCodePoint,
-		errors.IPv4InIPv6OutOfRangePart,
-		errors.IPv4InIPv6TooFewParts,
-		errors.MissingSchemeNonRelativeURL,
-		errors.HostMissing,
-		errors.PortMissing,
-		errors.PortOutOfRange,
-		errors.PortInvalid,
-		errors.InvalidEncoding:
-		return true
-	default:
-		return false
-	}
+func isValidationFailure(verr *errors.ValidationError) bool {
+	return verr.Is(errors.ErrDomainToASCII) ||
+		verr.Is(errors.ErrDomainInvalidCodePoint) ||
+		verr.Is(errors.ErrHostInvalidCodePoint) ||
+		verr.Is(errors.ErrIPv4TooManyParts) ||
+		verr.Is(errors.ErrIPv4NonNumericPart) ||
+		verr.Is(errors.ErrIPv4OutOfRangePart) ||
+		verr.Is(errors.ErrIPv6Unclosed) ||
+		verr.Is(errors.ErrIPv6InvalidCompression) ||
+		verr.Is(errors.ErrIPv6TooManyPieces) ||
+		verr.Is(errors.ErrIPv6MultipleCompression) ||
+		verr.Is(errors.ErrIPv6InvalidCodePoint) ||
+		verr.Is(errors.ErrIPv6TooFewPieces) ||
+		verr.Is(errors.ErrIPv4InIPv6TooManyPieces) ||
+		verr.Is(errors.ErrIPv4InIPv6InvalidCodePoint) ||
+		verr.Is(errors.ErrIPv4InIPv6OutOfRangePart) ||
+		verr.Is(errors.ErrIPv4InIPv6TooFewParts) ||
+		verr.Is(errors.ErrMissingSchemeNonRelativeURL) ||
+		verr.Is(errors.ErrHostMissing) ||
+		verr.Is(errors.ErrPortMissing) ||
+		verr.Is(errors.ErrPortOutOfRange) ||
+		verr.Is(errors.ErrPortInvalid) ||
+		verr.Is(errors.ErrInvalidEncoding)
 }
 
 func asValidationError(err error) (*errors.ValidationError, bool) {
@@ -91,7 +86,7 @@ func (p *Parser) handleError(u *Url, err error) error {
 	if u != nil {
 		u.validationErrors = append(u.validationErrors, verr)
 	}
-	failure := isValidationFailure(verr.Code())
+	failure := isValidationFailure(verr)
 	if failure || p.FailOnValidationError {
 		return verr
 	}
@@ -109,11 +104,8 @@ func (p *Parser) handleWrappedError(u *Url, err *errors.ValidationError, cause e
 	return p.handleError(u, err)
 }
 
-// handleErrorAndFail records a validation error and returns a failure error regardless of validation severity.
-// Use this for parser states that explicitly terminate with failure while still reporting validation details.
-func (p *Parser) handleErrorAndFail(u *Url, err *errors.ValidationError) error {
-	if handled := p.handleError(u, err); handled != nil {
-		return handled
-	}
+// handleErrorAndFail returns a failure error for parser states that explicitly terminate.
+// Unlike handleError, it intentionally does not record validation state on URL.
+func (p *Parser) handleErrorAndFail(_ *Url, err *errors.ValidationError) error {
 	return err
 }

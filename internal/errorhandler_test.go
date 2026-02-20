@@ -25,18 +25,17 @@ func TestParse_RecordsValidationWarning(t *testing.T) {
 
 	var found bool
 	for _, verr := range verrs {
-		var v *werrors.ValidationError
-		if errors.As(verr, &v) && v.Code() == werrors.InvalidURLUnit {
+		if errors.Is(verr, werrors.ErrInvalidURLUnit) {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Fatalf("expected %v validation error to be recorded", werrors.InvalidURLUnit)
+		t.Fatalf("expected %v validation error to be recorded", werrors.ErrInvalidURLUnit)
 	}
 }
 
-func TestParse_ExplicitFailure_StillRecordsValidationError(t *testing.T) {
+func TestParse_ExplicitFailure_DoesNotRecordValidationError(t *testing.T) {
 	p := NewParser()
 	u := newUrl()
 	u.parser = p
@@ -50,11 +49,11 @@ func TestParse_ExplicitFailure_StillRecordsValidationError(t *testing.T) {
 	if !errors.As(err, &v) {
 		t.Fatalf("expected ValidationError, got %T", err)
 	}
-	if v.Code() != werrors.InvalidURLUnit {
-		t.Fatalf("expected %v, got %v", werrors.InvalidURLUnit, v.Code())
+	if !errors.Is(v, werrors.ErrInvalidURLUnit) {
+		t.Fatalf("expected %v, got %v", werrors.ErrInvalidURLUnit, v)
 	}
 
-	if len(u.ValidationErrors()) == 0 {
-		t.Fatal("expected validation error to be recorded on URL")
+	if len(u.ValidationErrors()) != 0 {
+		t.Fatal("expected explicit failure path to not record validation error on URL")
 	}
 }
