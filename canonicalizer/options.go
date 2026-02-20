@@ -3,6 +3,7 @@ package canonicalizer
 import (
 	"github.com/nationallibraryofnorway/whatwg-url/internal"
 	"github.com/nationallibraryofnorway/whatwg-url/url"
+	"golang.org/x/text/encoding/charmap"
 )
 
 func WithNormalizePercentEncodedSpaceToPlus() url.ParserOption {
@@ -47,6 +48,20 @@ func WithRemoveFragment() url.ParserOption {
 func WithRepeatedPercentDecoding() url.ParserOption {
 	return internal.NewCanonicalizerOption(func(p *internal.Canonicalizer) {
 		p.RepeatedPercentDecoding = true
+	})
+}
+
+// WithRepeatedPercentDecodingEncoding sets the character encoding used when decoding percent-encoded octets
+// during repeated percent decoding.
+//
+// Use this for legacy inputs where octets were generated from a non-UTF-8 encoding.
+//
+// This setting only affects canonicalizer repeated percent decoding and does not change core parser behavior.
+//
+// This API is EXPERIMENTAL.
+func WithRepeatedPercentDecodingEncoding(encoding *charmap.Charmap) url.ParserOption {
+	return internal.NewCanonicalizerOption(func(p *internal.Canonicalizer) {
+		p.RepeatedPercentDecodeEncoding = encoding
 	})
 }
 

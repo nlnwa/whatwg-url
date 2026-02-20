@@ -144,15 +144,6 @@ func WithSpecialSchemes(special map[string]uint16) ParserOption {
 	})
 }
 
-// WithEncodingOverride allows to set an encoding other than UTF-8 when decoding percent-encoded characters.
-//
-// This API is EXPERIMENTAL.
-// func WithEncodingOverride(cm *charmap.Charmap) ParserOption {
-// 	return internal.NewParserOption(func(o *internal.Parser) {
-// 		o.EncodingOverride = cm
-// 	})
-// }
-
 // WithPathPercentEncodeSet allows to set an alternative set of characters to percent encode in path component.
 //
 // This API is EXPERIMENTAL.

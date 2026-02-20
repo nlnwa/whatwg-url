@@ -98,3 +98,23 @@ func ExampleUrl_ValidationErrors() {
 	fmt.Println(hasInvalidURLUnit)
 	// Output: true
 }
+
+func ExamplePercentEncodeSet_Set() {
+	set := url.QueryPercentEncodeSet.Set('#', '?')
+	encoded := url.PercentEncode("a#b?c", set)
+	fmt.Println(encoded)
+	// Output: a%23b%3Fc
+}
+
+func ExamplePercentEncodeSet_Bytes() {
+	fmt.Println(url.QueryPercentEncodeSet.Bytes())
+	// Output: [34 35 60 62]
+}
+
+func ExampleWithQueryPercentEncodeSet() {
+	set := url.QueryPercentEncodeSet.Set('&').Clear(';')
+	p := url.NewParser(url.WithQueryPercentEncodeSet(set))
+	u, _ := p.Parse("foo://example.com/?a&b")
+	fmt.Println(u.String())
+	// Output: foo://example.com/?a%26b
+}

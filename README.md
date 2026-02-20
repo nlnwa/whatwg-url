@@ -90,6 +90,29 @@ Or use one of the predefined profiles:
 u, err := canonicalizer.GoogleSafeBrowsing.Parse("http://user@example.com/a?b#c")
 ```
 
+Parser behavior remains UTF-8 based and does not guess alternate encodings.
+If you need compatibility handling for legacy percent-encoded Latin-1 octets during canonicalization,
+use canonicalizer options:
+
+```go
+c := canonicalizer.New(
+    canonicalizer.WithRepeatedPercentDecoding(),
+    canonicalizer.WithRepeatedPercentDecodingEncoding(charmap.ISO8859_1),
+)
+```
+
+For advanced WHATWG state-machine usage (`BasicParser` and parser states), use
+`github.com/nationallibraryofnorway/whatwg-url/x/whatwg`.
+
+### Percent-encode set customization
+
+`PercentEncodeSet` can be customized directly with `Set` and `Clear`:
+
+```go
+set := url.QueryPercentEncodeSet.Set('#', '&').Clear(';')
+p := url.NewParser(url.WithQueryPercentEncodeSet(set))
+```
+
 ## Web Platform Tests Compliance
 
 Some of web platform tests fail because they require newer Unicode tables than [`golang.org/x/net/idna`](https://pkg.go.dev/golang.org/x/net/idna) is currently providing. The failing tests are skipped by default. To run them:

@@ -20,6 +20,7 @@ import (
 	gerrors "errors"
 
 	"github.com/nationallibraryofnorway/whatwg-url/errors"
+	"golang.org/x/text/encoding/charmap"
 )
 
 func NewCanonicalizer(parser *Parser) *Canonicalizer {
@@ -38,11 +39,12 @@ type Canonicalizer struct {
 
 	SortQuery QuerySort
 
-	RemoveUserInfo            bool
-	RemovePort                bool
-	RemoveFragment            bool
-	RepeatedPercentDecoding   bool
-	PercentEncodedSpaceToPlus bool
+	RemoveUserInfo                bool
+	RemovePort                    bool
+	RemoveFragment                bool
+	RepeatedPercentDecoding       bool
+	RepeatedPercentDecodeEncoding *charmap.Charmap
+	PercentEncodedSpaceToPlus     bool
 }
 
 func (c *Canonicalizer) Parse(rawUrl string) (*Url, error) {

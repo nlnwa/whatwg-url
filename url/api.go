@@ -12,6 +12,7 @@ type ParserOption = internal.ParserOption
 type Parser interface {
 	Parse(rawUrl string) (*Url, error)
 	ParseRef(rawUrl, ref string) (*Url, error)
+	// Deprecated: use package github.com/nationallibraryofnorway/whatwg-url/x/whatwg.
 	BasicParser(urlOrRef string, base *Url, url *Url, stateOverride state) (*Url, error)
 }
 
@@ -37,8 +38,10 @@ func PercentEncode(s string, tr *PercentEncodeSet) string {
 	return internal.PercentEncode(s, tr)
 }
 
+// Deprecated: use package github.com/nationallibraryofnorway/whatwg-url/x/whatwg.
 type state = internal.State
 
+// Deprecated: use package github.com/nationallibraryofnorway/whatwg-url/x/whatwg.
 const (
 	NoState state = iota
 	StateSchemeStart

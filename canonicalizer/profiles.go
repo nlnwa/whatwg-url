@@ -67,7 +67,6 @@ var Semantic = New(
 	url.WithAcceptInvalidCodepoints(),
 	url.WithPercentEncodeSinglePercentSign(),
 	url.WithAllowSettingPathForNonBaseUrl(),
-	// url.WithEncodingOverride(charmap.ISO8859_1),
 	url.WithPreParseHostFunc(func(u *url.Url, host string) string {
 		if host != "" {
 			host = strings.Trim(host, ".")

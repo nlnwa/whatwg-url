@@ -1,6 +1,10 @@
 package canonicalizer
 
-import "testing"
+import (
+	"testing"
+
+	"golang.org/x/text/encoding/charmap"
+)
 
 func TestGoogleSafeBrowsing(t *testing.T) {
 	tests := []struct {
@@ -54,5 +58,57 @@ func TestGoogleSafeBrowsing(t *testing.T) {
 				t.Errorf("Parse(%v)\ngot  = %v\nwant = %v\n", tt.args, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestRepeatedPercentDecodingLatin1(t *testing.T) {
+	defaultDecode := New(WithRepeatedPercentDecoding())
+	latin1Decode := New(
+		WithRepeatedPercentDecoding(),
+		WithRepeatedPercentDecodingEncoding(charmap.ISO8859_1),
+	)
+
+	input := "http://example.com/%E5"
+
+	gotDefault, err := defaultDecode.Parse(input)
+	if err != nil {
+		t.Fatalf("default parser error = %v", err)
+	}
+	if got := gotDefault.String(); got != "http://example.com/%E5" {
+		t.Fatalf("default decode got = %q, want %q", got, "http://example.com/%E5")
+	}
+
+	gotLatin1, err := latin1Decode.Parse(input)
+	if err != nil {
+		t.Fatalf("latin1 parser error = %v", err)
+	}
+	if got := gotLatin1.String(); got != "http://example.com/%C3%A5" {
+		t.Fatalf("latin1 decode got = %q, want %q", got, "http://example.com/%C3%A5")
+	}
+}
+
+func TestRepeatedPercentDecodingWindows1252(t *testing.T) {
+	defaultDecode := New(WithRepeatedPercentDecoding())
+	cp1252Decode := New(
+		WithRepeatedPercentDecoding(),
+		WithRepeatedPercentDecodingEncoding(charmap.Windows1252),
+	)
+
+	input := "http://example.com/%80"
+
+	gotDefault, err := defaultDecode.Parse(input)
+	if err != nil {
+		t.Fatalf("default parser error = %v", err)
+	}
+	if got := gotDefault.String(); got != "http://example.com/%80" {
+		t.Fatalf("default decode got = %q, want %q", got, "http://example.com/%80")
+	}
+
+	gotCP1252, err := cp1252Decode.Parse(input)
+	if err != nil {
+		t.Fatalf("cp1252 parser error = %v", err)
+	}
+	if got := gotCP1252.String(); got != "http://example.com/%E2%82%AC" {
+		t.Fatalf("cp1252 decode got = %q, want %q", got, "http://example.com/%E2%82%AC")
 	}
 }

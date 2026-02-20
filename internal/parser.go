@@ -21,7 +21,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/nationallibraryofnorway/whatwg-url/errors"
-	"golang.org/x/text/encoding/charmap"
 )
 
 func NewParser() *Parser {
@@ -49,8 +48,6 @@ type Parser struct {
 
 	PreParseHostFunc  func(url *Url, host string) string
 	PostParseHostFunc func(url *Url, host string) string
-
-	EncodingOverride *charmap.Charmap
 
 	PathPercentEncodeSet            *PercentEncodeSet
 	QueryPercentEncodeSet           *PercentEncodeSet

@@ -25,49 +25,64 @@ import (
 )
 
 type PercentEncodeSet struct {
-	allBelow int32
+	allBelow rune
 	ascii    [128]bool
 }
 
-// NewPercentEncodeSet returns a new PercentEncodeSet with the given bytes in the set.
+// NewPercentEncodeSet returns a new PercentEncodeSet with the given rune values in the set.
 //
 // allBelow specifies that all runes below the given value are in the set.
-func NewPercentEncodeSet(allBelow int32, bytes ...uint) *PercentEncodeSet {
+// Values outside the single-byte range are ignored.
+func NewPercentEncodeSet(allBelow rune, chars ...rune) *PercentEncodeSet {
 	p := &PercentEncodeSet{allBelow: allBelow}
-	for _, b := range bytes {
-		if b < utf8.RuneSelf {
-			p.ascii[b] = true
+	for _, ch := range chars {
+		if ch >= 0 && ch < utf8.RuneSelf {
+			p.ascii[ch] = true
 		}
 	}
 	return p
 }
 
-// Set returns a new PercentEncodeSet with the given bytes added to the set.
-func (p *PercentEncodeSet) Set(bytes ...uint) *PercentEncodeSet {
+// Set returns a new PercentEncodeSet with the given rune values added.
+// Values outside the single-byte range are ignored.
+func (p *PercentEncodeSet) Set(chars ...rune) *PercentEncodeSet {
 	r := &PercentEncodeSet{
 		allBelow: p.allBelow,
 		ascii:    p.ascii,
 	}
-	for _, b := range bytes {
-		if b < utf8.RuneSelf {
-			r.ascii[b] = true
+	for _, ch := range chars {
+		if ch >= 0 && ch < utf8.RuneSelf {
+			r.ascii[ch] = true
 		}
 	}
 	return r
 }
 
-// Clear returns a new PercentEncodeSet with the specified bytes cleared.
-func (p *PercentEncodeSet) Clear(bytes ...uint) *PercentEncodeSet {
+// Clear returns a new PercentEncodeSet with the given rune values cleared.
+// Values outside the single-byte range are ignored.
+func (p *PercentEncodeSet) Clear(chars ...rune) *PercentEncodeSet {
 	r := &PercentEncodeSet{
 		allBelow: p.allBelow,
 		ascii:    p.ascii,
 	}
-	for _, b := range bytes {
-		if b < utf8.RuneSelf {
-			r.ascii[b] = false
+	for _, ch := range chars {
+		if ch >= 0 && ch < utf8.RuneSelf {
+			r.ascii[ch] = false
 		}
 	}
 	return r
+}
+
+// Bytes returns the explicit ASCII bytes configured in this set.
+// Note that bytes below allBelow are implicitly included and are not listed here.
+func (p *PercentEncodeSet) Bytes() []byte {
+	result := make([]byte, 0, 128)
+	for i, enabled := range p.ascii {
+		if enabled {
+			result = append(result, byte(i))
+		}
+	}
+	return result
 }
 
 func (p *PercentEncodeSet) RuneShouldBeEncoded(r rune) bool {
@@ -81,7 +96,7 @@ func (p *PercentEncodeSet) RuneShouldBeEncoded(r rune) bool {
 }
 
 func (p *PercentEncodeSet) ByteShouldBeEncoded(b byte) bool {
-	if int32(b) < p.allBelow {
+	if rune(b) < p.allBelow {
 		return true
 	}
 	if b > 0x7E {
@@ -96,22 +111,6 @@ func (p *PercentEncodeSet) RuneNotInSet(r rune) bool {
 	}
 	return !p.ascii[r]
 }
-
-// var ASCIITabOrNewline = bitset.New(0x0d).Set(0x09).Set(0x0a).Set(0x0d)
-// var ASCIIAlpha = bitset.New(0x7a)
-// var ASCIIDigit = bitset.New(0x39)
-// var ASCIIHexDigit = bitset.New(0x66)
-// var ASCIIAlphanumeric = bitset.New(0x7a)
-// var ASCIIAlphanumericPlus *bitset.BitSet
-// var C0control = bitset.New(0x1f)
-// var C0controlOrSpace = bitset.New(0x20).Set(0x20)
-// var ForbiddenHostCodePoint = bitset.New(0x7c).Set(0x00).Set(0x09).Set(0x0a).Set(0x0d).Set(0x20).
-// 	Set(0x23).Set(0x2f).Set(0x3a).Set(0x3c).Set(0x3e).Set(0x3f).Set(0x40).Set(0x5b).
-// 	Set(0x5c).Set(0x5d).Set(0x5e).Set(0x7c)
-// var ForbiddenDomainCodePoint = ForbiddenHostCodePoint.Clone().Set(0x25).Set(0x7f)
-// var someURLCodePoints = bitset.New(0x7e).Set(0x24).Set(0x26).Set(0x27).Set(0x28).Set(0x29).
-// 	Set(0x2a).Set(0x2b).Set(0x2c).Set(0x2d).Set(0x2e).Set(0x2f).Set(0x3a).Set(0x3b).Set(0x3d).
-// 	Set(0x3f).Set(0x40).Set(0x5f).Set(0x7e)
 
 var C0PercentEncodeSet = NewPercentEncodeSet(0x20)
 var C0OrSpacePercentEncodeSet = NewPercentEncodeSet(0x21)
@@ -142,7 +141,7 @@ func init() {
 			(i >= 'A' && i <= 'Z') {
 			continue
 		}
-		HostPercentEncodeSet = HostPercentEncodeSet.Set(uint(i))
+		HostPercentEncodeSet = HostPercentEncodeSet.Set(rune(i))
 	}
 
 	for b := byte('0'); b <= '9'; b++ {
@@ -239,7 +238,7 @@ func onlyASCIIHexDigits[T ByteSequence](s T) bool {
 }
 
 func (c *Canonicalizer) repeatDecodeThenEncode(input string, tr *PercentEncodeSet) string {
-	decoded := repeatPercentDecodeString(input, c.EncodingOverride)
+	decoded := repeatPercentDecodeString(input, c.RepeatedPercentDecodeEncoding)
 	return PercentEncode(decoded, tr)
 }
 
@@ -343,8 +342,7 @@ func percentDecode[T ByteSequence](raw T, encoding *charmap.Charmap) string {
 
 		b := (unhex(raw[i+1]) << 4) | unhex(raw[i+2])
 		if encoding != nil {
-			r := encoding.DecodeByte(b)
-			out.WriteRune(r)
+			out.WriteRune(encoding.DecodeByte(b))
 		} else {
 			out.WriteByte(b)
 		}
