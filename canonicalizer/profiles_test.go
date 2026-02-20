@@ -1,8 +1,10 @@
 package canonicalizer
 
 import (
+	"strings"
 	"testing"
 
+	whatwgurl "github.com/nationallibraryofnorway/whatwg-url/url"
 	"golang.org/x/text/encoding/charmap"
 )
 
@@ -110,5 +112,91 @@ func TestRepeatedPercentDecodingWindows1252(t *testing.T) {
 	}
 	if got := gotCP1252.String(); got != "http://example.com/%E2%82%AC" {
 		t.Fatalf("cp1252 decode got = %q, want %q", got, "http://example.com/%E2%82%AC")
+	}
+}
+
+func TestTransformHooks(t *testing.T) {
+	c := New(
+		WithHostTransformer(func(_ *whatwgurl.Url, host string) string {
+			return strings.TrimPrefix(host, "www.")
+		}),
+		WithPathTransformer(func(_ *whatwgurl.Url, path string) string {
+			if path == "/" {
+				return path
+			}
+			return strings.TrimSuffix(path, "/")
+		}),
+		WithQueryTransformer(func(_ *whatwgurl.Url, query string) string {
+			if query == "" {
+				return query
+			}
+			return strings.ToLower(query)
+		}),
+	)
+
+	u, err := c.Parse("http://www.Example.com/path/?A=1&B=2")
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	got := u.String()
+	want := "http://example.com/path?a=1&b=2"
+	if got != want {
+		t.Fatalf("Parse() got = %q, want %q", got, want)
+	}
+}
+
+func TestTransformHooksSequence(t *testing.T) {
+	c := New(
+		WithHostTransformer(
+			func(_ *whatwgurl.Url, host string) string { return strings.TrimPrefix(host, "www.") },
+			func(_ *whatwgurl.Url, host string) string { return strings.ToLower(host) },
+		),
+		WithPathTransformer(
+			func(_ *whatwgurl.Url, path string) string { return strings.TrimSuffix(path, "/") },
+			func(_ *whatwgurl.Url, path string) string {
+				if path == "" {
+					return "/"
+				}
+				return path
+			},
+		),
+		WithQueryTransformer(
+			func(_ *whatwgurl.Url, query string) string { return strings.ReplaceAll(query, "A=1", "a=1") },
+			func(_ *whatwgurl.Url, query string) string { return strings.ReplaceAll(query, "B=2", "b=2") },
+		),
+	)
+
+	u, err := c.Parse("http://WWW.Example.com/path/?A=1&B=2")
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	got := u.String()
+	want := "http://example.com/path?a=1&b=2"
+	if got != want {
+		t.Fatalf("Parse() got = %q, want %q", got, want)
+	}
+}
+
+func TestTransformHooksSequenceAcrossOptions(t *testing.T) {
+	c := New(
+		WithQueryTransformer(func(_ *whatwgurl.Url, query string) string {
+			return strings.ReplaceAll(query, "A=1", "a=1")
+		}),
+		WithQueryTransformer(func(_ *whatwgurl.Url, query string) string {
+			return strings.ReplaceAll(query, "B=2", "b=2")
+		}),
+	)
+
+	u, err := c.Parse("http://example.com/?A=1&B=2")
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	got := u.String()
+	want := "http://example.com/?a=1&b=2"
+	if got != want {
+		t.Fatalf("Parse() got = %q, want %q", got, want)
 	}
 }

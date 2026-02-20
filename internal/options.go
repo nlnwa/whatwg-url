@@ -5,6 +5,7 @@ type ParserOption interface {
 }
 
 type CanonicalizerOption interface {
+	ParserOption
 	ApplyProfile(*Canonicalizer)
 }
 
@@ -16,10 +17,6 @@ func NewCanonicalizerOption(f func(*Canonicalizer)) canonicalizerOption {
 	return canonicalizerOption{fn: f}
 }
 
-type emptyParserOption struct{}
-
-func (emptyParserOption) Apply(*Parser) {}
-
 type parserOption struct {
 	fn func(*Parser)
 }
@@ -29,9 +26,10 @@ func (opt parserOption) Apply(parser *Parser) {
 }
 
 type canonicalizerOption struct {
-	emptyParserOption
 	fn func(*Canonicalizer)
 }
+
+func (canonicalizerOption) Apply(*Parser) {}
 
 func (opt canonicalizerOption) ApplyProfile(canonicalizer *Canonicalizer) {
 	opt.fn(canonicalizer)

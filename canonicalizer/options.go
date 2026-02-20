@@ -92,3 +92,32 @@ func WithSortQuery(sortType internal.QuerySort) url.ParserOption {
 		p.SortQuery = sortType
 	})
 }
+
+// WithHostTransformer applies a host transformation during canonicalization.
+// The input and output are hostnames without port.
+//
+// This API is EXPERIMENTAL.
+func WithHostTransformer(transforms ...func(u *url.Url, host string) string) url.ParserOption {
+	return internal.NewCanonicalizerOption(func(p *internal.Canonicalizer) {
+		p.HostTransformers = append(p.HostTransformers, transforms...)
+	})
+}
+
+// WithPathTransformer applies a path transformation during canonicalization.
+//
+// This API is EXPERIMENTAL.
+func WithPathTransformer(transforms ...func(u *url.Url, path string) string) url.ParserOption {
+	return internal.NewCanonicalizerOption(func(p *internal.Canonicalizer) {
+		p.PathTransformers = append(p.PathTransformers, transforms...)
+	})
+}
+
+// WithQueryTransformer applies a query transformation during canonicalization.
+// The query string is provided without the leading '?'.
+//
+// This API is EXPERIMENTAL.
+func WithQueryTransformer(transforms ...func(u *url.Url, query string) string) url.ParserOption {
+	return internal.NewCanonicalizerOption(func(p *internal.Canonicalizer) {
+		p.QueryTransformers = append(p.QueryTransformers, transforms...)
+	})
+}

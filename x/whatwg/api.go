@@ -6,8 +6,6 @@ type Url = internal.Url
 type ParserOption = internal.ParserOption
 
 type Parser interface {
-	Parse(rawUrl string) (*Url, error)
-	ParseRef(rawUrl, ref string) (*Url, error)
 	BasicParser(urlOrRef string, base *Url, url *Url, stateOverride State) (*Url, error)
 }
 

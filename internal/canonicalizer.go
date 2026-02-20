@@ -18,6 +18,7 @@ package internal
 
 import (
 	gerrors "errors"
+	"strings"
 
 	"github.com/nationallibraryofnorway/whatwg-url/errors"
 	"golang.org/x/text/encoding/charmap"
@@ -45,6 +46,10 @@ type Canonicalizer struct {
 	RepeatedPercentDecoding       bool
 	RepeatedPercentDecodeEncoding *charmap.Charmap
 	PercentEncodedSpaceToPlus     bool
+
+	HostTransformers  []func(*Url, string) string
+	PathTransformers  []func(*Url, string) string
+	QueryTransformers []func(*Url, string) string
 }
 
 func (c *Canonicalizer) Parse(rawUrl string) (*Url, error) {
@@ -115,11 +120,102 @@ func (c *Canonicalizer) canonicalize(u *Url) (*Url, error) {
 	case SortParameter:
 		u.SearchParams().SortAbsolute()
 	}
+
+	if len(c.HostTransformers) > 0 {
+		hostname := u.Hostname()
+		transformed := hostname
+		for _, transform := range c.HostTransformers {
+			if transform == nil {
+				continue
+			}
+			transformed = transform(u, transformed)
+		}
+		if transformed != hostname {
+			u.host = transformed
+		}
+	}
+
+	if len(c.PathTransformers) > 0 {
+		pathname := u.Pathname()
+		transformed := pathname
+		for _, transform := range c.PathTransformers {
+			if transform == nil {
+				continue
+			}
+			transformed = transform(u, transformed)
+		}
+		if transformed != pathname {
+			applyTransformedPath(u, transformed)
+		}
+	}
+
+	if len(c.QueryTransformers) > 0 {
+		query := ""
+		if u.hasQuery {
+			query = u.query
+		}
+		transformed := query
+		for _, transform := range c.QueryTransformers {
+			if transform == nil {
+				continue
+			}
+			transformed = transform(u, transformed)
+		}
+		if transformed != query {
+			applyTransformedQuery(u, transformed)
+		}
+	}
+
 	if c.RemoveFragment {
 		u.SetHash("")
 	}
 
 	return u, nil
+}
+
+func applyTransformedPath(u *Url, transformed string) {
+	if u.path.isOpaque() {
+		u.path.setOpaque(transformed)
+		return
+	}
+
+	u.path.init()
+	if transformed == "" || transformed == "/" {
+		u.path.addSegment("")
+		return
+	}
+
+	if transformed[0] != '/' {
+		transformed = "/" + transformed
+	}
+
+	for _, segment := range strings.Split(transformed[1:], "/") {
+		u.path.addSegment(segment)
+	}
+}
+
+func applyTransformedQuery(u *Url, transformed string) {
+	if transformed == "" {
+		u.query = ""
+		u.hasQuery = false
+		if !u.hasFragment {
+			u.path.stripTrailingSpacesIfOpaque()
+		}
+		if u.searchParams != nil {
+			u.searchParams.init("")
+		}
+		return
+	}
+
+	if transformed[0] == '?' {
+		transformed = transformed[1:]
+	}
+
+	u.query = transformed
+	u.hasQuery = true
+	if u.searchParams != nil {
+		u.searchParams.init(u.query)
+	}
 }
 
 type QuerySort int

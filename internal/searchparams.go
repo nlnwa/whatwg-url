@@ -143,7 +143,10 @@ func (s *SearchParams) Sort() {
 // SortAbsolute sorts the search parameters by name and value.
 func (s *SearchParams) SortAbsolute() {
 	sort.SliceStable(s.params, func(i, j int) bool {
-		return s.params[i].Name+s.params[i].Value < s.params[j].Name+s.params[j].Value
+		if s.params[i].Name != s.params[j].Name {
+			return s.params[i].Name < s.params[j].Name
+		}
+		return s.params[i].Value < s.params[j].Value
 	})
 	s.update()
 }
