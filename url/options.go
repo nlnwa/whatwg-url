@@ -20,10 +20,10 @@ import (
 	"maps"
 
 	"github.com/nationallibraryofnorway/whatwg-url/internal"
-	"golang.org/x/text/encoding/charmap"
 )
 
-// WithReportValidationErrors records all non fatal validation errors so that they can be fetchd by a call to....
+// WithReportValidationErrors is kept for backward compatibility.
+// Validation errors are now always recorded on the parsed URL.
 //
 // This API is EXPERIMENTAL.
 func WithReportValidationErrors() internal.ParserOption {
@@ -32,7 +32,7 @@ func WithReportValidationErrors() internal.ParserOption {
 	})
 }
 
-// WithFailOnValidationError makes the parser throw an error on non fatal validation errors.
+// WithFailOnValidationError makes the parser return an error for all validation errors.
 //
 // This API is EXPERIMENTAL.
 func WithFailOnValidationError() internal.ParserOption {
@@ -147,11 +147,11 @@ func WithSpecialSchemes(special map[string]uint16) ParserOption {
 // WithEncodingOverride allows to set an encoding other than UTF-8 when decoding percent-encoded characters.
 //
 // This API is EXPERIMENTAL.
-func WithEncodingOverride(cm *charmap.Charmap) ParserOption {
-	return internal.NewParserOption(func(o *internal.Parser) {
-		o.EncodingOverride = cm
-	})
-}
+// func WithEncodingOverride(cm *charmap.Charmap) ParserOption {
+// 	return internal.NewParserOption(func(o *internal.Parser) {
+// 		o.EncodingOverride = cm
+// 	})
+// }
 
 // WithPathPercentEncodeSet allows to set an alternative set of characters to percent encode in path component.
 //

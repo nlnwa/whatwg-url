@@ -216,7 +216,7 @@ func isHex[T ByteRune](b T) bool {
 		('A' <= b && b <= 'F')
 }
 
-func onlyASCIIDigits(s string) bool {
+func onlyASCIIDigits[T ByteSequence](s T) bool {
 	for i := 0; i < len(s); i++ {
 		b := s[i]
 		if b < '0' || b > '9' {
@@ -226,7 +226,7 @@ func onlyASCIIDigits(s string) bool {
 	return true
 }
 
-func onlyASCIIHexDigits(s string) bool {
+func onlyASCIIHexDigits[T ByteSequence](s T) bool {
 	for i := 0; i < len(s); i++ {
 		b := s[i]
 		if !(('0' <= b && b <= '9') ||
@@ -271,6 +271,19 @@ type ByteSequence interface {
 	~string | ~[]byte
 }
 
+func percentEncodeByte(b byte, tr *PercentEncodeSet) []byte {
+	// Fast path: no encoding needed.
+	if tr == nil || !tr.ByteShouldBeEncoded(b) {
+		return []byte{b}
+	}
+
+	// Worst case: each byte becomes 3 bytes: %XX
+	out := make([]byte, 0, 3)
+	out = append(out, '%', upperHex[b>>4], upperHex[b&0x0f])
+
+	return out
+}
+
 func percentEncode(r rune, tr *PercentEncodeSet) []byte {
 	var tmp [utf8.UTFMax]byte
 	n := utf8.EncodeRune(tmp[:], r)
@@ -292,6 +305,25 @@ func percentEncode(r rune, tr *PercentEncodeSet) []byte {
 	}
 
 	return out
+}
+
+// PercentDecodeInPlace percent-decodes b in-place and returns the resulting subslice.
+// It implements the WHATWG-style rule:
+// - "%"+2 hex digits => replaced with that byte
+// - otherwise '%' is left as-is.
+func PercentDecodeInPlace(b []byte) []byte {
+	w := 0
+	for r := 0; r < len(b); r++ {
+		if b[r] == '%' && r+2 < len(b) && isHex(b[r+1]) && isHex(b[r+2]) {
+			b[w] = (unhex(b[r+1]) << 4) | unhex(b[r+2])
+			w++
+			r += 2
+			continue
+		}
+		b[w] = b[r]
+		w++
+	}
+	return b[:w]
 }
 
 func percentDecode[T ByteSequence](raw T, encoding *charmap.Charmap) string {
@@ -336,12 +368,32 @@ func unhex[T ByteRune](c T) T {
 const upperHex = "0123456789ABCDEF"
 
 // appendPercentEncoded appends r to dst, percent-encoding bytes as required by tr.
-func appendPercentEncoded(dst []byte, r rune, tr *PercentEncodeSet) []byte {
-	// Fast path: no percent encoding needed.
-	if tr == nil || !tr.RuneShouldBeEncoded(r) {
+func appendPercentEncoded(dst []byte, r rune, set *PercentEncodeSet) []byte {
+	if set == nil {
 		return utf8.AppendRune(dst, r)
 	}
-	return append(dst, percentEncode(r, tr)...)
+
+	// ASCII fast path: decide on the single byte.
+	if r < utf8.RuneSelf {
+		b := byte(r)
+		if !set.ByteShouldBeEncoded(b) {
+			return append(dst, b)
+		}
+		return append(dst, '%', upperHex[b>>4], upperHex[b&0x0f])
+	}
+
+	// Non-ASCII: UTF-8 encode then decide per byte.
+	var tmp [utf8.UTFMax]byte
+	n := utf8.EncodeRune(tmp[:], r)
+	for i := 0; i < n; i++ {
+		b := tmp[i]
+		if !set.ByteShouldBeEncoded(b) {
+			dst = append(dst, b)
+		} else {
+			dst = append(dst, '%', upperHex[b>>4], upperHex[b&0x0f])
+		}
+	}
+	return dst
 }
 
 // remainingIsInvalidPercentEncoded returns true if the first three characters in the input string are not '%' followed by two hex digits.

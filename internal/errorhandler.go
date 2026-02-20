@@ -22,16 +22,77 @@ import (
 	"github.com/nationallibraryofnorway/whatwg-url/errors"
 )
 
+type errorUnwrapper interface {
+	Unwrap() error
+}
+
+func isValidationFailure(code errors.Code) bool {
+	switch code {
+	case errors.DomainToASCII,
+		errors.DomainInvalidCodePoint,
+		errors.HostInvalidCodePoint,
+		errors.IPv4TooManyParts,
+		errors.IPv4NonNumericPart,
+		errors.IPv4OutOfRangePart,
+		errors.IPv6Unclosed,
+		errors.IPv6InvalidCompression,
+		errors.IPv6TooManyPieces,
+		errors.IPv6MultipleCompression,
+		errors.IPv6InvalidCodePoint,
+		errors.IPv6TooFewPieces,
+		errors.IPv4InIPv6TooManyPieces,
+		errors.IPv4InIPv6InvalidCodePoint,
+		errors.IPv4InIPv6OutOfRangePart,
+		errors.IPv4InIPv6TooFewParts,
+		errors.MissingSchemeNonRelativeURL,
+		errors.HostMissing,
+		errors.PortMissing,
+		errors.PortOutOfRange,
+		errors.PortInvalid,
+		errors.InvalidEncoding:
+		return true
+	default:
+		return false
+	}
+}
+
+func asValidationError(err error) (*errors.ValidationError, bool) {
+	if err == nil {
+		return nil, false
+	}
+	if verr, ok := err.(*errors.ValidationError); ok {
+		return verr, true
+	}
+	original := err
+	for {
+		u, ok := err.(errorUnwrapper)
+		if !ok {
+			return nil, false
+		}
+		err = u.Unwrap()
+		if err == nil {
+			return nil, false
+		}
+		if verr, ok := err.(*errors.ValidationError); ok {
+			return verr, true
+		}
+		if err == original {
+			return nil, false
+		}
+	}
+}
+
 // handleError handles an error according to the options set for the parser
 func (p *Parser) handleError(u *Url, err error) error {
-	var verr *errors.ValidationError
-	if !gerrors.As(err, &verr) {
+	verr, ok := asValidationError(err)
+	if !ok {
 		return err
 	}
-	if p.ReportValidationErrors {
+	if u != nil {
 		u.validationErrors = append(u.validationErrors, verr)
 	}
-	if verr.Failure() || p.FailOnValidationError {
+	failure := isValidationFailure(verr.Code())
+	if failure || p.FailOnValidationError {
 		return verr
 	}
 	return nil
@@ -46,4 +107,13 @@ func (p *Parser) handleErrorWithDescription(u *Url, err *errors.ValidationError,
 func (p *Parser) handleWrappedError(u *Url, err *errors.ValidationError, cause error) error {
 	err = err.Wrap(cause)
 	return p.handleError(u, err)
+}
+
+// handleErrorAndFail records a validation error and returns a failure error regardless of validation severity.
+// Use this for parser states that explicitly terminate with failure while still reporting validation details.
+func (p *Parser) handleErrorAndFail(u *Url, err *errors.ValidationError) error {
+	if handled := p.handleError(u, err); handled != nil {
+		return handled
+	}
+	return err
 }

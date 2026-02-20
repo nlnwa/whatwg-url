@@ -164,8 +164,6 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 	passwordTokenSeen := -1
 
 	// Let pointer be a pointer for input.
-	// input := newInputString(urlOrRef)
-	// reconsume := false
 	var r rune
 	var b byte
 
@@ -183,7 +181,6 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 	authorityStart := -1
 
 	for {
-		// if !reconsume {
 		pos += size
 		invalidUtf8 = false
 		if pos >= strLen {
@@ -202,11 +199,8 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 				}
 			}
 		}
-		// } else {
-		// 	reconsume = false
-		// }
 
-	start:
+	reconsume: // reuse previous r and b
 
 		switch state {
 
@@ -234,11 +228,11 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 				// and decrease pointer by 1
 				// reconsume = true
 				// continue
-				goto start
+				goto reconsume
 			}
 
 			// Otherwise, return failure.
-			return nil, errors.ErrInvalidURLUnit
+			return nil, p.handleErrorAndFail(url, errors.ErrInvalidURLUnit)
 			// Note: This indication of failure is used exclusively by the Location object’s protocol setter.
 
 		case StateScheme:
@@ -349,7 +343,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 				continue
 			}
 			// Otherwise, return failure.
-			return nil, errors.ErrInvalidURLUnit
+			return nil, p.handleErrorAndFail(url, errors.ErrInvalidURLUnit)
 
 		case StateNoScheme:
 			// If base is null, or base has an opaque path and c is not U+0023 (#),
@@ -372,7 +366,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 				url.hasQuery = base.hasQuery
 				// url’s fragment to the empty string,
 				url.fragment = ""
-				url.hasFragment = false
+				url.hasFragment = true
 				// and set state to fragment state.
 				state = StateFragment
 				continue
@@ -382,12 +376,12 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 				// set state to relative state
 				state = StateRelative
 				// and decrease pointer by 1.
-				goto start
+				goto reconsume
 			}
 			// Otherwise, set state to file state
 			state = StateFile
 			// and decrease pointer by 1.
-			goto start
+			goto reconsume
 
 		case StateSpecialRelativeOrAuthority:
 			// If c is U+002F (/)
@@ -410,7 +404,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 			// set state to relative state
 			state = StateRelative
 			// and decrease pointer by 1.
-			goto start
+			goto reconsume
 
 		case StatePathOrAuthority:
 			// If c is U+002F (/),
@@ -422,7 +416,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 			// Otherwise, set state to path state,
 			state = StatePath
 			// and decrease pointer by 1.
-			goto start
+			goto reconsume
 
 		case StateRelative:
 			// Assert: base’s scheme is not "file".
@@ -447,6 +441,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 				state = StateRelativeSlash
 				continue
 			}
+			// Otherwise:
 
 			// Set url’s username to base’s username,
 			url.username = base.username
@@ -478,7 +473,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 			if r == '#' {
 				// set url’s fragment to the empty string
 				url.fragment = ""
-				url.hasFragment = false
+				url.hasFragment = true
 				// and state to fragment state.
 				state = StateFragment
 				continue
@@ -493,7 +488,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 				// Set state to path state
 				state = StatePath
 				// and decrease pointer by 1.
-				goto start
+				goto reconsume
 			}
 
 		case StateRelativeSlash:
@@ -530,7 +525,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 			// state to path state,
 			state = StatePath
 			// and then, decrease pointer by 1.
-			goto start
+			goto reconsume
 
 		case StateSpecialAuthoritySlashes:
 			// If c is U+002F (/)
@@ -553,7 +548,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 			// set state to special authority ignore slashes state
 			state = StateSpecialAuthorityIgnoreSlashes
 			// and decrease pointer by 1.
-			goto start
+			goto reconsume
 
 		case StateSpecialAuthorityIgnoreSlashes:
 
@@ -562,7 +557,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 				// then set state to authority state
 				state = StateAuthorityStart
 				// and decrease pointer by 1.
-				goto start
+				goto reconsume
 			}
 			// Otherwise, special-scheme-missing-following-solidus validation error.
 			if err := p.handleError(url, errors.ErrSpecialSchemeMissingFollowingSolidus); err != nil {
@@ -598,8 +593,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 				authorityStart = pos + 1 // position after last '@'
 
 				// Set buffer to the empty string.
-				continue
-			}
+			} else
 			// Otherwise, if one of the following is true:
 			// - c is the EOF code point, U+002F (/), U+003F (?), or U+0023 (#)
 			// - url is special and c is U+005C (\)
@@ -628,7 +622,6 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 
 				// and set state to host state.
 				state = StateHost
-				continue
 			}
 			// Otherwise, append c to buffer.
 			continue
@@ -641,7 +634,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 				// then decrease pointer by 1
 				// and set state to file host state.
 				state = StateFileHost
-				goto start
+				goto reconsume
 			}
 			// Otherwise, if c is U+003A (:) and insideBrackets is false:
 			if r == ':' && !bracketFlag {
@@ -655,10 +648,10 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 				// If state override is given and state override is hostname state,
 				if stateOverride == StateHostname {
 					// then return failure.
-					return nil, errors.ErrInvalidURLUnit
+					return nil, p.handleErrorAndFail(url, errors.ErrInvalidURLUnit)
 				}
 				// Let host be the result of host parsing buffer with url is not special.
-				host, err := p.parseHost(url, string(buf), !url.isSpecial)
+				host, err := p.parseHost(url, buf, !url.isSpecial)
 				if err != nil {
 					// If host is failure, then return failure.
 					return url, err
@@ -684,7 +677,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 					if err := p.handleError(url, errors.ErrHostMissing); err != nil {
 						return nil, err
 					}
-					goto start
+					goto reconsume
 				}
 				// Otherwise, if state override is given, buffer is the empty string,
 				// and either url includes credentials or url’s port is non-null,
@@ -693,7 +686,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 					return url, nil
 				}
 				// Let host be the result of host parsing buffer with url is not special.
-				host, err := p.parseHost(url, string(buf), !url.isSpecial)
+				host, err := p.parseHost(url, buf, !url.isSpecial)
 				if err != nil {
 					// If host is failure, then return failure.
 					return url, err
@@ -711,7 +704,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 					return url, nil
 				}
 
-				goto start
+				goto reconsume
 			}
 
 			// Otherwise:
@@ -787,7 +780,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 				// Set state to path start state
 				state = StatePathStart
 				// and decrease pointer by 1.
-				goto start
+				goto reconsume
 			}
 
 			// Otherwise, port-invalid validation error, return failure.
@@ -840,7 +833,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 				if r == '#' {
 					// set url’s fragment to the empty string
 					url.fragment = ""
-					url.hasFragment = false
+					url.hasFragment = true
 					// and state to fragment state.
 					state = StateFragment
 					continue
@@ -866,7 +859,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 					// Set state to path state
 					state = StatePath
 					// and decrease pointer by 1.
-					goto start
+					goto reconsume
 				}
 				break // break in case of EOF
 			}
@@ -875,7 +868,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 			// set state to path state,
 			state = StatePath
 			// and decrease pointer by 1.
-			goto start
+			goto reconsume
 
 		case StateFileSlash:
 			// If c is U+002F (/) or U+005C (\), then:
@@ -911,7 +904,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 			// Set state to path state,
 			state = StatePath
 			// and decrease pointer by 1.
-			goto start
+			goto reconsume
 
 		case StateFileHost:
 			// If c is the EOF code point, U+002F (/), U+005C (\), U+003F (?), or U+0023 (#),
@@ -926,7 +919,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 					}
 					// set state to path state.
 					state = StatePath
-					goto start
+					goto reconsume
 				}
 				// Otherwise, if buffer is the empty string, then:
 				if len(buf) == 0 {
@@ -939,12 +932,12 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 					}
 					// Set state to path start state.
 					state = StatePathStart
-					goto start
+					goto reconsume
 				}
 				// Otherwise, run these steps:
 
 				// Let host be the result of host parsing buffer with url is not special.
-				host, err := p.parseHost(url, string(buf), !url.isSpecial)
+				host, err := p.parseHost(url, buf, !url.isSpecial)
 				if err != nil {
 					// If host is failure, then return failure.
 					return url, err
@@ -965,7 +958,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 				buf = buf[:0]
 				// and state to path start state.
 				state = StatePathStart
-				goto start
+				goto reconsume
 			}
 			// Otherwise, append c to buffer.
 			if r < utf8.RuneSelf {
@@ -990,7 +983,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 				// If c is neither U+002F (/) nor U+005C (\),
 				if r != '/' && r != '\\' {
 					// then decrease pointer by 1.
-					goto start
+					goto reconsume
 				}
 				continue
 			}
@@ -1007,7 +1000,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 			if !stateOverridden && r == '#' {
 				// set url’s fragment to the empty string
 				url.fragment = ""
-				url.hasFragment = false
+				url.hasFragment = true
 				// and state to fragment state.
 				state = StateFragment
 				continue
@@ -1019,7 +1012,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 				// If c is not U+002F (/),
 				if r != '/' {
 					// then decrease pointer by 1.
-					goto start
+					goto reconsume
 				}
 				continue
 			}
@@ -1151,7 +1144,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 			if r == '#' {
 				// then set url’s fragment to the empty string
 				url.fragment = ""
-				url.hasFragment = false
+				url.hasFragment = true
 				// and state to fragment state.
 				state = StateFragment
 			} else

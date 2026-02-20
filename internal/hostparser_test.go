@@ -49,7 +49,7 @@ func Test_parser_parseHost(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p := &Parser{FailOnValidationError: tt.failOnValidationError}
 
-			got, err := p.parseHost(&Url{}, tt.args.input, tt.args.isNotSpecial)
+			got, err := p.parseHost(&Url{}, []byte(tt.args.input), tt.args.isNotSpecial)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("parseHost() error = %v, wantErr %v", err, tt.wantErr)
 				return

@@ -17,6 +17,7 @@
 package internal
 
 import (
+	"bytes"
 	gerrors "errors"
 	"math"
 	"strconv"
@@ -31,9 +32,10 @@ import (
 // parseHost parses the host part of the input string.
 //
 // The host parser takes a scalar value string input with an optional boolean isOpaque (default false), and then runs these steps. They return failure or a host.
-func (p *Parser) parseHost(u *Url, input string, isNotSpecial bool) (string, error) {
+func (p *Parser) parseHost(u *Url, input []byte, isNotSpecial bool) (string, error) {
 	if p.PreParseHostFunc != nil {
-		input = p.PreParseHostFunc(u, input)
+		s := p.PreParseHostFunc(u, string(input))
+		input = []byte(s)
 	}
 
 	// If input starts with U+005B ([), then:
@@ -41,10 +43,7 @@ func (p *Parser) parseHost(u *Url, input string, isNotSpecial bool) (string, err
 		// If input does not end with U+005D (]),
 		if input[len(input)-1] != ']' {
 			// IPv6-unclosed validation error, return failure.
-			if err := p.handleError(u, errors.ErrIPv6Unclosed); err != nil {
-				return "", err
-			}
-			return "", errors.ErrIPv6Unclosed
+			return "", p.handleErrorAndFail(u, errors.ErrIPv6Unclosed)
 		}
 		// Return the result of IPv6 parsing input with its leading U+005B ([)
 		// and trailing U+005D (]) removed.
@@ -55,7 +54,7 @@ func (p *Parser) parseHost(u *Url, input string, isNotSpecial bool) (string, err
 			}
 		}
 		u.isIPv6 = true
-		return "[" + addr.String() + "]", nil
+		return addr.StringWithBrackets(), nil
 	}
 
 	// If isOpaque is true, then return the result of opaque-host parsing input.
@@ -64,18 +63,22 @@ func (p *Parser) parseHost(u *Url, input string, isNotSpecial bool) (string, err
 	}
 
 	// Assert: input is not the empty string.
-	if input == "" {
+	if len(input) == 0 {
 		return "", nil
 	}
 
-	// Let domain be the result of running UTF-8 decode without BOM on the percent-decoding of input.
+	// Let domain be the result of running UTF-8 decode without BOM on the
+	// percent-decoding of input.
+	//
+	// Note: Alternatively UTF-8 decode without BOM or fail can be used,
+	// coupled with an early return for failure, as domain to ASCII fails on U+FFFD (�).
 
 	// Let asciiDomain be the result of running domain to ASCII with domain and false.
 	asciiDomain, err := p.hostToASCII(input)
 	// If asciiDomain is failure,
 	if err != nil {
 		if p.LaxHostParsing {
-			return input, nil
+			return string(input), nil
 		}
 		// then return failure.
 		if err := p.handleError(u, err); err != nil {
@@ -95,20 +98,39 @@ func (p *Parser) parseHost(u *Url, input string, isNotSpecial bool) (string, err
 	return asciiDomain, nil
 }
 
-func (p *Parser) hostToASCII(input string) (string, error) {
-	domain := percentDecode(input, p.EncodingOverride)
+func (p *Parser) hostToASCII(input []byte) (string, error) {
+	buf := append([]byte(nil), input...)
 
-	if !isASCII(domain) && !utf8.ValidString(domain) {
-		return "", errors.ErrInvalidEncoding
+	if bytes.IndexByte(buf, '%') != -1 {
+		buf = PercentDecodeInPlace(buf)
 	}
 
 	// Fast path: ASCII-only and no punycode labels.
 	// (asciiNoPctNoPunycode assumes ASCII; it returns false if any non-ASCII.)
-	if asciiNoPctNoPunycode(domain) {
-		return validateAndASCIILower(domain)
+	if asciiNoPunycodeLabels(buf) {
+		for i, c := range buf {
+			if forbiddenDomainASCII[c] {
+				return "", errors.ErrDomainInvalidCodePoint
+			}
+			if 'A' <= c && c <= 'Z' {
+				buf[i] |= 0x20
+			}
+		}
+		return string(buf), nil
 	}
 
-	return domainToASCII(domain, false)
+	// Remove UTF-8 BOM if present (URL Standard: “UTF-8 decode without BOM”).
+	if len(buf) >= 3 &&
+		buf[0] == 0xEF &&
+		buf[1] == 0xBB &&
+		buf[2] == 0xBF {
+		buf = buf[3:]
+	}
+
+	if !utf8.Valid(buf) {
+		return "", errors.ErrInvalidEncoding
+	}
+	return domainToASCII(string(buf), false)
 }
 
 // The ends in a number checker takes an ASCII string input and then runs these
@@ -232,7 +254,7 @@ func (p *Parser) parseIPv4(u *Url, input string) (string, error) {
 	return ipv4.String(), nil
 }
 
-func parseIPv6(input string) (*ipv6Addr, error) {
+func parseIPv6(input []byte) (*ipv6Addr, error) {
 	if len(input) < 2 {
 		return nil, errors.ErrIPv6TooFewPieces
 	}
@@ -444,38 +466,100 @@ func parseIPv6(input string) (*ipv6Addr, error) {
 	// Return address.
 	return address, nil
 }
-
-func (p *Parser) parseOpaqueHost(u *Url, input string) (string, error) {
+func (p *Parser) parseOpaqueHost(u *Url, input []byte) (string, error) {
+	// Worst case: every byte becomes %HH (3x).
 	out := make([]byte, 0, len(input)*3)
 
-	for i, r := range input {
-		if r < utf8.RuneSelf && forbiddenHostASCII[r] {
-			if p.LaxHostParsing {
-				return input, nil
+	for i := 0; i < len(input); {
+		c := input[i]
+
+		// ASCII fast path
+
+		if c < utf8.RuneSelf {
+			// If input contains a forbidden host code point,
+			if forbiddenHostASCII[c] {
+				if p.LaxHostParsing {
+					return string(input), nil
+				}
+				// host-invalid-code-point validation error, return failure.
+				if err := p.handleErrorWithDescription(u, errors.ErrHostInvalidCodePoint, string([]byte{c})); err != nil {
+					return "", err
+				}
 			}
-			if err := p.handleErrorWithDescription(u, errors.ErrHostInvalidCodePoint, string(r)); err != nil {
+
+			// If input contains a code point that is not a URL code point and not U+0025 (%),
+			if !urlCodePointASCII[c] && c != '%' {
+				// invalid-URL-unit validation error.
+				if err := p.handleErrorWithDescription(u, errors.ErrInvalidURLUnit, string([]byte{c})); err != nil {
+					return "", err
+				}
+			}
+
+			// If input contains a U+0025 (%) and the two code points following it are not ASCII hex digits,
+			if c == '%' {
+				if i+2 >= len(input) || !isHex(input[i+1]) || !isHex(input[i+2]) {
+					// Mirror your existing remainingIsInvalidPercentEncoded behavior:
+					// Provide whatever description you currently build (here: just "%").
+
+					// invalid-URL-unit validation error.
+					if err := p.handleErrorWithDescription(u, errors.ErrInvalidURLUnit, "%"); err != nil {
+						return "", err
+					}
+					if p.PercentEncodeSinglePercentSign {
+						out = append(out, percentPercentEncoded...)
+						i++
+						continue
+					}
+				}
+			}
+
+			// Return the result of running UTF-8 percent-encode on input using
+			// the C0 control percent-encode set.
+			if C0PercentEncodeSet.ByteShouldBeEncoded(c) {
+				out = append(out, '%', upperHex[c>>4], upperHex[c&15])
+			} else {
+				out = append(out, c)
+			}
+			i++
+			continue
+		}
+
+		// Non-ASCII: decode one rune
+		r, size := utf8.DecodeRune(input[i:])
+		if r == utf8.RuneError && size == 1 {
+			// Invalid UTF-8 byte in opaque host.
+			// Spec-wise this is an invalid-URL-unit; decide whether you want strict fail or
+			// tolerate under AcceptInvalidCodepoints (if that option is meant to apply here).
+			if err := p.handleErrorWithDescription(u, errors.ErrInvalidURLUnit, "\uFFFD"); err != nil {
 				return "", err
 			}
+			// Encode the raw byte (not U+FFFD) if you accept invalid code points; otherwise encode U+FFFD.
+			if p.AcceptInvalidCodepoints {
+				c = input[i]
+				if C0PercentEncodeSet.ByteShouldBeEncoded(c) {
+					out = append(out, '%', upperHex[c>>4], upperHex[c&15])
+				} else {
+					out = append(out, c)
+				}
+				i++
+			} else {
+				out = appendPercentEncoded(out, utf8.RuneError, C0PercentEncodeSet)
+				i++
+			}
+			continue
 		}
+
+		// If input contains a code point that is not a URL code point and not U+0025 (%),
 		if !isURLCodePoint(r) && r != '%' {
+			// host-invalid-code-point validation error, return failure.
 			if err := p.handleErrorWithDescription(u, errors.ErrInvalidURLUnit, string(r)); err != nil {
 				return "", err
 			}
 		}
-		if r == '%' {
-			invalidPercentEncoding, d := remainingIsInvalidPercentEncoded(input[i:])
-			if invalidPercentEncoding {
-				if err := p.handleErrorWithDescription(u, errors.ErrInvalidURLUnit, d); err != nil {
-					return "", err
-				}
-				if p.PercentEncodeSinglePercentSign {
-					out = append(out, percentPercentEncoded...)
-					continue
-				}
-			}
-		}
 
+		// If '%' rune appears here (it won't; '%' is ASCII) you'd handle it above.
 		out = appendPercentEncoded(out, r, C0PercentEncodeSet)
+		i += size
 	}
 
 	return string(out), nil
@@ -485,7 +569,7 @@ func (p *Parser) parseOpaqueHost(u *Url, input string) (string, error) {
 // steps. They return failure or a tuple of a number and a boolean.
 func parseIPv4Number(input string) (number int64, validationError bool, err error) {
 	// If input is the empty string, then return failure.
-	if input == "" {
+	if len(input) == 0 {
 		return 0, false, errors.ErrIPv4EmptyPart
 	}
 	// Let validationError be false.
@@ -495,7 +579,7 @@ func parseIPv4Number(input string) (number int64, validationError bool, err erro
 
 	// If input contains at least two code points and the first two code points
 	// are either "0X" or "0x", then:
-	if len(input) >= 2 && (input[:2] == "0x" || input[:2] == "0X") {
+	if len(input) >= 2 && input[0] == '0' && (input[1] == 'x' || input[1] == 'X') {
 		// Set validationError to true.
 		validationError = true
 		// Remove the first two code points from input.
@@ -505,7 +589,7 @@ func parseIPv4Number(input string) (number int64, validationError bool, err erro
 	} else
 	// Otherwise, if input contains at least two code points and the first code
 	// point is U+0030 (0), then:
-	if len(input) >= 2 && input[:1] == "0" {
+	if len(input) >= 2 && input[0] == '0' {
 		// Set validationError to true.
 		validationError = true
 		// Remove the first code point from input.
@@ -514,7 +598,7 @@ func parseIPv4Number(input string) (number int64, validationError bool, err erro
 		R = 8
 	}
 	// If input is the empty string,
-	if input == "" {
+	if len(input) == 0 {
 		// then return (0, true).
 		return 0, true, nil
 	}
@@ -544,6 +628,22 @@ func parseIPv4Number(input string) (number int64, validationError bool, err erro
 type ipv6Addr [8]uint16
 
 func (address *ipv6Addr) String() string {
+	var buf [40]byte
+	return string(address.serializeTo(buf[:0]))
+}
+
+func (address *ipv6Addr) StringWithBrackets() string {
+	var buf [42]byte
+	b := buf[:0]
+
+	b = append(b, '[')
+	b = address.serializeTo(b)
+	b = append(b, ']')
+
+	return string(b)
+}
+
+func (address *ipv6Addr) serializeTo(b []byte) []byte {
 	// Find the longest run of zeros for compression
 	compress, compressLength := -1, 0
 	currentIdx, currentLength := -1, 0
@@ -565,9 +665,6 @@ func (address *ipv6Addr) String() string {
 	if currentLength > 1 && currentLength > compressLength {
 		compress = currentIdx
 	}
-
-	var buf [40]byte
-	b := buf[:0]
 
 	ignore0 := false
 	for i := range 8 {
@@ -593,7 +690,7 @@ func (address *ipv6Addr) String() string {
 		}
 	}
 
-	return string(b)
+	return b
 }
 
 type IPv4Addr uint32
@@ -671,45 +768,17 @@ func isASCII(s string) bool {
 	return true
 }
 
-// Reject forbidden domain code points and lowercase ASCII without an extra pass.
-// Only allocates if it actually needs to lowercase something.
-func validateAndASCIILower(s string) (string, error) {
-	if s == "" {
-		return "", errors.ErrDomainToASCII
-	}
-
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-
-		if forbiddenDomainASCII[c] {
-			return s, errors.ErrDomainInvalidCodePoint
-		}
-
-		if 'A' <= c && c <= 'Z' {
-			b := []byte(s)
-			b[i] = c + ('a' - 'A')
-
-			for j := i + 1; j < len(b); j++ {
-				d := b[j]
-				if forbiddenDomainASCII[d] {
-					return s, errors.ErrDomainInvalidCodePoint
-				}
-				if 'A' <= d && d <= 'Z' {
-					b[j] = d + ('a' - 'A')
-				}
-			}
-			return string(b), nil
-		}
-	}
+// validateAndASCIILower rejects forbidden domain code points and lowercases ASCII letters.
+func validateAndASCIILower(s []byte) ([]byte, error) {
 
 	return s, nil
 }
 
-func asciiNoPctNoPunycode(s string) bool {
+func asciiNoPunycodeLabels(s []byte) bool {
 	p := 0
 	for i := 0; i < len(s); i++ {
 		b := s[i]
-		if b >= 0x80 { // non-ASCII
+		if b >= utf8.RuneSelf { // non-ASCII
 			return false
 		}
 		switch {

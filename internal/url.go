@@ -61,7 +61,7 @@ func (u *Url) Parse(ref string) (*Url, error) {
 // If excludeFragment is true, the fragment component will be excluded from the output.
 func (u *Url) Href(excludeFragment bool) string {
 	var out strings.Builder
-	out.Grow(96)
+	out.Grow(u.hrefLen(excludeFragment))
 
 	// Let output be url’s scheme
 	out.WriteString(u.scheme)
@@ -104,8 +104,17 @@ func (u *Url) Href(excludeFragment bool) string {
 		// when parsed and then serialized, from ending up as web+demo://not-a-host/
 		// (they end up as web+demo:/.//not-a-host/).
 	}
+
 	// Append the result of URL path serializing url to output.
-	out.WriteString(u.path.String())
+	if u.path.opaque && len(u.path.p) > 0 {
+		out.WriteString(u.path.p[0])
+	} else {
+		for _, pp := range u.path.p {
+			out.WriteByte('/')
+			out.WriteString(pp)
+		}
+	}
+
 	// If url’s query is non-null,
 
 	if u.hasQuery {
@@ -484,11 +493,6 @@ func (u *Url) IsSpecialScheme() bool {
 	return u.isSpecial
 }
 
-func (u *Url) isSpecialScheme(scheme string) bool {
-	_, ok := u.getSpecialScheme(scheme)
-	return ok
-}
-
 func (u *Url) getSpecialScheme(scheme string) (uint16, bool) {
 	if u.parser.HasCustomSpecialSchemes {
 		s, ok := u.parser.SpecialSchemes[scheme]
@@ -504,5 +508,59 @@ func (u *Url) normalizePort() {
 	if u.port == u.defaultPort {
 		u.hasPort = false
 		u.port = 0
+	}
+}
+
+func (u *Url) hrefLen(excludeFragment bool) int {
+	n := len(u.scheme) + 1 // scheme + ':'
+
+	if u.hasHost {
+		n += 2 // "//"
+		if u.username != "" || u.password != "" {
+			n += len(u.username)
+			if u.password != "" {
+				n += 1 + len(u.password) // ':' + password
+			}
+			n += 1 // '@'
+		}
+		n += len(u.host)
+		if u.hasPort {
+			n += 1 + portLen(u.port)
+		}
+	}
+
+	if !u.hasHost && !u.path.isOpaque() && len(u.path.p) > 1 && u.path.p[0] == "" {
+		n += 2 // "/."
+	}
+
+	if u.path.opaque && len(u.path.p) > 0 {
+		n += len(u.path.p[0])
+	} else {
+		for _, seg := range u.path.p {
+			n += 1 + len(seg) // '/' + seg
+		}
+	}
+
+	if u.hasQuery {
+		n += 1 + len(u.query)
+	}
+	if !excludeFragment && u.hasFragment {
+		n += 1 + len(u.fragment)
+	}
+	return n
+}
+
+func portLen(p uint16) int {
+	switch {
+	case p < 10:
+		return 1
+	case p < 100:
+		return 2
+	case p < 1000:
+		return 3
+	case p < 10000:
+		return 4
+	default:
+		return 5
 	}
 }
