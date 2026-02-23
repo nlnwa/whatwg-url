@@ -30,6 +30,7 @@ func NewParser() *Parser {
 		QueryPercentEncodeSet:           QueryPercentEncodeSet,
 		SpecialFragmentPercentEncodeSet: FragmentPercentEncodeSet,
 		FragmentPercentEncodeSet:        FragmentPercentEncodeSet,
+		ReportValidationErrors:          true,
 		SpecialSchemes: map[string]uint16{
 			"ftp":   21,
 			"file":  0,
@@ -1106,7 +1107,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 			// If c is not a URL code point and not U+0025 (%),
 			if !isURLCodePoint(r) && r != '%' {
 				// invalid-URL-unit validation error.
-				if err := p.handleError(url, errors.ErrInvalidURLUnit); err != nil {
+				if err := p.handleErrorWithDescription(url, errors.ErrInvalidURLUnit, codePointDescription(r)); err != nil {
 					return nil, err
 				}
 			}
@@ -1163,7 +1164,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 				// If c is not a URL code point and not U+0025 (%),
 				if !isURLCodePoint(r) && r != '%' {
 					// invalid-URL-unit validation error.
-					if err := p.handleError(url, errors.ErrInvalidURLUnit); err != nil {
+					if err := p.handleErrorWithDescription(url, errors.ErrInvalidURLUnit, codePointDescription(r)); err != nil {
 						return nil, err
 					}
 				}
@@ -1234,7 +1235,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 				// If c is not a URL code point and not U+0025 (%),
 				if !isURLCodePoint(r) && r != '%' {
 					// invalid-URL-unit validation error.
-					if err := p.handleError(url, errors.ErrInvalidURLUnit); err != nil {
+					if err := p.handleErrorWithDescription(url, errors.ErrInvalidURLUnit, codePointDescription(r)); err != nil {
 						return nil, err
 					}
 				}
@@ -1269,7 +1270,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 				// If c is not a URL code point and not U+0025 (%),
 				if !isURLCodePoint(r) && r != '%' {
 					// invalid-URL-unit validation error.
-					if err := p.handleError(url, errors.ErrInvalidURLUnit); err != nil {
+					if err := p.handleErrorWithDescription(url, errors.ErrInvalidURLUnit, codePointDescription(r)); err != nil {
 						return nil, err
 					}
 				}

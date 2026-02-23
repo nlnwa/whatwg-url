@@ -189,7 +189,7 @@ func applyTransformedPath(u *Url, transformed string) {
 		transformed = "/" + transformed
 	}
 
-	for _, segment := range strings.Split(transformed[1:], "/") {
+	for segment := range strings.SplitSeq(transformed[1:], "/") {
 		u.path.addSegment(segment)
 	}
 }

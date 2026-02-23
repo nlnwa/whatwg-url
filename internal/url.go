@@ -462,6 +462,7 @@ func (u *Url) Clone() *Url {
 		host:         u.host,
 		hasHost:      u.hasHost,
 		port:         u.port,
+		hasPort:      u.hasPort,
 		path:         u.path.clone(),
 		query:        u.query,
 		hasQuery:     u.hasQuery,

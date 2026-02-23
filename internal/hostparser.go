@@ -128,7 +128,7 @@ func (p *Parser) hostToASCII(input []byte) (string, error) {
 	}
 
 	if !utf8.Valid(buf) {
-		return "", errors.ErrInvalidEncoding
+		return "", errors.ErrDomainToASCII
 	}
 	return domainToASCII(string(buf), false)
 }
@@ -482,7 +482,7 @@ func (p *Parser) parseOpaqueHost(u *Url, input []byte) (string, error) {
 					return string(input), nil
 				}
 				// host-invalid-code-point validation error, return failure.
-				if err := p.handleErrorWithDescription(u, errors.ErrHostInvalidCodePoint, string([]byte{c})); err != nil {
+				if err := p.handleErrorWithDescription(u, errors.ErrHostInvalidCodePoint, byteCodePointDescription(c)); err != nil {
 					return "", err
 				}
 			}
@@ -490,7 +490,7 @@ func (p *Parser) parseOpaqueHost(u *Url, input []byte) (string, error) {
 			// If input contains a code point that is not a URL code point and not U+0025 (%),
 			if !urlCodePointASCII[c] && c != '%' {
 				// invalid-URL-unit validation error.
-				if err := p.handleErrorWithDescription(u, errors.ErrInvalidURLUnit, string([]byte{c})); err != nil {
+				if err := p.handleErrorWithDescription(u, errors.ErrInvalidURLUnit, byteCodePointDescription(c)); err != nil {
 					return "", err
 				}
 			}
@@ -502,7 +502,7 @@ func (p *Parser) parseOpaqueHost(u *Url, input []byte) (string, error) {
 					// Provide whatever description you currently build (here: just "%").
 
 					// invalid-URL-unit validation error.
-					if err := p.handleErrorWithDescription(u, errors.ErrInvalidURLUnit, "%"); err != nil {
+					if err := p.handleErrorWithDescription(u, errors.ErrInvalidURLUnit, codePointDescription('%')); err != nil {
 						return "", err
 					}
 					if p.PercentEncodeSinglePercentSign {
@@ -530,7 +530,7 @@ func (p *Parser) parseOpaqueHost(u *Url, input []byte) (string, error) {
 			// Invalid UTF-8 byte in opaque host.
 			// Spec-wise this is an invalid-URL-unit; decide whether you want strict fail or
 			// tolerate under AcceptInvalidCodepoints (if that option is meant to apply here).
-			if err := p.handleErrorWithDescription(u, errors.ErrInvalidURLUnit, "\uFFFD"); err != nil {
+			if err := p.handleErrorWithDescription(u, errors.ErrInvalidURLUnit, invalidUTF8ByteDescription(input[i])); err != nil {
 				return "", err
 			}
 			// Encode the raw byte (not U+FFFD) if you accept invalid code points; otherwise encode U+FFFD.
@@ -552,7 +552,7 @@ func (p *Parser) parseOpaqueHost(u *Url, input []byte) (string, error) {
 		// If input contains a code point that is not a URL code point and not U+0025 (%),
 		if !isURLCodePoint(r) && r != '%' {
 			// host-invalid-code-point validation error, return failure.
-			if err := p.handleErrorWithDescription(u, errors.ErrInvalidURLUnit, string(r)); err != nil {
+			if err := p.handleErrorWithDescription(u, errors.ErrInvalidURLUnit, codePointDescription(r)); err != nil {
 				return "", err
 			}
 		}

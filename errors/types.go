@@ -49,7 +49,6 @@ const (
 	portInvalid
 	fileInvalidWindowsDriveLetter
 	fileInvalidWindowsDriveLetterHost
-	invalidEncoding
 )
 
 var (
@@ -85,5 +84,4 @@ var (
 	ErrPortInvalid                          = validationError(portInvalid, "the input's port is not a number")
 	ErrFileInvalidWindowsDriveLetter        = validationError(fileInvalidWindowsDriveLetter, "the input is a relative-URL string that starts with a Windows drive letter and the base URL’s scheme is 'file'")
 	ErrFileInvalidWindowsDriveLetterHost    = validationError(fileInvalidWindowsDriveLetterHost, "a file: URL’s host is a Windows drive letter")
-	ErrInvalidEncoding                      = validationError(invalidEncoding, "the input could not be interpreted using the specified encoding")
 )

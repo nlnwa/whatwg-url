@@ -18,12 +18,25 @@ package internal
 
 import (
 	gerrors "errors"
+	"fmt"
 
 	"github.com/nationallibraryofnorway/whatwg-url/errors"
 )
 
 type errorUnwrapper interface {
 	Unwrap() error
+}
+
+func codePointDescription(r rune) string {
+	return fmt.Sprintf("U+%04X (%q)", r, r)
+}
+
+func byteCodePointDescription(b byte) string {
+	return codePointDescription(rune(b))
+}
+
+func invalidUTF8ByteDescription(b byte) string {
+	return fmt.Sprintf("invalid UTF-8 byte 0x%02X", b)
 }
 
 func isValidationFailure(verr *errors.ValidationError) bool {
@@ -47,8 +60,7 @@ func isValidationFailure(verr *errors.ValidationError) bool {
 		verr.Is(errors.ErrHostMissing) ||
 		verr.Is(errors.ErrPortMissing) ||
 		verr.Is(errors.ErrPortOutOfRange) ||
-		verr.Is(errors.ErrPortInvalid) ||
-		verr.Is(errors.ErrInvalidEncoding)
+		verr.Is(errors.ErrPortInvalid)
 }
 
 func asValidationError(err error) (*errors.ValidationError, bool) {
@@ -83,7 +95,7 @@ func (p *Parser) handleError(u *Url, err error) error {
 	if !ok {
 		return err
 	}
-	if u != nil {
+	if u != nil && p.ReportValidationErrors {
 		u.validationErrors = append(u.validationErrors, verr)
 	}
 	failure := isValidationFailure(verr)
