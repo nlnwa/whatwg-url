@@ -635,6 +635,19 @@ func (p *parser) BasicParser(urlOrRef string, baseUrl *Url, url *Url, stateOverr
 				url.fragment = new(string)
 				state = StateFragment
 				buffer.Reset()
+			} else if r == ' ' {
+				// U+0020 SPACE in an opaque path is percent-encoded only when it
+				// is immediately followed by '?' or '#', per the opaque-path state
+				// of the URL Standard; otherwise it stays literal.
+				if err := p.handleError(url, errors.InvalidURLUnit, false); err != nil {
+					return nil, err
+				}
+				if input.remainingStartsWith("?") || input.remainingStartsWith("#") {
+					buffer.WriteString("%20")
+				} else {
+					buffer.WriteRune(' ')
+				}
+				url.path.setOpaque(buffer.String())
 			} else if !input.eof {
 				if !isURLCodePoint(r) && r != '%' {
 					if err := p.handleError(url, errors.InvalidURLUnit, false); err != nil {
