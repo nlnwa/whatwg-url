@@ -234,6 +234,24 @@ func TestDecodedPort(t *testing.T) {
 	}
 }
 
+func TestOpaquePathSpaceEncoding(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{"non-special:opaque  ?hi", "non-special:opaque %20?hi"},
+		{"non-special:opaque  #hi", "non-special:opaque %20#hi"},
+		{"non-special:opaque a b", "non-special:opaque a b"},
+	}
+	for _, tt := range tests {
+		u, err := Parse(tt.in)
+		if err != nil {
+			t.Errorf("Parse(%q) error = %v", tt.in, err)
+			continue
+		}
+		if got := u.Href(false); got != tt.want {
+			t.Errorf("Parse(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
 func TestParseShouldNotModifyBaseUrl(t *testing.T) {
 	rawUrl := "http://example.org/ns/foo?adc=ghi#frag"
 	base, err := Parse(rawUrl)
