@@ -19,7 +19,6 @@ package internal
 import (
 	"bytes"
 	"errors"
-	"math"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -210,6 +209,7 @@ func (p *Parser) parseIPv4(u *Url, input string) (string, error) {
 		// Append result[0] to numbers.
 		numbers = append(numbers, n)
 	}
+	last := len(numbers) - 1
 	for _, n := range numbers {
 		// If any item in numbers is greater than 255,
 		if n > 255 {
@@ -220,7 +220,7 @@ func (p *Parser) parseIPv4(u *Url, input string) (string, error) {
 			}
 		}
 	}
-	for _, n := range numbers[:len(numbers)-1] {
+	for _, n := range numbers[:last] {
 		// If any but the last item in numbers is greater than 255,
 		if n > 255 {
 			// then return failure.
@@ -230,26 +230,28 @@ func (p *Parser) parseIPv4(u *Url, input string) (string, error) {
 		}
 	}
 	// If the last item in numbers is greater than or equal to 256(5 − numbers’s size),
-	if numbers[len(numbers)-1] >= int64(math.Pow(256, float64(5-len(numbers)))) {
+	// note: 1<<uint(8*(5-len(numbers))) is the same as 256(5 − numbers’s size)
+	if numbers[last] >= 1<<uint(8*(5-len(numbers))) {
 		// then return failure.
 		if err := p.handleErrorAndFail(u, ErrIPv4OutOfRangePart); err != nil {
 			return input, err
 		}
 	}
 	// Let ipv4 be the last item in numbers.
-	var ipv4 = IPv4Addr(numbers[len(numbers)-1])
+	ipv4 := uint64(numbers[last])
 	// Remove the last item from numbers.
-	numbers = numbers[:len(numbers)-1]
+	numbers = numbers[:last]
 	// Let counter be 0.
 	// For each n of numbers:
 	for counter, n := range numbers {
 		// Increment ipv4 by n × 256(3 − counter).
-		ipv4 += IPv4Addr(n * int64(math.Pow(256, float64(3-counter))))
+		// note: 1<<uint(8*(3-counter)) is the same as 256(3 − counter)
+		ipv4 += uint64(n) << uint(8*(3-counter))
 		// Increment counter by 1.
 	}
 	// Return ipv4.
 	u.isIPv4 = true
-	return ipv4.String(), nil
+	return IPv4Addr(ipv4).String(), nil
 }
 
 func parseIPv6(input []byte) (*ipv6Addr, error) {
@@ -756,21 +758,6 @@ func domainToASCII(domain string, beStrict bool) (string, error) {
 	}
 
 	return a, nil
-}
-
-func isASCII(s string) bool {
-	for i := 0; i < len(s); i++ {
-		if s[i] >= utf8.RuneSelf {
-			return false
-		}
-	}
-	return true
-}
-
-// validateAndASCIILower rejects forbidden domain code points and lowercases ASCII letters.
-func validateAndASCIILower(s []byte) ([]byte, error) {
-
-	return s, nil
 }
 
 func asciiNoPunycodeLabels(s []byte) bool {
