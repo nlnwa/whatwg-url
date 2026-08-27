@@ -222,7 +222,7 @@ func TestIsStrictASCIIValid(t *testing.T) {
 		{"", false},
 		{".", false},
 		{".example", false},
-		{"example.", false},
+		{"example.", true},
 		{"example..com", false},
 		{"-example", false},
 		{"example-", false},
@@ -231,6 +231,7 @@ func TestIsStrictASCIIValid(t *testing.T) {
 		{"a!b.example", false},
 		{strings.Repeat("a", 64), false},
 		{domain253 + "a", false},
+		{domain253 + ".", true},
 	}
 
 	for _, tt := range tests {
@@ -248,10 +249,10 @@ func TestIsStrictASCIIValid_MatchesIDNA(t *testing.T) {
 		if !asciiNoPunycodeLabels([]byte(domain)) {
 			return
 		}
-		_, err := idnaStrict.ToASCII(domain)
+		_, err := strictDomainToASCII(domain)
 		want := err == nil
 		if got := isStrictASCIIValid([]byte(domain)); got != want {
-			t.Fatalf("isStrictASCIIValid(%q) = %v, idnaStrict.ToASCII error = %v", domain, got, err)
+			t.Fatalf("isStrictASCIIValid(%q) = %v, strictDomainToASCII error = %v", domain, got, err)
 		}
 	}
 
@@ -276,6 +277,28 @@ func TestIsStrictASCIIValid_MatchesIDNA(t *testing.T) {
 			buf[i] = alphabet[rng.Intn(len(alphabet))]
 		}
 		check(t, string(buf))
+	}
+}
+
+func TestStrictDomainToASCII_PreservesTrailingRootLabel(t *testing.T) {
+	for _, tt := range []struct {
+		input string
+		want  string
+	}{
+		{"example.", "example."},
+		{"example\u3002", "example."},
+		{"example\uff0e", "example."},
+		{"example\uff61", "example."},
+	} {
+		t.Run(tt.input, func(t *testing.T) {
+			got, err := strictDomainToASCII(tt.input)
+			if err != nil {
+				t.Fatalf("strictDomainToASCII(%q) error = %v", tt.input, err)
+			}
+			if got != tt.want {
+				t.Fatalf("strictDomainToASCII(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
 	}
 }
 

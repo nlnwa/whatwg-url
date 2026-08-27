@@ -125,7 +125,7 @@ func (c *parseContext) parseHost(u *Url, input []byte, isNotSpecial bool) (strin
 			// The local check is conservative. Use the strict IDNA profile only
 			// when it detects a possible validation error so that x/net remains
 			// the source of the detailed error.
-			if _, err := idnaStrict.ToASCII(asciiDomain); err != nil {
+			if _, err := strictDomainToASCII(asciiDomain); err != nil {
 				if err := c.reportValidation(CodeDomainToASCII, ErrDomainToASCII.Detail(), err); err != nil {
 					return "", err
 				}
@@ -805,6 +805,28 @@ var (
 	idnaNonStrict = domainToASCIIProfile(false)
 )
 
+// strictDomainToASCII preserves a trailing root label while working around
+// x/net/idna treating that label as an empty label during DNS-length
+// verification. UTS #46 excludes a trailing root-label dot from the DNS
+// length and label checks.
+func strictDomainToASCII(domain string) (string, error) {
+	trimmed := domain
+	hasRootLabel := false
+	for _, separator := range []string{".", "\u3002", "\uff0e", "\uff61"} {
+		if strings.HasSuffix(trimmed, separator) && len(trimmed) > len(separator) {
+			trimmed = strings.TrimSuffix(trimmed, separator)
+			hasRootLabel = true
+			break
+		}
+	}
+
+	result, err := idnaStrict.ToASCII(trimmed)
+	if hasRootLabel {
+		result += "."
+	}
+	return result, err
+}
+
 // processDomainToASCII converts a string to ASCII using IDNA. A strict IDNA
 // error can be returned separately as a non-fatal validation warning when
 // relaxed processing succeeds.
@@ -814,7 +836,7 @@ func processDomainToASCII(domain string, beStrict, validate bool) (result string
 	}
 
 	if beStrict {
-		result, err := idnaStrict.ToASCII(domain)
+		result, err := strictDomainToASCII(domain)
 		if err != nil {
 			return result, nil, validationErrorWithCause(ErrDomainToASCII, err)
 		}
@@ -824,7 +846,7 @@ func processDomainToASCII(domain string, beStrict, validate bool) (result string
 	ascii := isASCII(domain)
 	haveResult := false
 	if validate {
-		strictResult, err := idnaStrict.ToASCII(domain)
+		strictResult, err := strictDomainToASCII(domain)
 		if err == nil {
 			if !ascii {
 				result = strictResult
@@ -901,6 +923,12 @@ func asciiNoPunycodeLabels(s []byte) bool {
 // preconditions, Bidi, Joiner, normalization, and Punycode validation cannot
 // fail, leaving only STD3, hyphen, empty-label, and DNS-length checks.
 func isStrictASCIIValid(domain []byte) bool {
+	if len(domain) == 0 {
+		return false
+	}
+	if domain[len(domain)-1] == '.' {
+		domain = domain[:len(domain)-1]
+	}
 	if len(domain) == 0 || len(domain) > 253 {
 		return false
 	}

@@ -147,6 +147,10 @@ func TestParseError_MultiUnwrapAndDefensiveValidationErrors(t *testing.T) {
 	if !errors.Is(err, ErrParseFailure) || !errors.Is(err, ErrPortInvalid) {
 		t.Fatalf("error does not expose both failure and validation identities: %v", err)
 	}
+	var validationErr *ValidationError
+	if !errors.As(err, &validationErr) || validationErr.Code() != CodePortInvalid {
+		t.Fatalf("error does not expose its validation occurrence through errors.As: %v", err)
+	}
 
 	errs := parseErr.ValidationErrors()
 	errs[0] = nil

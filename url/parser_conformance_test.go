@@ -44,7 +44,7 @@ func TestIPv4ValidationAndRangeFailures(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		requireValidationCodes(t, u.ValidationErrors(), CodeDomainToASCII, CodeIPv4EmptyPart, CodeIPv4TooFewParts)
+		requireValidationCodes(t, u.ValidationErrors(), CodeIPv4EmptyPart, CodeIPv4TooFewParts)
 	})
 
 	t.Run("range event occurs once", func(t *testing.T) {

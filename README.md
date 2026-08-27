@@ -32,10 +32,13 @@ fmt.Println(u)             // http://example.com/a?b#c
 The default parser instance follows the WHATWG URL Standard. To adapt parsing to other needs, create a new parser instance and configure it with [options](https://pkg.go.dev/github.com/nationallibraryofnorway/whatwg-url/url#ParserOption).
 
 Validation errors do not fail parsing unless the standard says to return
-failure. `WithLaxHostParsing`, `WithAcceptInvalidCodepoints`, and
-`WithPercentEncodeSinglePercentSign` are deliberate extensions: standard
-validation is detected before they recover. `WithFailOnValidationError` takes
-precedence over those recovery options.
+failure. Successful URLs retain their validation history by default;
+`WithReportValidationErrors(false)` disables only that successful-URL history,
+not failure diagnostics. `WithLaxHostParsing`, `WithAcceptInvalidCodepoints`,
+and `WithPercentEncodeSinglePercentSign` are deliberate extensions: standard
+validation is detected before they recover. `WithFailOnValidationError` stops
+at the first validation occurrence and takes precedence over every recovery
+option, regardless of option order.
 
 Example:
 
@@ -46,31 +49,43 @@ p := url.NewParser(
 )
 ```
 
-### Error handling
+### Validation errors and parse failures
 
-Use standard Go error handling with `errors.Is`/`errors.As`.
+A `ValidationError` represents one WHATWG validation-error occurrence. Its
+`Code()` is a stable `ValidationErrorCode`, while `Detail()` is intended for
+people and can include more context. A validation error is not necessarily
+fatal: the default parser continues whenever the standard does.
+
+When the standard says to return failure, `Parse`, `ParseRef`, and `BasicParse`
+return a nil URL and a `*ParseError`. Every `ParseError` matches
+`ErrParseFailure` and exposes all validation occurrences detected before the
+failure through both `ValidationErrors()` and Go multi-error unwrapping. Some
+standard failure steps have no validation-error category; those return a
+`ParseError` with an empty validation list.
 
 ```go
 import (
     "errors"
+    "fmt"
 
-    urlerrors "github.com/nationallibraryofnorway/whatwg-url/errors"
     "github.com/nationallibraryofnorway/whatwg-url/url"
 )
 
-u, err := url.Parse("https://example.org:7z")
-if err != nil {
-    if errors.Is(err, urlerrors.ErrPortInvalid) {
-        // handle invalid port
+u, err := url.Parse(" https://example.org ")
+if err == nil {
+    for _, validationErr := range u.ValidationErrors() {
+        fmt.Println(validationErr.Code()) // invalid-URL-unit
     }
 }
 
-u, err = url.Parse(" https://example.org ")
-if err == nil {
-    for _, verr := range u.ValidationErrors() {
-        if errors.Is(verr, urlerrors.ErrInvalidURLUnit) {
-            // optional: report warning
-        }
+u, err = url.Parse("https://example.org:7z")
+var parseErr *url.ParseError
+if errors.As(err, &parseErr) {
+    fmt.Println(u == nil)                             // true
+    fmt.Println(errors.Is(err, url.ErrParseFailure)) // true
+    fmt.Println(errors.Is(err, url.ErrPortInvalid))  // true
+    for _, validationErr := range parseErr.ValidationErrors() {
+        fmt.Println(validationErr.Code()) // port-invalid
     }
 }
 ```

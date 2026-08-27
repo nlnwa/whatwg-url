@@ -145,3 +145,108 @@ func TestValidationPolicy_ExtensionPrecedence(t *testing.T) {
 		})
 	}
 }
+
+func TestValidationPolicy_CrossProduct(t *testing.T) {
+	const input = "foo://example^example/"
+	tests := []struct {
+		name      string
+		options   []ParserOption
+		wantOK    bool
+		wantURL   string
+		wantCodes []ValidationErrorCode
+	}{
+		{
+			name:      "default",
+			wantCodes: []ValidationErrorCode{CodeHostInvalidCodePoint},
+		},
+		{
+			name:      "reporting disabled",
+			options:   []ParserOption{WithReportValidationErrors(false)},
+			wantCodes: []ValidationErrorCode{CodeHostInvalidCodePoint},
+		},
+		{
+			name:      "fail on validation",
+			options:   []ParserOption{WithFailOnValidationError()},
+			wantCodes: []ValidationErrorCode{CodeHostInvalidCodePoint},
+		},
+		{
+			name:      "lax recovery",
+			options:   []ParserOption{WithLaxHostParsing()},
+			wantOK:    true,
+			wantURL:   input,
+			wantCodes: []ValidationErrorCode{CodeHostInvalidCodePoint},
+		},
+		{
+			name: "fail on validation with lax recovery",
+			options: []ParserOption{
+				WithLaxHostParsing(),
+				WithFailOnValidationError(),
+			},
+			wantCodes: []ValidationErrorCode{CodeHostInvalidCodePoint},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u, err := NewParser(tt.options...).Parse(input)
+			if tt.wantOK {
+				if err != nil {
+					t.Fatalf("Parse() error = %v", err)
+				}
+				if got := u.Href(false); got != tt.wantURL {
+					t.Fatalf("Parse() = %q, want %q", got, tt.wantURL)
+				}
+				requireValidationCodes(t, u.ValidationErrors(), tt.wantCodes...)
+				return
+			}
+
+			if u != nil {
+				t.Fatalf("Parse() URL = %q, want nil", u)
+			}
+			var parseErr *ParseError
+			if !errors.As(err, &parseErr) {
+				t.Fatalf("Parse() error = %T, want *ParseError", err)
+			}
+			requireValidationCodes(t, parseErr.ValidationErrors(), tt.wantCodes...)
+		})
+	}
+}
+
+func TestValidationPolicy_FailFastBeforeDomainRecovery(t *testing.T) {
+	tests := []struct {
+		name string
+		url  string
+		code ValidationErrorCode
+		err  error
+	}{
+		{
+			name: "percent-encoded domain",
+			url:  "https://exam%70le.org/",
+			code: CodeDomainPercentEncoded,
+			err:  ErrDomainPercentEncoded,
+		},
+		{
+			name: "IDNA-derived IPv4",
+			url:  "https://①.②.③.④/",
+			code: CodeIPv4NonASCIIInput,
+			err:  ErrIPv4NonASCIIInput,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u, err := NewParser(WithFailOnValidationError()).Parse(tt.url)
+			if u != nil {
+				t.Fatalf("Parse() URL = %q, want nil", u)
+			}
+			var parseErr *ParseError
+			if !errors.As(err, &parseErr) {
+				t.Fatalf("Parse() error = %T, want *ParseError", err)
+			}
+			requireValidationCodes(t, parseErr.ValidationErrors(), tt.code)
+			if !errors.Is(err, tt.err) {
+				t.Fatalf("Parse() error = %v, want %v", err, tt.err)
+			}
+		})
+	}
+}
