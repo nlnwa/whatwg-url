@@ -36,14 +36,13 @@ func (opt parserOptionFunc) apply(parser *parser) {
 	opt.fn(parser)
 }
 
-// WithReportValidationErrors controls whether non-fatal validation errors are
-// recorded on the Url during parsing.
+// WithReportValidationErrors controls whether validation errors detected during
+// a successful parse are recorded on the resulting Url.
 //
-// When enabled, validation errors are appended to the Url and can be retrieved
-// using the Url.ValidationErrors method. Fatal validation errors are still
-// returned immediately regardless of this setting.
-//
-// This option does not affect whether parsing fails; it only controls error reporting.
+// This option only controls successful-URL history. It does not change WHATWG
+// continuation or failure behavior, and ParseError always contains every
+// validation error detected before a failed parse, even when reporting is
+// disabled.
 //
 // Default: true
 //
@@ -54,7 +53,14 @@ func WithReportValidationErrors(enable bool) ParserOption {
 	})
 }
 
-// WithFailOnValidationError makes the parser return an error for all validation errors.
+// WithFailOnValidationError makes the first detected WHATWG validation error
+// immediately terminate parsing with a ParseError.
+//
+// This is a policy layered over standard error detection; it does not change
+// the validation error's code or imply that the WHATWG algorithm would normally
+// fail at that point. This option takes precedence over WithLaxHostParsing,
+// WithAcceptInvalidCodepoints, and WithPercentEncodeSinglePercentSign, so no
+// configured recovery is applied after the validation error is detected.
 //
 // This API is EXPERIMENTAL.
 func WithFailOnValidationError() ParserOption {
@@ -63,7 +69,12 @@ func WithFailOnValidationError() ParserOption {
 	})
 }
 
-// WithLaxHostParsing ignores some decoding errors and returns the host as is.
+// WithLaxHostParsing enables non-standard recovery from selected host parsing
+// failures by returning the host as-is.
+//
+// The parser detects and records the applicable WHATWG validation error before
+// applying this recovery. WithFailOnValidationError takes precedence and
+// prevents recovery.
 //
 // This API is EXPERIMENTAL.
 func WithLaxHostParsing() ParserOption {
@@ -82,7 +93,12 @@ func WithCollapseConsecutiveSlashes() ParserOption {
 	})
 }
 
-// WithAcceptInvalidCodepoints percent encodes values which are not valid UTF-8.
+// WithAcceptInvalidCodepoints enables non-standard recovery that percent-encodes
+// input bytes which are not valid UTF-8.
+//
+// The parser detects and records the applicable WHATWG validation error before
+// applying this recovery. WithFailOnValidationError takes precedence and
+// prevents recovery.
 //
 // This API is EXPERIMENTAL.
 func WithAcceptInvalidCodepoints() ParserOption {
@@ -91,8 +107,12 @@ func WithAcceptInvalidCodepoints() ParserOption {
 	})
 }
 
-// WithPercentEncodeSinglePercentSign percent encodes a '%' which is not followed by two hexadecimal digits
-// instead of complaining about invalid percent encoding.
+// WithPercentEncodeSinglePercentSign enables non-standard recovery that
+// percent-encodes a '%' which is not followed by two hexadecimal digits.
+//
+// The parser first records the invalid-URL-unit validation error required by
+// the WHATWG algorithm. WithFailOnValidationError takes precedence and prevents
+// recovery.
 //
 // This API is EXPERIMENTAL.
 func WithPercentEncodeSinglePercentSign() ParserOption {

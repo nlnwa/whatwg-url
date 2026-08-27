@@ -31,6 +31,12 @@ fmt.Println(u)             // http://example.com/a?b#c
 
 The default parser instance follows the WHATWG URL Standard. To adapt parsing to other needs, create a new parser instance and configure it with [options](https://pkg.go.dev/github.com/nationallibraryofnorway/whatwg-url/url#ParserOption).
 
+Validation errors do not fail parsing unless the standard says to return
+failure. `WithLaxHostParsing`, `WithAcceptInvalidCodepoints`, and
+`WithPercentEncodeSinglePercentSign` are deliberate extensions: standard
+validation is detected before they recover. `WithFailOnValidationError` takes
+precedence over those recovery options.
+
 Example:
 
 ```go
