@@ -182,10 +182,10 @@ func TestTransformHooksSequence(t *testing.T) {
 func TestTransformHooksSequenceAcrossOptions(t *testing.T) {
 	c := New(
 		WithQueryTransformer(func(_ *whatwgurl.Url, query string) string {
-			return strings.ReplaceAll(query, "A=1", "a=1")
+			return strings.ReplaceAll(query, "A=1", "a=2")
 		}),
 		WithQueryTransformer(func(_ *whatwgurl.Url, query string) string {
-			return strings.ReplaceAll(query, "B=2", "b=2")
+			return strings.ReplaceAll(query, "B=2", "b=3")
 		}),
 	)
 
@@ -195,7 +195,7 @@ func TestTransformHooksSequenceAcrossOptions(t *testing.T) {
 	}
 
 	got := u.String()
-	want := "http://example.com/?a=1&b=2"
+	want := "http://example.com/?a=2&b=3"
 	if got != want {
 		t.Fatalf("Parse() got = %q, want %q", got, want)
 	}

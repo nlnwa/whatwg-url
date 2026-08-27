@@ -30,11 +30,6 @@ import (
 //
 // The host parser takes a scalar value string input with an optional boolean isOpaque (default false), and then runs these steps. They return failure or a host.
 func (p *Parser) parseHost(u *Url, input []byte, isNotSpecial bool) (string, error) {
-	if p.PreParseHostFunc != nil {
-		s := p.PreParseHostFunc(u, string(input))
-		input = []byte(s)
-	}
-
 	// If input starts with U+005B ([), then:
 	if len(input) > 0 && input[0] == '[' {
 		// If input does not end with U+005D (]),
@@ -86,10 +81,6 @@ func (p *Parser) parseHost(u *Url, input []byte, isNotSpecial bool) (string, err
 	if endsInANumber(asciiDomain) {
 		// then return the result of IPv4 parsing asciiDomain.
 		return p.parseIPv4(u, asciiDomain)
-	}
-
-	if p.PostParseHostFunc != nil {
-		return p.PostParseHostFunc(u, asciiDomain), nil
 	}
 
 	// Return asciiDomain.

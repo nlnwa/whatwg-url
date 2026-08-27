@@ -45,9 +45,6 @@ func NewParser() *Parser {
 type Parser struct {
 	SpecialSchemes map[string]uint16
 
-	PreParseHostFunc  func(url *Url, host string) string
-	PostParseHostFunc func(url *Url, host string) string
-
 	PathPercentEncodeSet            *PercentEncodeSet
 	QueryPercentEncodeSet           *PercentEncodeSet
 	FragmentPercentEncodeSet        *PercentEncodeSet

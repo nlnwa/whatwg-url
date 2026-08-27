@@ -45,10 +45,9 @@ var GoogleSafeBrowsing = New(
 	url.WithCollapseConsecutiveSlashes(),
 	url.WithAcceptInvalidCodepoints(),
 	url.WithPercentEncodeSinglePercentSign(),
-	url.WithPreParseHostFunc(func(u *url.Url, host string) string {
+	WithHostTransformer(func(u *url.Url, host string) string {
 		host = strings.Trim(host, ".")
-		var re = regexp.MustCompile(`\.\.+`)
-		host = re.ReplaceAllString(host, ".")
+		host = regexp.MustCompile(`\.\.+`).ReplaceAllString(host, ".")
 		return host
 	}),
 	url.WithSkipEqualsForEmptySearchParamsValue(),
@@ -67,7 +66,7 @@ var Semantic = New(
 	url.WithAcceptInvalidCodepoints(),
 	url.WithPercentEncodeSinglePercentSign(),
 	url.WithAllowSettingPathForNonBaseUrl(),
-	url.WithPreParseHostFunc(func(u *url.Url, host string) string {
+	WithHostTransformer(func(u *url.Url, host string) string {
 		if host != "" {
 			host = strings.Trim(host, ".")
 			var re = regexp.MustCompile(`\.\.+`)

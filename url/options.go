@@ -22,8 +22,9 @@ import (
 	"github.com/nationallibraryofnorway/whatwg-url/internal"
 )
 
-// WithReportValidationErrors is kept for backward compatibility.
-// Validation errors are recorded on returned URL values by default.
+// WithReportValidationErrors records all non fatal validation errors on the
+// Url struct. The errors are recorded in the order they were encountered in
+// the parsing process and can be retrieved using the Url.ValidationErrors() method.
 //
 // This API is EXPERIMENTAL.
 func WithReportValidationErrors() internal.ParserOption {
@@ -66,25 +67,6 @@ func WithCollapseConsecutiveSlashes() internal.ParserOption {
 func WithAcceptInvalidCodepoints() internal.ParserOption {
 	return internal.NewParserOption(func(o *internal.Parser) {
 		o.AcceptInvalidCodepoints = true
-	})
-}
-
-// WithPreParseHostFunc is a function which allows manipulation of host string before it is parsed.
-//
-// This API is EXPERIMENTAL.
-func WithPreParseHostFunc(f func(url *Url, host string) string) internal.ParserOption {
-	return internal.NewParserOption(func(o *internal.Parser) {
-		o.PreParseHostFunc = f
-	})
-}
-
-// WithPostParseHostFunc is a function which allows manipulation of host string after it is parsed.
-// It is called only if the host isn't an IP address.
-//
-// This API is EXPERIMENTAL.
-func WithPostParseHostFunc(f func(url *Url, host string) string) internal.ParserOption {
-	return internal.NewParserOption(func(o *internal.Parser) {
-		o.PostParseHostFunc = f
 	})
 }
 
