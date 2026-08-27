@@ -11,19 +11,6 @@ import (
 	"golang.org/x/net/publicsuffix"
 )
 
-var surtCanonicalizer = canonicalizer.New(
-	whatwgurl.WithSkipEqualsForEmptySearchParamsValue(),
-	whatwgurl.WithLaxHostParsing(),
-	canonicalizer.WithSortQuery(canonicalizer.SortParameter),
-	canonicalizer.WithRemoveFragment(),
-	canonicalizer.WithPathTransformer(func(_ *whatwgurl.Url, path string) string {
-		if len(path) > 1 && strings.HasSuffix(path, "/") {
-			return strings.TrimSuffix(path, "/")
-		}
-		return path
-	}),
-)
-
 type Options struct {
 	TrailingComma bool
 	ReverseIPAddr bool

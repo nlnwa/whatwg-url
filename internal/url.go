@@ -494,14 +494,6 @@ func (u *Url) IsSpecialScheme() bool {
 	return u.isSpecial
 }
 
-func (u *Url) getSpecialScheme(scheme string) (uint16, bool) {
-	if u.parser.HasCustomSpecialSchemes {
-		s, ok := u.parser.SpecialSchemes[scheme]
-		return s, ok
-	}
-	return classifyDefaultSpecial(scheme)
-}
-
 func (u *Url) normalizePort() {
 	if !u.isSpecial || !u.hasPort {
 		return
