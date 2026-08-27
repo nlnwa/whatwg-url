@@ -97,7 +97,7 @@ func (u *Url) Href(excludeFragment bool) string {
 		}
 	}
 	// If url’s host is null, url does not have an opaque path, url’s path’s size is greater than 1, and url’s path[0] is the empty string,
-	if !u.hasHost && !u.path.isOpaque() && len(u.path.p) > 1 && u.path.p[0] == "" {
+	if !u.hasHost && u.path.needsDisambiguation() {
 		// then append U+002F (/) followed by U+002E (.) to output.
 		out.WriteString("/.")
 		// Note: This prevents web+demo:/.//not-a-host/ or web+demo:/path/..//not-a-host/,
@@ -106,14 +106,7 @@ func (u *Url) Href(excludeFragment bool) string {
 	}
 
 	// Append the result of URL path serializing url to output.
-	if u.path.opaque && len(u.path.p) > 0 {
-		out.WriteString(u.path.p[0])
-	} else {
-		for _, pp := range u.path.p {
-			out.WriteByte('/')
-			out.WriteString(pp)
-		}
-	}
+	out.WriteString(u.path.String())
 
 	// If url’s query is non-null,
 
@@ -516,17 +509,11 @@ func (u *Url) hrefLen(excludeFragment bool) int {
 		}
 	}
 
-	if !u.hasHost && !u.path.isOpaque() && len(u.path.p) > 1 && u.path.p[0] == "" {
+	if !u.hasHost && u.path.needsDisambiguation() {
 		n += 2 // "/."
 	}
 
-	if u.path.opaque && len(u.path.p) > 0 {
-		n += len(u.path.p[0])
-	} else {
-		for _, seg := range u.path.p {
-			n += 1 + len(seg) // '/' + seg
-		}
-	}
+	n += u.path.serializedLen()
 
 	if u.hasQuery {
 		n += 1 + len(u.query)

@@ -28,6 +28,9 @@ import (
 
 var testParser = newDefaultParser()
 
+var benchmarkURLSink *Url
+var benchmarkPathStringSink string
+
 const urlTestData = "../testdata/urltestdata.json"
 
 type urlTest struct {
@@ -211,6 +214,35 @@ func BenchmarkParseRef(b *testing.B) {
 				if err == nil {
 					_ = got.String()
 				}
+			}
+		})
+	}
+}
+
+func BenchmarkPathSegments(b *testing.B) {
+	for _, segments := range []int{0, 1, 2, 4, 8, 16, 32} {
+		input := "https://example.com" + strings.Repeat("/segment", segments)
+		name := strconv.Itoa(segments)
+
+		b.Run(name+"/parse", func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				u, err := testParser.Parse(input)
+				if err != nil {
+					b.Fatal(err)
+				}
+				benchmarkURLSink = u
+			}
+		})
+
+		b.Run(name+"/parse-and-serialize", func(b *testing.B) {
+			b.ReportAllocs()
+			for b.Loop() {
+				u, err := testParser.Parse(input)
+				if err != nil {
+					b.Fatal(err)
+				}
+				benchmarkPathStringSink = u.Href(false)
 			}
 		})
 	}

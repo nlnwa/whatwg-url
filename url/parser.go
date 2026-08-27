@@ -266,19 +266,19 @@ func (p *parser) BasicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				if stateOverridden {
 					// If url’s scheme is a special scheme and buffer is not a special scheme, then return.
 					if oldSpecial && !candSpecial {
-						return url, nil
+						return finalizeURLPath(url), nil
 					}
 					// If url’s scheme is not a special scheme and buffer is a special scheme, then return.
 					if !oldSpecial && candSpecial {
-						return url, nil
+						return finalizeURLPath(url), nil
 					}
 					// If url includes credentials or has a non-null port, and buffer is "file", then return.
 					if (url.username != "" || url.password != "" || url.hasPort) && scheme == "file" {
-						return url, nil
+						return finalizeURLPath(url), nil
 					}
 					// If url’s scheme is "file" and its host is an empty host or null, then return.
 					if url.scheme == "file" && (!url.hasHost || url.host == "") {
-						return url, nil
+						return finalizeURLPath(url), nil
 					}
 				}
 
@@ -292,7 +292,7 @@ func (p *parser) BasicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 					// If url’s port is url’s scheme’s default port, then set url’s port to null.
 					url.normalizePort()
 					// Return.
-					return url, nil
+					return finalizeURLPath(url), nil
 				}
 
 				// If url’s scheme is "file", then:
@@ -659,7 +659,7 @@ func (p *parser) BasicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				host, err := p.parseHost(url, buf, !url.isSpecial)
 				if err != nil {
 					// If host is failure, then return failure.
-					return url, err
+					return finalizeURLPath(url), err
 				}
 				// Set url’s host to host,
 				url.host = host
@@ -688,13 +688,13 @@ func (p *parser) BasicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				// and either url includes credentials or url’s port is non-null,
 				if stateOverridden && len(buf) == 0 && (url.username != "" || url.password != "" || url.hasPort) {
 					// then return failure.
-					return url, nil
+					return finalizeURLPath(url), nil
 				}
 				// Let host be the result of host parsing buffer with url is not special.
 				host, err := p.parseHost(url, buf, !url.isSpecial)
 				if err != nil {
 					// If host is failure, then return failure.
-					return url, err
+					return finalizeURLPath(url), err
 				}
 				// Set url’s host to host,
 				url.host = host
@@ -706,7 +706,7 @@ func (p *parser) BasicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 
 				// If state override is given, then return.
 				if stateOverridden {
-					return url, nil
+					return finalizeURLPath(url), nil
 				}
 
 				goto reconsume
@@ -772,7 +772,7 @@ func (p *parser) BasicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 
 					// If state override is given, then return.
 					if stateOverridden {
-						return url, nil
+						return finalizeURLPath(url), nil
 					}
 				}
 				// If state override is given,
@@ -899,9 +899,9 @@ func (p *parser) BasicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				url.hasHost = base.hasHost
 				// If the code point substring from pointer to the end of input does not start with a Windows drive letter
 				// and base’s path[0] is a normalized Windows drive letter,
-				if !startsWithAWindowsDriveLetter(urlOrRef[pos:]) && base.path != nil && isNormalizedWindowsDriveLetter(base.path.p[0]) {
+				if !startsWithAWindowsDriveLetter(urlOrRef[pos:]) && base.path != nil && base.path.firstSegmentIsNormalizedWindowsDriveLetter() {
 					// then append base’s path[0] to url’s path.
-					url.path.addSegment(base.path.p[0])
+					url.path.addFirstSegmentFrom(base.path)
 					// Note: This is a (platform-independent) Windows drive letter quirk. Both url’s and base’s host are null under these conditions and therefore not copied
 				}
 			}
@@ -945,7 +945,7 @@ func (p *parser) BasicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				host, err := p.parseHost(url, buf, !url.isSpecial)
 				if err != nil {
 					// If host is failure, then return failure.
-					return url, err
+					return finalizeURLPath(url), err
 				}
 				// If host is "localhost",
 				if host == "localhost" {
@@ -957,7 +957,7 @@ func (p *parser) BasicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				url.hasHost = true
 				// If state override is given, then return.
 				if stateOverridden {
-					return url, nil
+					return finalizeURLPath(url), nil
 				}
 				// Set buffer to the empty string
 				buf = buf[:0]
@@ -1075,13 +1075,13 @@ func (p *parser) BasicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 						// Note: This is a (platform-independent) Windows drive letter quirk.
 					}
 
-					pathSegment := string(buf)
-
 					// Append buffer to url’s path.
-					if !p.CollapseConsecutiveSlashes || !url.isSpecial || url.path.isEmpty() || len(url.path.p[len(url.path.p)-1]) > 0 {
-						url.path.addSegment(pathSegment)
+					pathEnds := r == eofRune || (!stateOverridden && (r == '?' || r == '#'))
+					if pathEnds && url.path.isEmpty() {
+						url.path.setSingleSegmentBytes(buf)
 					} else {
-						url.path.p[len(url.path.p)-1] = pathSegment
+						collapseEmpty := p.CollapseConsecutiveSlashes && url.isSpecial && !url.path.isEmpty()
+						url.path.addSegmentBytes(buf, collapseEmpty)
 					}
 				}
 
@@ -1197,7 +1197,7 @@ func (p *parser) BasicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				continue
 			}
 			if len(buf) > 0 {
-				url.path.p[0] = string(buf)
+				url.path.setOpaque(string(buf))
 				buf = buf[:0]
 			}
 
@@ -1316,7 +1316,12 @@ func (p *parser) BasicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 		}
 	}
 
-	return url, nil
+	return finalizeURLPath(url), nil
+}
+
+func finalizeURLPath(url *Url) *Url {
+	url.path.finalize()
+	return url
 }
 
 func (p *parser) NewUrl() *Url {
@@ -1431,10 +1436,6 @@ func isWindowsDriveLetter(s string) bool {
 
 func isWindowsDriveLetterASCIIBytes(b []byte) bool {
 	return len(b) == 2 && isASCIIAlpha(b[0]) && (b[1] == ':' || b[1] == '|')
-}
-
-func isNormalizedWindowsDriveLetter(s string) bool {
-	return len(s) == 2 && isASCIIAlpha(s[0]) && s[1] == ':'
 }
 
 func trimC0OrSpace(s string) (string, bool) {
