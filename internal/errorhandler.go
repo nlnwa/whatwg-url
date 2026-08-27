@@ -17,15 +17,9 @@
 package internal
 
 import (
-	gerrors "errors"
+	stderrors "errors"
 	"fmt"
-
-	"github.com/nationallibraryofnorway/whatwg-url/errors"
 )
-
-type errorUnwrapper interface {
-	Unwrap() error
-}
 
 func codePointDescription(r rune) string {
 	return fmt.Sprintf("U+%04X (%q)", r, r)
@@ -39,85 +33,64 @@ func invalidUTF8ByteDescription(b byte) string {
 	return fmt.Sprintf("invalid UTF-8 byte 0x%02X", b)
 }
 
-func isValidationFailure(verr *errors.ValidationError) bool {
-	return verr.Is(errors.ErrDomainToASCII) ||
-		verr.Is(errors.ErrDomainInvalidCodePoint) ||
-		verr.Is(errors.ErrHostInvalidCodePoint) ||
-		verr.Is(errors.ErrIPv4TooManyParts) ||
-		verr.Is(errors.ErrIPv4NonNumericPart) ||
-		verr.Is(errors.ErrIPv4OutOfRangePart) ||
-		verr.Is(errors.ErrIPv6Unclosed) ||
-		verr.Is(errors.ErrIPv6InvalidCompression) ||
-		verr.Is(errors.ErrIPv6TooManyPieces) ||
-		verr.Is(errors.ErrIPv6MultipleCompression) ||
-		verr.Is(errors.ErrIPv6InvalidCodePoint) ||
-		verr.Is(errors.ErrIPv6TooFewPieces) ||
-		verr.Is(errors.ErrIPv4InIPv6TooManyPieces) ||
-		verr.Is(errors.ErrIPv4InIPv6InvalidCodePoint) ||
-		verr.Is(errors.ErrIPv4InIPv6OutOfRangePart) ||
-		verr.Is(errors.ErrIPv4InIPv6TooFewParts) ||
-		verr.Is(errors.ErrMissingSchemeNonRelativeURL) ||
-		verr.Is(errors.ErrHostMissing) ||
-		verr.Is(errors.ErrPortMissing) ||
-		verr.Is(errors.ErrPortOutOfRange) ||
-		verr.Is(errors.ErrPortInvalid)
-}
-
-func asValidationError(err error) (*errors.ValidationError, bool) {
-	if err == nil {
-		return nil, false
-	}
-	if verr, ok := err.(*errors.ValidationError); ok {
-		return verr, true
-	}
-	original := err
-	for {
-		u, ok := err.(errorUnwrapper)
-		if !ok {
-			return nil, false
-		}
-		err = u.Unwrap()
-		if err == nil {
-			return nil, false
-		}
-		if verr, ok := err.(*errors.ValidationError); ok {
-			return verr, true
-		}
-		if err == original {
-			return nil, false
-		}
+func isValidationFailure(verr *ValidationError) bool {
+	switch verr.kind {
+	case errDomainToASCII,
+		errDomainInvalidCodePoint,
+		errHostInvalidCodePoint,
+		errIPv4TooManyParts,
+		errIPv4NonNumericPart,
+		errIPv4OutOfRangePart,
+		errIPv6Unclosed,
+		errIPv6InvalidCompression,
+		errIPv6TooManyPieces,
+		errIPv6MultipleCompression,
+		errIPv6InvalidCodePoint,
+		errIPv6TooFewPieces,
+		errIPv4InIPv6TooManyPieces,
+		errIPv4InIPv6InvalidCodePoint,
+		errIPv4InIPv6OutOfRangePart,
+		errIPv4InIPv6TooFewParts,
+		errMissingSchemeNonRelativeURL,
+		errHostMissing,
+		errPortMissing,
+		errPortOutOfRange,
+		errPortInvalid:
+		return true
+	default:
+		return false
 	}
 }
 
 // handleError handles an error according to the options set for the parser
 func (p *Parser) handleError(u *Url, err error) error {
-	verr, ok := asValidationError(err)
+	verr, ok := err.(*ValidationError)
 	if !ok {
 		return err
 	}
 	if u != nil && p.ReportValidationErrors {
-		u.validationErrors = append(u.validationErrors, verr)
+		u.validationErrors = append(u.validationErrors, err)
 	}
 	failure := isValidationFailure(verr)
 	if failure || p.FailOnValidationError {
-		return verr
+		return err
 	}
 	return nil
 }
 
 // handleErrorWithDescription handles an error according to the options set for the parser
-func (p *Parser) handleErrorWithDescription(u *Url, err *errors.ValidationError, description string) error {
-	return p.handleWrappedError(u, err, gerrors.New(description))
+func (p *Parser) handleErrorWithDescription(u *Url, err *ValidationError, description string) error {
+	return p.handleWrappedError(u, err, stderrors.New(description))
 }
 
 // handleWrappedError handles an error according to the options set for the parser
-func (p *Parser) handleWrappedError(u *Url, err *errors.ValidationError, cause error) error {
+func (p *Parser) handleWrappedError(u *Url, err *ValidationError, cause error) error {
 	err = err.Wrap(cause)
 	return p.handleError(u, err)
 }
 
 // handleErrorAndFail returns a failure error for parser states that explicitly terminate.
 // Unlike handleError, it intentionally does not record validation state on URL.
-func (p *Parser) handleErrorAndFail(_ *Url, err *errors.ValidationError) error {
+func (p *Parser) handleErrorAndFail(_ *Url, err *ValidationError) error {
 	return err
 }

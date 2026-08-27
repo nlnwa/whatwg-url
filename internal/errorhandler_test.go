@@ -3,8 +3,6 @@ package internal
 import (
 	"errors"
 	"testing"
-
-	werrors "github.com/nationallibraryofnorway/whatwg-url/errors"
 )
 
 func TestParse_RecordsValidationWarning(t *testing.T) {
@@ -25,13 +23,13 @@ func TestParse_RecordsValidationWarning(t *testing.T) {
 
 	var found bool
 	for _, verr := range verrs {
-		if errors.Is(verr, werrors.ErrInvalidURLUnit) {
+		if errors.Is(verr, ErrInvalidURLUnit) {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Fatalf("expected %v validation error to be recorded", werrors.ErrInvalidURLUnit)
+		t.Fatalf("expected %v validation error to be recorded", ErrInvalidURLUnit)
 	}
 }
 
@@ -45,12 +43,12 @@ func TestParse_ExplicitFailure_DoesNotRecordValidationError(t *testing.T) {
 		t.Fatal("expected parse failure")
 	}
 
-	var v *werrors.ValidationError
+	var v *ValidationError
 	if !errors.As(err, &v) {
 		t.Fatalf("expected ValidationError, got %T", err)
 	}
-	if !errors.Is(v, werrors.ErrInvalidURLUnit) {
-		t.Fatalf("expected %v, got %v", werrors.ErrInvalidURLUnit, v)
+	if !errors.Is(v, ErrInvalidURLUnit) {
+		t.Fatalf("expected %v, got %v", ErrInvalidURLUnit, v)
 	}
 
 	if len(u.ValidationErrors()) != 0 {

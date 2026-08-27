@@ -17,10 +17,9 @@
 package internal
 
 import (
-	gerrors "errors"
+	"errors"
 	"strings"
 
-	"github.com/nationallibraryofnorway/whatwg-url/errors"
 	"golang.org/x/text/encoding/charmap"
 )
 
@@ -79,7 +78,7 @@ func (c *Canonicalizer) parse(rawUrl string) (*Url, error) {
 	if err == nil {
 		return u, nil
 	}
-	if gerrors.Is(err, errors.ErrMissingSchemeNonRelativeURL) && c.DefaultScheme != "" {
+	if errors.Is(err, ErrMissingSchemeNonRelativeURL) && c.DefaultScheme != "" {
 		rawUrl = c.DefaultScheme + "://" + rawUrl
 		return c.Parser.parse(rawUrl, nil, nil, NoState)
 	}
