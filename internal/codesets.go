@@ -74,9 +74,11 @@ func (p *PercentEncodeSet) Clear(chars ...rune) *PercentEncodeSet {
 }
 
 // Bytes returns the explicit ASCII bytes configured in this set.
-// Note that bytes below allBelow are implicitly included and are not listed here.
 func (p *PercentEncodeSet) Bytes() []byte {
-	result := make([]byte, 0, 128)
+	var result []byte
+	for i := range max(p.allBelow-1, 0) {
+		result = append(result, byte(i))
+	}
 	for i, enabled := range p.ascii {
 		if enabled {
 			result = append(result, byte(i))
