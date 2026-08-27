@@ -14,35 +14,25 @@
  * limitations under the License.
  */
 
-package internal
+package url
 
 import (
 	"strings"
 	"unicode/utf8"
 )
 
-func NewParser() *Parser {
-	return &Parser{
-		PathPercentEncodeSet:            PathPercentEncodeSet,
-		SpecialQueryPercentEncodeSet:    SpecialQueryPercentEncodeSet,
-		QueryPercentEncodeSet:           QueryPercentEncodeSet,
-		SpecialFragmentPercentEncodeSet: FragmentPercentEncodeSet,
-		FragmentPercentEncodeSet:        FragmentPercentEncodeSet,
-		ReportValidationErrors:          true,
-		SpecialSchemes: map[string]uint16{
-			"ftp":   21,
-			"file":  0,
-			"http":  80,
-			"https": 443,
-			"ws":    80,
-			"wss":   443,
-		},
-	}
+type Parser interface {
+	Parse(rawUrl string) (*Url, error)
+	ParseRef(rawUrl, ref string) (*Url, error)
 }
 
-// Parser configures a url parser. Parser are set by the ParserOption
+type BasicParsing interface {
+	BasicParse(urlOrRef string, base *Url, url *Url, stateOverride State) (*Url, error)
+}
+
+// parser configures a url parser. parser are set by the ParserOption
 // values passed to NewParser.
-type Parser struct {
+type parser struct {
 	SpecialSchemes map[string]uint16
 
 	PathPercentEncodeSet            *PercentEncodeSet
@@ -60,20 +50,46 @@ type Parser struct {
 	AllowSettingPathForNonBaseUrl       bool
 	SkipWindowsDriveLetterNormalization bool
 	SkipTrailingSlashNormalization      bool
-	SkipEqualsForEmptySearchParamsValue bool
 	HasCustomSpecialSchemes             bool
 }
 
-func (p *Parser) Parse(rawUrl string) (*Url, error) {
-	return p.parse(rawUrl, nil, nil, NoState)
+func newDefaultParser() *parser {
+	return &parser{
+		PathPercentEncodeSet:            PathPercentEncodeSet,
+		SpecialQueryPercentEncodeSet:    SpecialQueryPercentEncodeSet,
+		QueryPercentEncodeSet:           QueryPercentEncodeSet,
+		SpecialFragmentPercentEncodeSet: FragmentPercentEncodeSet,
+		FragmentPercentEncodeSet:        FragmentPercentEncodeSet,
+		ReportValidationErrors:          true,
+		SpecialSchemes: map[string]uint16{
+			"ftp":   21,
+			"file":  0,
+			"http":  80,
+			"https": 443,
+			"ws":    80,
+			"wss":   443,
+		},
+	}
 }
 
-func (p *Parser) ParseRef(rawUrl, ref string) (*Url, error) {
-	b, err := p.parse(rawUrl, nil, nil, NoState)
+func NewParser(opts ...ParserOption) Parser {
+	p := newDefaultParser()
+	for _, opt := range opts {
+		opt.apply(p)
+	}
+	return p
+}
+
+func (p *parser) Parse(rawUrl string) (*Url, error) {
+	return p.BasicParse(rawUrl, nil, nil, NoState)
+}
+
+func (p *parser) ParseRef(rawUrl, ref string) (*Url, error) {
+	b, err := p.BasicParse(rawUrl, nil, nil, NoState)
 	if err != nil {
 		return nil, err
 	}
-	return b.parser.parse(ref, b, nil, NoState)
+	return p.BasicParse(ref, b, nil, NoState)
 }
 
 type State int
@@ -104,13 +120,9 @@ const (
 	StateRelativeSlash
 )
 
-func (p *Parser) BasicParser(urlOrRef string, base *Url, url *Url, stateOverride State) (*Url, error) {
-	return p.parse(urlOrRef, base, url, stateOverride)
-}
-
-// BasicParser implements WHATWG basic URL parser (https://url.spec.whatwg.org/#concept-basic-url-parser)
+// BasicParse implements WHATWG basic URL parser (https://url.spec.whatwg.org/#concept-basic-url-parser)
 // In most cases, when possible, prefer using the higher level Parse method.
-func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State) (*Url, error) {
+func (p *parser) BasicParse(urlOrRef string, base *Url, url *Url, stateOverride State) (*Url, error) {
 	var changed bool
 
 	// If url is not given:
@@ -1307,7 +1319,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 	return url, nil
 }
 
-func (p *Parser) NewUrl() *Url {
+func (p *parser) NewUrl() *Url {
 	u := Url{}
 	u.parser = p
 
@@ -1350,7 +1362,7 @@ func appendUserinfoSubstring(
 	return buf
 }
 
-func (p *Parser) classifyScheme(scheme string) (uint16, bool) {
+func (p *parser) classifyScheme(scheme string) (uint16, bool) {
 	if p.HasCustomSpecialSchemes {
 		p, ok := p.SpecialSchemes[scheme]
 		return p, ok

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package internal
+package url
 
 import (
 	"encoding/json"
@@ -59,7 +59,7 @@ func TestUrl_SetProtocol(t *testing.T) {
 		testNum++
 
 		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
-			got, err := DefaultParser.Parse(tt.Href)
+			got, err := testParser.Parse(tt.Href)
 			if err != nil {
 				t.Errorf("Input: '%v', New value: '%v', Parse() error = '%v'", tt.Href, tt.New_value, err)
 				return
@@ -87,7 +87,7 @@ func TestUrl_SetUsername(t *testing.T) {
 		testNum++
 
 		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
-			got, err := DefaultParser.Parse(tt.Href)
+			got, err := testParser.Parse(tt.Href)
 			got.SetUsername(tt.New_value)
 
 			validateExpected(got, err, tt, t)
@@ -111,7 +111,7 @@ func TestUrl_SetPassword(t *testing.T) {
 		testNum++
 
 		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
-			got, err := DefaultParser.Parse(tt.Href)
+			got, err := testParser.Parse(tt.Href)
 			got.SetPassword(tt.New_value)
 
 			validateExpected(got, err, tt, t)
@@ -134,7 +134,7 @@ func TestUrl_SetHost(t *testing.T) {
 	for _, tt := range tests.Host {
 		testNum++
 		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
-			got, err := DefaultParser.Parse(tt.Href)
+			got, err := testParser.Parse(tt.Href)
 			got.SetHost(tt.New_value)
 
 			validateExpected(got, err, tt, t)
@@ -158,7 +158,7 @@ func TestUrl_SetHostname(t *testing.T) {
 		testNum++
 
 		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
-			got, err := DefaultParser.Parse(tt.Href)
+			got, err := testParser.Parse(tt.Href)
 			got.SetHostname(tt.New_value)
 
 			validateExpected(got, err, tt, t)
@@ -182,7 +182,7 @@ func TestUrl_SetPort(t *testing.T) {
 		testNum++
 
 		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
-			got, err := DefaultParser.Parse(tt.Href)
+			got, err := testParser.Parse(tt.Href)
 			got.SetPort(tt.New_value)
 
 			validateExpected(got, err, tt, t)
@@ -206,7 +206,7 @@ func TestUrl_SetPathname(t *testing.T) {
 		testNum++
 
 		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
-			got, err := DefaultParser.Parse(tt.Href)
+			got, err := testParser.Parse(tt.Href)
 			if err != nil {
 				t.Errorf("Input: '%v', New value: '%v', Parse() error = '%v'", tt.Href, tt.New_value, err)
 				return
@@ -234,7 +234,7 @@ func TestUrl_SetSearch(t *testing.T) {
 		testNum++
 
 		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
-			got, err := DefaultParser.Parse(tt.Href)
+			got, err := testParser.Parse(tt.Href)
 			got.SetSearch(tt.New_value)
 
 			validateExpected(got, err, tt, t)
@@ -258,7 +258,7 @@ func TestUrl_SetHash(t *testing.T) {
 		testNum++
 
 		t.Run(strconv.Itoa(testNum)+":"+tt.Comment, func(t *testing.T) {
-			got, err := DefaultParser.Parse(tt.Href)
+			got, err := testParser.Parse(tt.Href)
 			got.SetHash(tt.New_value)
 
 			validateExpected(got, err, tt, t)
@@ -419,7 +419,7 @@ func TestUrl_Getters(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			u, _ := DefaultParser.Parse(tt.inputUrl)
+			u, _ := testParser.Parse(tt.inputUrl)
 			if got := u.Href(false); got != tt.href {
 				t.Errorf("Href() = %v, want %v", got, tt.href)
 			}
@@ -465,7 +465,7 @@ func TestUrl_Getters(t *testing.T) {
 
 // Test that DecodedPort returns the correct port number
 func Test_DecodedPort(t *testing.T) {
-	u, err := DefaultParser.Parse("http://example.com:8080")
+	u, err := testParser.Parse("http://example.com:8080")
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}

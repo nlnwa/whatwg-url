@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package internal
+package url
 
 import (
 	"bytes"
@@ -29,7 +29,7 @@ import (
 // parseHost parses the host part of the input string.
 //
 // The host parser takes a scalar value string input with an optional boolean isOpaque (default false), and then runs these steps. They return failure or a host.
-func (p *Parser) parseHost(u *Url, input []byte, isNotSpecial bool) (string, error) {
+func (p *parser) parseHost(u *Url, input []byte, isNotSpecial bool) (string, error) {
 	// If input starts with U+005B ([), then:
 	if len(input) > 0 && input[0] == '[' {
 		// If input does not end with U+005D (]),
@@ -64,48 +64,15 @@ func (p *Parser) parseHost(u *Url, input []byte, isNotSpecial bool) (string, err
 	//
 	// Note: Alternatively UTF-8 decode without BOM or fail can be used,
 	// coupled with an early return for failure, as domain to ASCII fails on U+FFFD (�).
-
-	// Let asciiDomain be the result of running domain to ASCII with domain and false.
-	asciiDomain, err := p.hostToASCII(input)
-	// If asciiDomain is failure,
-	if err != nil {
-		if p.LaxHostParsing {
-			return string(input), nil
-		}
-		// then return failure.
-		if err := p.handleError(u, err); err != nil {
-			return "", err
-		}
-	}
-	// If asciiDomain ends in a number,
-	if endsInANumber(asciiDomain) {
-		// then return the result of IPv4 parsing asciiDomain.
-		return p.parseIPv4(u, asciiDomain)
-	}
-
-	// Return asciiDomain.
-	return asciiDomain, nil
-}
-
-func (p *Parser) hostToASCII(input []byte) (string, error) {
 	buf := append([]byte(nil), input...)
 
-	if bytes.IndexByte(buf, '%') != -1 {
-		buf = PercentDecodeInPlace(buf)
-	}
+	isPercentEncoded := false
 
-	// Fast path: ASCII-only and no punycode labels.
-	// (asciiNoPctNoPunycode assumes ASCII; it returns false if any non-ASCII.)
-	if asciiNoPunycodeLabels(buf) {
-		for i, c := range buf {
-			if forbiddenDomainASCII[c] {
-				return "", ErrDomainInvalidCodePoint
-			}
-			if 'A' <= c && c <= 'Z' {
-				buf[i] |= 0x20
-			}
+	if bytes.IndexByte(buf, '%') != -1 {
+		buf, isPercentEncoded = percentDecodeInPlace(buf)
+		if isPercentEncoded {
+			_ = p.handleError(u, ErrDomainPercentEncoded)
 		}
-		return string(buf), nil
 	}
 
 	// Remove UTF-8 BOM if present (URL Standard: “UTF-8 decode without BOM”).
@@ -116,46 +83,106 @@ func (p *Parser) hostToASCII(input []byte) (string, error) {
 		buf = buf[3:]
 	}
 
+	// Fast path: ASCII-only and no punycode labels.
+	// (asciiNoPunycodeLabels assumes ASCII; it returns false if any non-ASCII.)
+	if asciiNoPunycodeLabels(buf) {
+		for i, c := range buf {
+			if forbiddenDomainASCII[c] {
+				return "", ErrDomainInvalidCodePoint
+			}
+			if 'A' <= c && c <= 'Z' {
+				buf[i] |= 0x20
+			}
+		}
+		needsStrictValidation := (p.ReportValidationErrors || p.FailOnValidationError) &&
+			!isStrictASCIIValid(buf)
+		endsInNumber := endsInANumber(buf)
+		asciiDomain := string(buf)
+		if needsStrictValidation {
+			// The local check is conservative. Use the strict IDNA profile only
+			// when it detects a possible validation error so that x/net remains
+			// the source of the detailed error.
+			if _, err := idnaStrict.ToASCII(asciiDomain); err != nil {
+				warning := ErrDomainToASCII.Wrap(err)
+				if err := p.handleValidationWarning(u, warning); err != nil {
+					return "", err
+				}
+			}
+		}
+		if endsInNumber {
+			return p.parseIPv4(u, asciiDomain)
+		}
+		return asciiDomain, nil
+	}
+
 	if !utf8.Valid(buf) {
 		return "", ErrDomainToASCII
 	}
-	return domainToASCII(string(buf), false)
-}
 
-// The ends in a number checker takes an ASCII string input and then runs these
-// steps. They return a boolean.
-func endsInANumber(input string) bool {
-	// Let parts be the result of strictly splitting input on U+002E (.).
-	parts := strings.Split(input, ".")
-	// If the last item in parts is the empty string, then:
-	if parts[len(parts)-1] == "" {
-		// If parts’s size is 1,
-		if len(parts) == 1 {
-			// then return false.
-			return false
+	// Let asciiDomain be the result of running domain to ASCII with domain and false.
+	domain := string(buf)
+
+	asciiDomain, warning, failure := processDomainToASCII(
+		domain,
+		false,
+		p.ReportValidationErrors || p.FailOnValidationError,
+	)
+	if warning != nil {
+		if err := p.handleValidationWarning(u, warning); err != nil {
+			return "", err
 		}
-		// Remove the last item from parts.
-		parts = parts[0 : len(parts)-1]
 	}
-	// Let last be the last item in parts.
-	last := parts[len(parts)-1]
-	// If last is non-empty and contains only ASCII digits,
-	if last != "" && onlyASCIIDigits(last) {
-		// then return true.
-		return true
+	// If asciiDomain is failure,
+	if failure != nil {
+		if p.LaxHostParsing {
+			return string(input), nil
+		}
+		// then return failure.
+		if err := p.handleError(u, failure); err != nil {
+			return "", err
+		}
 	}
-	// If parsing last as an IPv4 number does not return failure,
-	_, _, err := parseIPv4Number(last)
-	if err == nil {
-		// then return true.
-		return true
-		// Note: This is equivalent to checking that last is "0X" or "0x",
-		// followed by zero or more ASCII hex digits.
+	// If asciiDomain ends in a number,
+	if endsInANumber(asciiDomain) {
+		// If domain is not an ASCII string, IPv4-non-ASCII-input validation error.
+		if !isASCII(domain) {
+			_ = p.handleError(u, ErrIPv4NonASCIIInput)
+		}
+		// Return the result of IPv4 parsing asciiDomain.
+		return p.parseIPv4(u, asciiDomain)
 	}
-	return errors.Is(err, ErrIPv4OutOfRangePart)
+
+	// Return asciiDomain.
+	return asciiDomain, nil
 }
 
-func (p *Parser) parseIPv4(u *Url, input string) (string, error) {
+// The ends in a number checker takes an ASCII byte sequence input and then
+// runs these steps. They return a boolean.
+func endsInANumber[T ByteSequence](input T) bool {
+	// Remove at most one trailing U+002E (.) logically.
+	end := len(input)
+	if end > 0 && input[end-1] == '.' {
+		end--
+	}
+	// Let last be the last item from strictly splitting input on U+002E (.).
+	start := end
+	for start > 0 && input[start-1] != '.' {
+		start--
+	}
+	last := input[start:end]
+	// If last is non-empty and contains only ASCII digits,
+	if len(last) > 0 && onlyASCIIDigits(last) {
+		// then return true.
+		return true
+	}
+	// Parsing last as an IPv4 number can otherwise succeed only when it is
+	// "0X" or "0x", followed by zero or more ASCII hex digits. Values that
+	// overflow the IPv4 number parser still make the domain end in a number.
+	return len(last) >= 2 && last[0] == '0' && (last[1] == 'x' || last[1] == 'X') &&
+		onlyASCIIHexDigits(last[2:])
+}
+
+func (p *parser) parseIPv4(u *Url, input string) (string, error) {
 	// Let parts be the result of strictly splitting input on U+002E (.).
 	parts := strings.Split(input, ".")
 	// If the last item in parts is the empty string, then:
@@ -205,8 +232,7 @@ func (p *Parser) parseIPv4(u *Url, input string) (string, error) {
 		// If any item in numbers is greater than 255,
 		if n > 255 {
 			// IPv4-out-of-range-part validation error.
-			err := p.handleError(u, ErrIPv4OutOfRangePart)
-			if err != nil && p.FailOnValidationError {
+			if err := p.handleError(u, ErrIPv4OutOfRangePart); err != nil {
 				return input, err
 			}
 		}
@@ -458,7 +484,7 @@ func parseIPv6(input []byte) (*ipv6Addr, error) {
 	return address, nil
 }
 
-func (p *Parser) parseOpaqueHost(u *Url, input []byte) (string, error) {
+func (p *parser) parseOpaqueHost(u *Url, input []byte) (string, error) {
 	// Worst case: every byte becomes %HH (3x).
 	out := make([]byte, 0, len(input)*3)
 
@@ -705,11 +731,11 @@ func (address IPv4Addr) String() string {
 func domainToASCIIProfile(beStrict bool) *idna.Profile {
 	return idna.New(
 		idna.MapForLookup(),
-		idna.BidiRule(),
 		idna.VerifyDNSLength(beStrict),
 		idna.StrictDomainName(beStrict),
 		idna.CheckHyphens(beStrict),
 		idna.CheckJoiners(true),
+		idna.BidiRule(),
 		idna.Transitional(false),
 	)
 }
@@ -719,41 +745,72 @@ var (
 	idnaNonStrict = domainToASCIIProfile(false)
 )
 
-// domainToASCII converts a string to ASCII using IDNA
+// processDomainToASCII converts a string to ASCII using IDNA. A strict IDNA
+// error can be returned separately as a non-fatal validation warning when
+// relaxed processing succeeds.
+func processDomainToASCII(domain string, beStrict, validate bool) (result string, warning, failure error) {
+	if domain == "" {
+		return "", nil, nil
+	}
+
+	if beStrict {
+		result, err := idnaStrict.ToASCII(domain)
+		if err != nil {
+			return result, nil, ErrDomainToASCII.Wrap(err)
+		}
+		return result, nil, nil
+	}
+
+	ascii := isASCII(domain)
+	haveResult := false
+	if validate {
+		strictResult, err := idnaStrict.ToASCII(domain)
+		if err == nil {
+			if !ascii {
+				result = strictResult
+				haveResult = true
+			}
+		} else {
+			warning = ErrDomainToASCII.Wrap(err)
+		}
+	}
+
+	// For URL parsing, ASCII input is returned lowercased regardless of
+	// Unicode ToASCII's outcome for web compatibility.
+	if ascii {
+		result = strings.ToLower(domain)
+	} else if !haveResult {
+		var err error
+		result, err = idnaNonStrict.ToASCII(domain)
+		if err != nil {
+			return result, warning, ErrDomainToASCII.Wrap(err)
+		}
+	}
+
+	if result == "" {
+		return "", warning, ErrDomainToASCII
+	}
+
+	for _, r := range result {
+		if r < utf8.RuneSelf && forbiddenDomainASCII[r] {
+			return result, warning, ErrDomainInvalidCodePoint
+		}
+	}
+
+	return result, warning, nil
+}
+
+// domainToASCII is the output-only domain conversion wrapper used by direct
+// callers that do not need strict validation warnings.
 // https://url.spec.whatwg.org/#concept-domain-to-ascii
 func domainToASCII(domain string, beStrict bool) (string, error) {
-	if domain == "" {
-		return "", nil
-	}
-
-	idnaProfile := idnaNonStrict
-	if beStrict {
-		idnaProfile = idnaStrict
-	}
-
-	// Convert to punycode
-	a, err := idnaProfile.ToASCII(domain)
-	if err != nil {
-		return a, ErrDomainToASCII.Wrap(err)
-	}
-
-	if !beStrict {
-		if a == "" {
-			return "", ErrDomainToASCII
-		}
-		for _, r := range a {
-			if r < utf8.RuneSelf && forbiddenDomainASCII[r] {
-				return a, ErrDomainInvalidCodePoint
-			}
-		}
-	}
-
-	return a, nil
+	result, _, failure := processDomainToASCII(domain, beStrict, false)
+	return result, failure
 }
 
 func asciiNoPunycodeLabels(s []byte) bool {
 	p := 0
-	for i := 0; i < len(s); i++ {
+	for i := range s {
 		b := s[i]
 		if b >= utf8.RuneSelf { // non-ASCII
 			return false
@@ -773,6 +830,37 @@ func asciiNoPunycodeLabels(s []byte) bool {
 			p = -1
 		}
 	}
+	return true
+}
+
+// isStrictASCIIValid reports whether a lowercased ASCII domain with no
+// Punycode labels satisfies the strict UTS #46 checks. Under these
+// preconditions, Bidi, Joiner, normalization, and Punycode validation cannot
+// fail, leaving only STD3, hyphen, empty-label, and DNS-length checks.
+func isStrictASCIIValid(domain []byte) bool {
+	if len(domain) == 0 || len(domain) > 253 {
+		return false
+	}
+
+	labelStart := 0
+	for i := 0; i <= len(domain); i++ {
+		if i < len(domain) && domain[i] != '.' {
+			b := domain[i]
+			if ('a' <= b && b <= 'z') || ('0' <= b && b <= '9') || b == '-' {
+				continue
+			}
+			return false
+		}
+
+		labelLen := i - labelStart
+		if labelLen == 0 || labelLen > 63 ||
+			domain[labelStart] == '-' || domain[i-1] == '-' ||
+			(labelLen >= 4 && domain[labelStart+2] == '-' && domain[labelStart+3] == '-') {
+			return false
+		}
+		labelStart = i + 1
+	}
+
 	return true
 }
 
@@ -807,6 +895,15 @@ func containsOnlyASCIIOrMiscAndNoPunycode(s string) bool {
 			return false
 		default:
 			p = -1
+		}
+	}
+	return true
+}
+
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= utf8.RuneSelf {
+			return false
 		}
 	}
 	return true

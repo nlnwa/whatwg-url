@@ -1,4 +1,4 @@
-package internal
+package url
 
 import (
 	"errors"
@@ -35,12 +35,17 @@ func TestParse_RecordsValidationWarning(t *testing.T) {
 
 func TestParse_ExplicitFailure_DoesNotRecordValidationError(t *testing.T) {
 	p := NewParser()
+	bp, ok := p.(BasicParsing)
+	if !ok {
+		t.Fatal("parser does not implement BasicParsing")
+	}
 	u := newUrl()
-	u.parser = p
-
-	_, err := p.parse("1http", nil, u, StateSchemeStart)
+	ru, err := bp.BasicParse("1http", nil, u, StateSchemeStart)
 	if err == nil {
 		t.Fatal("expected parse failure")
+	}
+	if ru != nil {
+		t.Fatal("expected nil URL on parse failure")
 	}
 
 	var v *ValidationError

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package internal
+package url
 
 import (
 	"testing"

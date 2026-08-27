@@ -1,4 +1,4 @@
-package internal
+package url
 
 import "strings"
 
@@ -74,6 +74,9 @@ func (p *path) clone() *path {
 func (p *path) String() string {
 	if p.opaque && len(p.p) > 0 {
 		return p.p[0]
+	}
+	if len(p.p) == 0 {
+		return ""
 	}
 	size := 0
 	for _, pp := range p.p {

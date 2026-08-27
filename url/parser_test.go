@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package internal
+package url
 
 import (
 	"encoding/json"
@@ -26,7 +26,7 @@ import (
 	"testing"
 )
 
-var DefaultParser = NewParser()
+var testParser = newDefaultParser()
 
 const urlTestData = "../testdata/urltestdata.json"
 
@@ -83,7 +83,7 @@ func TestParse(t *testing.T) {
 			var gotHref string
 
 			if tt.Base == "" {
-				got, err = DefaultParser.Parse(tt.Input)
+				got, err = testParser.Parse(tt.Input)
 				if err != nil && tt.Failure {
 					return
 				}
@@ -99,7 +99,7 @@ func TestParse(t *testing.T) {
 					t.Errorf("String(%s) = %q, want %q", tt.Input, gotHref, tt.Href)
 				}
 			} else {
-				got, err = DefaultParser.ParseRef(tt.Base, tt.Input)
+				got, err = testParser.ParseRef(tt.Base, tt.Input)
 				if err != nil && tt.Failure {
 					return
 				}
@@ -152,7 +152,7 @@ func TestParse(t *testing.T) {
 			}
 
 			t.Log(tt.Base, tt.Input, "got", gotHref, "expected", tt.Href)
-			reparsed, err := DefaultParser.Parse(gotHref)
+			reparsed, err := testParser.Parse(gotHref)
 			if err != nil {
 				t.Errorf("Parse() error = '%v'", err)
 				return
@@ -167,7 +167,7 @@ func TestParse(t *testing.T) {
 
 func BenchmarkSilly(b *testing.B) {
 	for b.Loop() {
-		_, err := DefaultParser.Parse("https://www.Googlé.com")
+		_, err := testParser.Parse("https://www.Googlé.com")
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -186,7 +186,7 @@ func BenchmarkParse(b *testing.B) {
 		}
 		b.Run(strconv.Itoa(testNum), func(b *testing.B) {
 			for b.Loop() {
-				got, err := DefaultParser.Parse(tt.Input)
+				got, err := testParser.Parse(tt.Input)
 				if err == nil {
 					_ = got.String()
 				}
@@ -207,7 +207,7 @@ func BenchmarkParseRef(b *testing.B) {
 		}
 		b.Run(strconv.Itoa(testNum), func(b *testing.B) {
 			for b.Loop() {
-				got, err := DefaultParser.ParseRef(tt.Base, tt.Input)
+				got, err := testParser.ParseRef(tt.Base, tt.Input)
 				if err == nil {
 					_ = got.String()
 				}
@@ -230,7 +230,7 @@ func BenchmarkIssue6(b *testing.B) {
 			input := buf.String()
 			b.ResetTimer()
 			for b.Loop() {
-				_, _ = DefaultParser.Parse(input)
+				_, _ = testParser.Parse(input)
 			}
 		})
 	}
@@ -249,14 +249,14 @@ func BenchmarkIssue8(b *testing.B) {
 			}
 			b.ResetTimer()
 			for b.Loop() {
-				_, _ = DefaultParser.Parse(buf.String())
+				_, _ = testParser.Parse(buf.String())
 			}
 		})
 	}
 }
 
 func TestDecodedPort(t *testing.T) {
-	u, err := DefaultParser.Parse("http://example.com:8080")
+	u, err := testParser.Parse("http://example.com:8080")
 	if err != nil {
 		t.Errorf("Parse() error = '%v'", err)
 		return
@@ -266,7 +266,7 @@ func TestDecodedPort(t *testing.T) {
 		t.Errorf("decodedPort got = '%v', want '%v'", u.port, 8080)
 	}
 
-	relative, err := DefaultParser.ParseRef(u.String(), "/")
+	relative, err := testParser.ParseRef(u.String(), "/")
 	if err != nil {
 		t.Errorf("ParseRef() error = '%v'", err)
 		return
@@ -279,7 +279,7 @@ func TestDecodedPort(t *testing.T) {
 
 func TestParseShouldNotModifyBaseUrl(t *testing.T) {
 	rawUrl := "http://example.org/ns/foo?adc=ghi#frag"
-	base, err := DefaultParser.Parse(rawUrl)
+	base, err := testParser.Parse(rawUrl)
 	if err != nil {
 		t.Fatal(err)
 	}

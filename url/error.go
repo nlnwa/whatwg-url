@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package internal
+package url
 
 func validationError(kind errorKind, msg string) *ValidationError {
 	return &ValidationError{kind: kind, msg: msg}
@@ -59,6 +59,7 @@ type errorKind uint8
 
 const (
 	errDomainToASCII errorKind = iota
+	errDomainPercentEncoded
 	errDomainToUnicode
 	errDomainInvalidCodePoint
 	errHostInvalidCodePoint
@@ -67,6 +68,7 @@ const (
 	errIPv4NonNumericPart
 	errIPv4NonDecimalPart
 	errIPv4OutOfRangePart
+	errIPv4NonASCIIInput
 	errIPv6Unclosed
 	errIPv6InvalidCompression
 	errIPv6TooManyPieces
@@ -92,6 +94,7 @@ const (
 
 var (
 	ErrDomainToASCII                        = validationError(errDomainToASCII, "unicode ToASCII records an error or returns the empty string")
+	ErrDomainPercentEncoded                 = validationError(errDomainPercentEncoded, "the input's host to be processed as a domain contains a percent-encoded byte")
 	ErrDomainToUnicode                      = validationError(errDomainToUnicode, "unicode ToUnicode records an error")
 	ErrDomainInvalidCodePoint               = validationError(errDomainInvalidCodePoint, "the host contains a forbidden domain code point")
 	ErrHostInvalidCodePoint                 = validationError(errHostInvalidCodePoint, "an opaque host (in a URL that is not special) contains a forbidden host code point")
@@ -100,6 +103,7 @@ var (
 	ErrIPv4NonNumericPart                   = validationError(errIPv4NonNumericPart, "an IPv4 address contains a non-numeric part")
 	ErrIPv4NonDecimalPart                   = validationError(errIPv4NonDecimalPart, "the IPv4 address contains numbers expressed using hexadecimal or octal digits")
 	ErrIPv4OutOfRangePart                   = validationError(errIPv4OutOfRangePart, "an IPv4 address contains a part that is greater than 255")
+	ErrIPv4NonASCIIInput                    = validationError(errIPv4NonASCIIInput, "an IPv4 address is derived from a non-ASCII string through IDNA processing")
 	ErrIPv6Unclosed                         = validationError(errIPv6Unclosed, "an IPv6 address is missing the closing U+005D (])")
 	ErrIPv6InvalidCompression               = validationError(errIPv6InvalidCompression, "an IPv6 address begins with improper compression")
 	ErrIPv6TooManyPieces                    = validationError(errIPv6TooManyPieces, "an IPv6 address has more than eight pieces")
@@ -116,7 +120,6 @@ var (
 	ErrInvalidReverseSolidus                = validationError(errInvalidReverseSolidus, "the URL has a special scheme and it uses U+005C (\\) instead of U+002F (/)")
 	ErrInvalidCredentials                   = validationError(errInvalidCredentials, "the input includes credentials")
 	ErrHostMissing                          = validationError(errHostMissing, "the input has a special scheme, but does not contain a host")
-	ErrPortMissing                          = validationError(errPortMissing, "the input has a hostname followed by a ':' but is missing the port number")
 	ErrPortOutOfRange                       = validationError(errPortOutOfRange, "the input's port is outside the range [0-65535]")
 	ErrPortInvalid                          = validationError(errPortInvalid, "the input's port is not a number")
 	ErrFileInvalidWindowsDriveLetter        = validationError(errFileInvalidWindowsDriveLetter, "the input is a relative-URL string that starts with a Windows drive letter and the base URL’s scheme is 'file'")

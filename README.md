@@ -118,7 +118,7 @@ p := url.NewParser(url.WithQueryPercentEncodeSet(set))
 Some of web platform tests fail because they require newer Unicode tables than [`golang.org/x/net/idna`](https://pkg.go.dev/golang.org/x/net/idna) is currently providing. The failing tests are skipped by default. To run them:
 
 ```shell
-$ go test ./internal -runSkipped
+$ go test ./url -runSkipped
 --- FAIL: TestToASCII (0.00s)
     --- FAIL: TestToASCII/059:_ (0.00s)
         idna_test.go:79: ToASCII(lookout.net) = 'xn--lookout-on3b.net', unexpected error: unicode ToASCII records an error or returns the empty string: idna: disallowed rune U+180E
@@ -296,6 +296,6 @@ $ go test ./internal -runSkipped
     --- FAIL: TestIdnaV2/2583:_ (0.00s)
         idna_test.go:134: ToASCII(Ⴡⴑ6̘.Ssᬃ) = 'xn--6-8cb306hms1a.xn--ss-2vq', unexpected error: unicode ToASCII records an error or returns the empty string: idna: disallowed rune U+10C1
 FAIL
-FAIL    github.com/nationallibraryofnorway/whatwg-url/internal  0.062s
+FAIL    github.com/nationallibraryofnorway/whatwg-url/url  0.062s
 FAIL
 ```

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package internal
+package url
 
 import (
 	"strings"
@@ -111,6 +111,9 @@ func (p *PercentEncodeSet) RuneNotInSet(r rune) bool {
 	if r < p.allBelow {
 		return false
 	}
+	if r > 0x7E {
+		return false
+	}
 	return !p.ascii[r]
 }
 
@@ -122,6 +125,9 @@ var SpecialQueryPercentEncodeSet = QueryPercentEncodeSet.Set(0x27)
 var PathPercentEncodeSet = QueryPercentEncodeSet.Set(0x3f, 0x5e, 0x60, 0x7b, 0x7d)
 var UserInfoPercentEncodeSet = PathPercentEncodeSet.Set(0x2f, 0x3a, 0x3b, 0x3d, 0x40, 0x5b, 0x5c, 0x5d, 0x7c)
 var HostPercentEncodeSet *PercentEncodeSet
+
+var ComponentPercentEncodeSet = UserInfoPercentEncodeSet.Set(0x24, 0x25, 0x26, 0x2B, 0x2C)
+var FormPercentEncodeSet = QueryPercentEncodeSet.Set(0x21, 0x27, 0x28, 0x29, 0x7E)
 
 var LaxPathPercentEncodeSet = PathPercentEncodeSet.Clear(0x2e, 0x3c, 0x3e, 0x5e)
 var LaxQueryPercentEncodeSet = QueryPercentEncodeSet.Clear(0x22, 0x25, 0x2f, 0x3b, 0x3f, 0x7b)
@@ -239,11 +245,6 @@ func onlyASCIIHexDigits[T ByteSequence](s T) bool {
 	return true
 }
 
-func (c *Canonicalizer) repeatDecodeThenEncode(input string, tr *PercentEncodeSet) string {
-	decoded := repeatPercentDecodeString(input, c.RepeatedPercentDecodeEncoding)
-	return PercentEncode(decoded, tr)
-}
-
 func hasPctXX(s string) bool {
 	// Scan for a '%' followed by two hex digits.
 	for i := 0; i+2 < len(s); i++ {
@@ -272,19 +273,6 @@ type ByteSequence interface {
 	~string | ~[]byte
 }
 
-func percentEncodeByte(b byte, tr *PercentEncodeSet) []byte {
-	// Fast path: no encoding needed.
-	if tr == nil || !tr.ByteShouldBeEncoded(b) {
-		return []byte{b}
-	}
-
-	// Worst case: each byte becomes 3 bytes: %XX
-	out := make([]byte, 0, 3)
-	out = append(out, '%', upperHex[b>>4], upperHex[b&0x0f])
-
-	return out
-}
-
 func percentEncode(r rune, tr *PercentEncodeSet) []byte {
 	var tmp [utf8.UTFMax]byte
 	n := utf8.EncodeRune(tmp[:], r)
@@ -308,23 +296,25 @@ func percentEncode(r rune, tr *PercentEncodeSet) []byte {
 	return out
 }
 
-// PercentDecodeInPlace percent-decodes b in-place and returns the resulting subslice.
+// percentDecodeInPlace percent-decodes b in-place and returns the resulting subslice.
 // It implements the WHATWG-style rule:
 // - "%"+2 hex digits => replaced with that byte
 // - otherwise '%' is left as-is.
-func PercentDecodeInPlace(b []byte) []byte {
+func percentDecodeInPlace(b []byte) ([]byte, bool) {
 	w := 0
+	percentEncoded := false
 	for r := 0; r < len(b); r++ {
 		if b[r] == '%' && r+2 < len(b) && isHex(b[r+1]) && isHex(b[r+2]) {
 			b[w] = (unhex(b[r+1]) << 4) | unhex(b[r+2])
 			w++
 			r += 2
+			percentEncoded = true
 			continue
 		}
 		b[w] = b[r]
 		w++
 	}
-	return b[:w]
+	return b[:w], percentEncoded
 }
 
 func percentDecode[T ByteSequence](raw T, encoding *charmap.Charmap) string {

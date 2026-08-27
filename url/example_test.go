@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	urlerrors "github.com/nationallibraryofnorway/whatwg-url/errors"
 	"github.com/nationallibraryofnorway/whatwg-url/url"
 )
 
@@ -76,7 +75,7 @@ func ExampleUrl_Query() {
 
 func ExampleParse_errorsIs() {
 	_, err := url.Parse("https://example.org:7z")
-	fmt.Println(errors.Is(err, urlerrors.ErrPortInvalid))
+	fmt.Println(errors.Is(err, url.ErrPortInvalid))
 	// Output: true
 }
 
@@ -89,7 +88,7 @@ func ExampleUrl_ValidationErrors() {
 
 	hasInvalidURLUnit := false
 	for _, verr := range u.ValidationErrors() {
-		if errors.Is(verr, urlerrors.ErrInvalidURLUnit) {
+		if errors.Is(verr, url.ErrInvalidURLUnit) {
 			hasInvalidURLUnit = true
 			break
 		}
@@ -120,3 +119,36 @@ func ExampleWithQueryPercentEncodeSet() {
 	fmt.Println(u.String())
 	// Output: foo://example.com/?a%26b
 }
+
+// func ExampleNewCanonicalizer() {
+// 	c := url.NewCanonicalizer(url.WithRemoveUserInfo(), url.WithRemoveFragment())
+// 	u, err := c.Parse("http://user@example.com/a//d?b#c")
+// 	if err == nil {
+// 		fmt.Println(u)
+// 	}
+// 	// Output: http://example.com/a//d?b
+// }
+
+// func ExampleGoogleSafeBrowsing() {
+// 	u, err := url.GoogleSafeBrowsing.Parse("http://user@example.com/a//d?b#c")
+// 	if err == nil {
+// 		fmt.Println(u)
+// 	}
+// 	// Output: http://user@example.com/a/d?b
+// }
+
+// func ExampleWithRepeatedPercentDecodingEncoding() {
+// 	strict := url.NewCanonicalizer(url.WithRepeatedPercentDecoding())
+// 	legacy := url.NewCanonicalizer(
+// 		url.WithRepeatedPercentDecoding(),
+// 		url.WithRepeatedPercentDecodingEncoding(charmap.ISO8859_1),
+// 	)
+
+// 	u1, _ := strict.Parse("http://example.com/%E5")
+// 	u2, _ := legacy.Parse("http://example.com/%E5")
+
+// 	fmt.Println(u1)
+// 	fmt.Println(u2)
+// 	// Output: http://example.com/%E5
+// 	// http://example.com/%C3%A5
+// }

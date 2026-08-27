@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package internal
+package url
 
 import (
-	stderrors "errors"
+	"errors"
 	"fmt"
 )
 
@@ -40,7 +40,6 @@ func isValidationFailure(verr *ValidationError) bool {
 		errHostInvalidCodePoint,
 		errIPv4TooManyParts,
 		errIPv4NonNumericPart,
-		errIPv4OutOfRangePart,
 		errIPv6Unclosed,
 		errIPv6InvalidCompression,
 		errIPv6TooManyPieces,
@@ -63,7 +62,7 @@ func isValidationFailure(verr *ValidationError) bool {
 }
 
 // handleError handles an error according to the options set for the parser
-func (p *Parser) handleError(u *Url, err error) error {
+func (p *parser) handleError(u *Url, err error) error {
 	verr, ok := err.(*ValidationError)
 	if !ok {
 		return err
@@ -78,19 +77,31 @@ func (p *Parser) handleError(u *Url, err error) error {
 	return nil
 }
 
+// handleValidationWarning handles a validation error that does not make URL
+// parsing fail unless FailOnValidationError is enabled.
+func (p *parser) handleValidationWarning(u *Url, err error) error {
+	if u != nil && p.ReportValidationErrors {
+		u.validationErrors = append(u.validationErrors, err)
+	}
+	if p.FailOnValidationError {
+		return err
+	}
+	return nil
+}
+
 // handleErrorWithDescription handles an error according to the options set for the parser
-func (p *Parser) handleErrorWithDescription(u *Url, err *ValidationError, description string) error {
-	return p.handleWrappedError(u, err, stderrors.New(description))
+func (p *parser) handleErrorWithDescription(u *Url, err *ValidationError, description string) error {
+	return p.handleWrappedError(u, err, errors.New(description))
 }
 
 // handleWrappedError handles an error according to the options set for the parser
-func (p *Parser) handleWrappedError(u *Url, err *ValidationError, cause error) error {
+func (p *parser) handleWrappedError(u *Url, err *ValidationError, cause error) error {
 	err = err.Wrap(cause)
 	return p.handleError(u, err)
 }
 
 // handleErrorAndFail returns a failure error for parser states that explicitly terminate.
 // Unlike handleError, it intentionally does not record validation state on URL.
-func (p *Parser) handleErrorAndFail(_ *Url, err *ValidationError) error {
+func (p *parser) handleErrorAndFail(_ *Url, err *ValidationError) error {
 	return err
 }

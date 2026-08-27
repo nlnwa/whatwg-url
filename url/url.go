@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package internal
+package url
 
 import (
 	"strings"
@@ -33,7 +33,7 @@ type Url struct {
 
 	path         *path
 	searchParams *SearchParams
-	parser       *Parser
+	parser       *parser
 
 	port        uint16
 	defaultPort uint16
@@ -54,7 +54,7 @@ func newUrl() *Url {
 }
 
 func (u *Url) Parse(ref string) (*Url, error) {
-	return u.parser.parse(ref, u, nil, NoState)
+	return u.parser.BasicParse(ref, u, nil, NoState)
 }
 
 // Href implements WHATWG url api (https://url.spec.whatwg.org/#api)
@@ -148,7 +148,7 @@ func (u *Url) SetProtocol(scheme string) {
 		scheme = scheme + ":"
 	}
 	// with this’s URL as url and scheme start state as state override.
-	_, _ = u.parser.parse(scheme, nil, u, StateSchemeStart)
+	_, _ = u.parser.BasicParse(scheme, nil, u, StateSchemeStart)
 }
 
 func (u *Url) Scheme() string {
@@ -165,6 +165,10 @@ func (u *Url) Username() string {
 func (u *Url) SetUsername(username string) {
 	// If this’s URL cannot have a username/password/port, then return.
 	if !u.hasHost || u.host == "" || u.scheme == "file" {
+		return
+	}
+	if username == "" {
+		u.username = ""
 		return
 	}
 	// Set the username given this’s URL and the given value.
@@ -184,7 +188,10 @@ func (u *Url) SetPassword(password string) {
 		// then return.
 		return
 	}
-
+	if password == "" {
+		u.password = ""
+		return
+	}
 	// Set the password given this’s URL and the given value.
 	u.password = PercentEncode(password, UserInfoPercentEncodeSet)
 }
@@ -213,7 +220,7 @@ func (u *Url) SetHost(host string) {
 		return
 	}
 	// Basic URL parse the given value with this’s URL as url and host state as state override.
-	_, _ = u.parser.parse(host, nil, u, StateHost)
+	_, _ = u.parser.BasicParse(host, nil, u, StateHost)
 }
 
 // Hostname implements WHATWG url api (https://url.spec.whatwg.org/#api)
@@ -235,7 +242,7 @@ func (u *Url) SetHostname(host string) {
 		return
 	}
 	// Basic URL parse the given value with this’s URL as url and hostname state as state override.
-	_, _ = u.parser.parse(host, nil, u, StateHostname)
+	_, _ = u.parser.BasicParse(host, nil, u, StateHostname)
 }
 
 // Port implements WHATWG url api (https://url.spec.whatwg.org/#api)
@@ -280,7 +287,7 @@ func (u *Url) SetPort(port string) {
 	}
 	// Otherwise, basic URL parse the given value with this’s URL as url
 	// and port state as state override.
-	_, _ = u.parser.parse(port, nil, u, StatePort)
+	_, _ = u.parser.BasicParse(port, nil, u, StatePort)
 }
 
 func (u *Url) DecodedPort() uint16 {
@@ -310,7 +317,7 @@ func (u *Url) SetPathname(path string) {
 	u.path.init()
 	// Basic URL parse the given value with this’s URL as url
 	// and path start state as state override.
-	_, _ = u.parser.parse(path, nil, u, StatePathStart)
+	_, _ = u.parser.BasicParse(path, nil, u, StatePathStart)
 }
 
 // OpaquePath tells if the path is opaque (https://url.spec.whatwg.org/#url-opaque-path)
@@ -333,16 +340,14 @@ func (u *Url) Search() string {
 func (u *Url) SetSearch(query string) {
 	// Let url be this’s URL.
 
+	u.searchParams = nil // invalidate search params
+
 	// If the given value is the empty string,
 	if query == "" {
 		// then set url’s query to null,
 		u.query = ""
 		u.hasQuery = false
-		// empty this’s query object’s list,
-		if u.searchParams != nil {
-			u.searchParams.params = u.searchParams.params[:0]
-		}
-		if !u.hasFragment && !u.hasQuery {
+		if !u.hasFragment {
 			u.path.stripTrailingSpacesIfOpaque()
 		}
 		// and return.
@@ -354,13 +359,11 @@ func (u *Url) SetSearch(query string) {
 	}
 	// Set url’s query to the empty string.
 	u.query = ""
+	u.hasQuery = false
 	// Basic URL parse input with url as url and query state as state override.
-	_, _ = u.parser.parse(query, nil, u, StateQuery)
-	// Set this’s query object’s list to the result of parsing input.
-	if u.searchParams == nil {
-		u.newUrlSearchParams()
-	} else {
-		u.searchParams.init(u.query)
+	_, _ = u.parser.BasicParse(query, nil, u, StateQuery)
+	if query == "" && !u.hasFragment {
+		u.path.stripTrailingSpacesIfOpaque()
 	}
 }
 
@@ -368,14 +371,13 @@ func (u *Url) SetSearch(query string) {
 func (u *Url) SearchParams() *SearchParams {
 	// return this’s query object.
 	if u.searchParams == nil {
-		u.newUrlSearchParams()
+		var v params
+		if u.hasQuery {
+			v.Init(u.query)
+		}
+		u.searchParams = &SearchParams{url: u, values: v}
 	}
 	return u.searchParams
-}
-
-func (u *Url) SetSearchParams(searchParams *SearchParams) {
-	u.searchParams = searchParams
-	u.searchParams.update()
 }
 
 func (u *Url) Query() string {
@@ -419,7 +421,7 @@ func (u *Url) SetHash(fragment string) {
 	u.fragment = ""
 	u.hasFragment = true
 	// Basic URL parse input with this’s URL as url and fragment state as state override.
-	_, _ = u.parser.parse(fragment, nil, u, StateFragment)
+	_, _ = u.parser.BasicParse(fragment, nil, u, StateFragment)
 }
 
 func (u *Url) Fragment() string {
@@ -435,14 +437,6 @@ func (u *Url) String() string {
 
 func (u *Url) ValidationErrors() []error {
 	return u.validationErrors
-}
-
-func (u *Url) newUrlSearchParams() {
-	usp := &SearchParams{url: u}
-	if u.hasQuery {
-		usp.init(u.query)
-	}
-	u.searchParams = usp
 }
 
 func (u *Url) IsIPv4() bool {
@@ -468,7 +462,7 @@ func (u *Url) Clone() *Url {
 		hasQuery:     u.hasQuery,
 		fragment:     u.fragment,
 		hasFragment:  u.hasFragment,
-		searchParams: u.SearchParams().Clone(),
+		searchParams: nil,
 		parser:       u.parser,
 		isIPv4:       u.isIPv4,
 		isIPv6:       u.isIPv6,

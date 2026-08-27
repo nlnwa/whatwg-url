@@ -18,26 +18,47 @@ package url
 
 import (
 	"maps"
-
-	"github.com/nationallibraryofnorway/whatwg-url/internal"
 )
 
-// WithReportValidationErrors records all non fatal validation errors on the
-// Url struct. The errors are recorded in the order they were encountered in
-// the parsing process and can be retrieved using the Url.ValidationErrors() method.
+type ParserOption interface {
+	apply(*parser)
+}
+
+func newParserOption(f func(*parser)) parserOptionFunc {
+	return parserOptionFunc{fn: f}
+}
+
+type parserOptionFunc struct {
+	fn func(*parser)
+}
+
+func (opt parserOptionFunc) apply(parser *parser) {
+	opt.fn(parser)
+}
+
+// WithReportValidationErrors controls whether non-fatal validation errors are
+// recorded on the Url during parsing.
+//
+// When enabled, validation errors are appended to the Url and can be retrieved
+// using the Url.ValidationErrors method. Fatal validation errors are still
+// returned immediately regardless of this setting.
+//
+// This option does not affect whether parsing fails; it only controls error reporting.
+//
+// Default: true
 //
 // This API is EXPERIMENTAL.
-func WithReportValidationErrors() internal.ParserOption {
-	return internal.NewParserOption(func(o *internal.Parser) {
-		o.ReportValidationErrors = true
+func WithReportValidationErrors(enable bool) ParserOption {
+	return newParserOption(func(o *parser) {
+		o.ReportValidationErrors = enable
 	})
 }
 
 // WithFailOnValidationError makes the parser return an error for all validation errors.
 //
 // This API is EXPERIMENTAL.
-func WithFailOnValidationError() internal.ParserOption {
-	return internal.NewParserOption(func(o *internal.Parser) {
+func WithFailOnValidationError() ParserOption {
+	return newParserOption(func(o *parser) {
 		o.FailOnValidationError = true
 	})
 }
@@ -45,8 +66,8 @@ func WithFailOnValidationError() internal.ParserOption {
 // WithLaxHostParsing ignores some decoding errors and returns the host as is.
 //
 // This API is EXPERIMENTAL.
-func WithLaxHostParsing() internal.ParserOption {
-	return internal.NewParserOption(func(o *internal.Parser) {
+func WithLaxHostParsing() ParserOption {
+	return newParserOption(func(o *parser) {
 		o.LaxHostParsing = true
 	})
 }
@@ -55,8 +76,8 @@ func WithLaxHostParsing() internal.ParserOption {
 // (e.g. http://example.com//foo///bar => http://example.com/foo/bar).
 //
 // This API is EXPERIMENTAL.
-func WithCollapseConsecutiveSlashes() internal.ParserOption {
-	return internal.NewParserOption(func(o *internal.Parser) {
+func WithCollapseConsecutiveSlashes() ParserOption {
+	return newParserOption(func(o *parser) {
 		o.CollapseConsecutiveSlashes = true
 	})
 }
@@ -64,8 +85,8 @@ func WithCollapseConsecutiveSlashes() internal.ParserOption {
 // WithAcceptInvalidCodepoints percent encodes values which are not valid UTF-8.
 //
 // This API is EXPERIMENTAL.
-func WithAcceptInvalidCodepoints() internal.ParserOption {
-	return internal.NewParserOption(func(o *internal.Parser) {
+func WithAcceptInvalidCodepoints() ParserOption {
+	return newParserOption(func(o *parser) {
 		o.AcceptInvalidCodepoints = true
 	})
 }
@@ -74,8 +95,8 @@ func WithAcceptInvalidCodepoints() internal.ParserOption {
 // instead of complaining about invalid percent encoding.
 //
 // This API is EXPERIMENTAL.
-func WithPercentEncodeSinglePercentSign() internal.ParserOption {
-	return internal.NewParserOption(func(o *internal.Parser) {
+func WithPercentEncodeSinglePercentSign() ParserOption {
+	return newParserOption(func(o *parser) {
 		o.PercentEncodeSinglePercentSign = true
 	})
 }
@@ -84,8 +105,8 @@ func WithPercentEncodeSinglePercentSign() internal.ParserOption {
 // WhathWg standard says this should be illegal
 //
 // This API is EXPERIMENTAL.
-func WithAllowSettingPathForNonBaseUrl() internal.ParserOption {
-	return internal.NewParserOption(func(o *internal.Parser) {
+func WithAllowSettingPathForNonBaseUrl() ParserOption {
+	return newParserOption(func(o *parser) {
 		o.AllowSettingPathForNonBaseUrl = true
 	})
 }
@@ -94,8 +115,8 @@ func WithAllowSettingPathForNonBaseUrl() internal.ParserOption {
 // WhathWg standard says only a normalized Windows drive letter is conforming.
 //
 // This API is EXPERIMENTAL.
-func WithSkipWindowsDriveLetterNormalization() internal.ParserOption {
-	return internal.NewParserOption(func(o *internal.Parser) {
+func WithSkipWindowsDriveLetterNormalization() ParserOption {
+	return newParserOption(func(o *parser) {
 		o.SkipWindowsDriveLetterNormalization = true
 	})
 }
@@ -117,7 +138,7 @@ func WithSkipWindowsDriveLetterNormalization() internal.ParserOption {
 //
 // This API is EXPERIMENTAL.
 func WithSpecialSchemes(special map[string]uint16) ParserOption {
-	return internal.NewParserOption(func(o *internal.Parser) {
+	return newParserOption(func(o *parser) {
 		if o.SpecialSchemes == nil {
 			o.SpecialSchemes = make(map[string]uint16)
 		}
@@ -130,7 +151,7 @@ func WithSpecialSchemes(special map[string]uint16) ParserOption {
 //
 // This API is EXPERIMENTAL.
 func WithPathPercentEncodeSet(encodeSet *PercentEncodeSet) ParserOption {
-	return internal.NewParserOption(func(o *internal.Parser) {
+	return newParserOption(func(o *parser) {
 		o.PathPercentEncodeSet = encodeSet
 	})
 }
@@ -140,7 +161,7 @@ func WithPathPercentEncodeSet(encodeSet *PercentEncodeSet) ParserOption {
 //
 // This API is EXPERIMENTAL.
 func WithQueryPercentEncodeSet(encodeSet *PercentEncodeSet) ParserOption {
-	return internal.NewParserOption(func(o *internal.Parser) {
+	return newParserOption(func(o *parser) {
 		o.QueryPercentEncodeSet = encodeSet
 	})
 }
@@ -150,7 +171,7 @@ func WithQueryPercentEncodeSet(encodeSet *PercentEncodeSet) ParserOption {
 //
 // This API is EXPERIMENTAL.
 func WithSpecialQueryPercentEncodeSet(encodeSet *PercentEncodeSet) ParserOption {
-	return internal.NewParserOption(func(o *internal.Parser) {
+	return newParserOption(func(o *parser) {
 		o.SpecialQueryPercentEncodeSet = encodeSet
 	})
 }
@@ -160,7 +181,7 @@ func WithSpecialQueryPercentEncodeSet(encodeSet *PercentEncodeSet) ParserOption 
 //
 // This API is EXPERIMENTAL.
 func WithFragmentPathPercentEncodeSet(encodeSet *PercentEncodeSet) ParserOption {
-	return internal.NewParserOption(func(o *internal.Parser) {
+	return newParserOption(func(o *parser) {
 		o.FragmentPercentEncodeSet = encodeSet
 	})
 }
@@ -170,7 +191,7 @@ func WithFragmentPathPercentEncodeSet(encodeSet *PercentEncodeSet) ParserOption 
 //
 // This API is EXPERIMENTAL.
 func WithSpecialFragmentPathPercentEncodeSet(encodeSet *PercentEncodeSet) ParserOption {
-	return internal.NewParserOption(func(o *internal.Parser) {
+	return newParserOption(func(o *parser) {
 		o.SpecialFragmentPercentEncodeSet = encodeSet
 	})
 }
@@ -179,18 +200,7 @@ func WithSpecialFragmentPathPercentEncodeSet(encodeSet *PercentEncodeSet) Parser
 //
 // This API is EXPERIMENTAL.
 func WithSkipTrailingSlashNormalization() ParserOption {
-	return internal.NewParserOption(func(o *internal.Parser) {
+	return newParserOption(func(o *parser) {
 		o.SkipTrailingSlashNormalization = true
-	})
-}
-
-// WithSkipEqualsForEmptySearchParamsValue skips writing '=' when setting an empty value for a search parameter.
-//
-// e.g. url.SearchParams().Set("name", "") gives 'http://...?name' instead of 'http://...?name='
-//
-// This API is EXPERIMENTAL.
-func WithSkipEqualsForEmptySearchParamsValue() ParserOption {
-	return internal.NewParserOption(func(o *internal.Parser) {
-		o.SkipEqualsForEmptySearchParamsValue = true
 	})
 }
