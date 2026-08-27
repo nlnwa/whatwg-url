@@ -769,7 +769,7 @@ func (p *Parser) parse(urlOrRef string, base *Url, url *Url, stateOverride State
 				// If state override is given,
 				if stateOverridden {
 					// then return failure.
-					if err := p.handleError(url, ErrPortMissing); err != nil {
+					if err := p.handleError(url, ErrPortInvalid); err != nil {
 						return nil, err
 					}
 				}
