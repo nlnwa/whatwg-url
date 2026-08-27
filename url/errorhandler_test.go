@@ -176,7 +176,8 @@ func TestParseError_IncludesValidationErrorWhenReportingIsDisabled(t *testing.T)
 }
 
 func TestParseError_CanRepresentBareFailure(t *testing.T) {
-	_, err := Parse("https://example^example")
+	p := NewParser().(BasicParsing)
+	_, err := p.BasicParse("1http", nil, newUrl(), StateSchemeStart)
 	var parseErr *ParseError
 	if !errors.As(err, &parseErr) {
 		t.Fatalf("error = %T, want *ParseError", err)

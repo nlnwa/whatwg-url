@@ -160,7 +160,7 @@ func TestParseHost_IDNAValidation(t *testing.T) {
 			input:      "ä.\u200d.example",
 			report:     true,
 			wantErr:    true,
-			wantErrors: 2,
+			wantErrors: 1,
 		},
 		{
 			name:   "reporting disabled",

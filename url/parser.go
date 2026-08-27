@@ -714,7 +714,7 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 				// and either url includes credentials or url’s port is non-null,
 				if stateOverridden && len(buf) == 0 && (url.username != "" || url.password != "" || url.hasPort) {
 					// then return failure.
-					return finalizeURLPath(url), nil
+					return nil, ctx.returnFailure("host state override cannot clear a host while credentials or a port are present")
 				}
 				// Let host be the result of host parsing buffer with url is not special.
 				host, err := ctx.parseHost(url, buf, !url.isSpecial)
@@ -1181,6 +1181,11 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 			} else
 			// Otherwise, if c is U+0020 SPACE:
 			if r == ' ' {
+				// Record each internal opaque-path space before applying the
+				// opaque-path-specific space handling below.
+				if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetail(ErrInvalidURLUnit, codePointDescription(r)), nil); err != nil {
+					return nil, err
+				}
 				// If remaining starts with U+003F (?) or U+003F (#),
 				nextIdx := pos + size
 				if nextIdx < len(urlOrRef) && (urlOrRef[nextIdx] == '?' || urlOrRef[nextIdx] == '#') {

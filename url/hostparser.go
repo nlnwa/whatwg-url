@@ -55,9 +55,16 @@ func (c *parseContext) parseHost(u *Url, input []byte, isNotSpecial bool) (strin
 		}
 		// Return the result of IPv6 parsing input with its leading U+005B ([)
 		// and trailing U+005D (]) removed.
-		addr, err := parseIPv6(input[1 : len(input)-1])
+		addr, err := parseIPv6WithValidation(input[1:len(input)-1], c.reportValidation)
 		if err != nil {
-			validationErr := err.(*ValidationError)
+			var parseErr *ParseError
+			if errors.As(err, &parseErr) {
+				return "", parseErr
+			}
+			var validationErr *ValidationError
+			if !errors.As(err, &validationErr) {
+				return "", c.returnFailure(err.Error())
+			}
 			if err := c.reportValidation(validationErr.Code(), validationErr.Detail(), validationErr.Unwrap()); err != nil {
 				return "", err
 			}
@@ -107,9 +114,6 @@ func (c *parseContext) parseHost(u *Url, input []byte, isNotSpecial bool) (strin
 	// (asciiNoPunycodeLabels assumes ASCII; it returns false if any non-ASCII.)
 	if asciiNoPunycodeLabels(buf) {
 		for i, c := range buf {
-			if forbiddenDomainASCII[c] {
-				return "", errors.New("the host contains a forbidden domain code point")
-			}
 			if 'A' <= c && c <= 'Z' {
 				buf[i] |= 0x20
 			}
@@ -127,19 +131,23 @@ func (c *parseContext) parseHost(u *Url, input []byte, isNotSpecial bool) (strin
 				}
 			}
 		}
+		if asciiDomain == "" {
+			return "", c.returnFailure("Unicode ToASCII returned the empty string")
+		}
+		for _, b := range buf {
+			if forbiddenDomainASCII[b] {
+				return "", c.returnFailure("the host contains a forbidden domain code point")
+			}
+		}
 		if endsInNumber {
 			return c.parseIPv4(u, asciiDomain)
 		}
 		return asciiDomain, nil
 	}
 
-	if !utf8.Valid(buf) {
-		if err := c.reportValidation(CodeDomainToASCII, ErrDomainToASCII.Detail(), nil); err != nil {
-			return "", err
-		}
-		return "", c.returnFailure(ErrDomainToASCII.Detail())
-	}
-
+	// The IDNA implementation rejects invalid UTF-8 as U+FFFD, so malformed
+	// input reaches the domain-to-ASCII failure required by the URL Standard
+	// without a separate utf8.Valid check.
 	// Let asciiDomain be the result of running domain to ASCII with domain and false.
 	domain := string(buf)
 
@@ -158,12 +166,6 @@ func (c *parseContext) parseHost(u *Url, input []byte, isNotSpecial bool) (strin
 	}
 	// If asciiDomain is failure,
 	if failure != nil {
-		var validationErr *ValidationError
-		if errors.As(failure, &validationErr) {
-			if err := c.reportValidation(validationErr.Code(), validationErr.Detail(), validationErr.Unwrap()); err != nil {
-				return "", err
-			}
-		}
 		if c.LaxHostParsing {
 			return string(input), nil
 		}
@@ -227,6 +229,12 @@ func (c *parseContext) parseIPv4(u *Url, input string) (string, error) {
 			parts = parts[:len(parts)-1]
 		}
 	}
+	// If parts's size is less than 4, IPv4-too-few-parts validation error.
+	if len(parts) < 4 {
+		if err := c.reportValidation(CodeIPv4TooFewParts, ErrIPv4TooFewParts.Detail(), nil); err != nil {
+			return input, err
+		}
+	}
 	// If parts’s size is greater than 4,
 	if len(parts) > 4 {
 		// IPv4-too-many-parts validation error, return failure.
@@ -243,6 +251,20 @@ func (c *parseContext) parseIPv4(u *Url, input string) (string, error) {
 		n, validationError, err := parseIPv4Number(part)
 		// If result is failure,
 		if err != nil {
+			if errors.Is(err, ErrIPv4OutOfRangePart) {
+				if validationError {
+					if err := c.reportValidation(CodeIPv4NonDecimalPart, ErrIPv4NonDecimalPart.Detail(), nil); err != nil {
+						return input, err
+					}
+				}
+				// The mathematical value cannot fit in the parser's machine
+				// representation. It is necessarily greater than 255, so record
+				// the standard range event before taking the later bare failure.
+				if err := c.reportValidation(CodeIPv4OutOfRangePart, ErrIPv4OutOfRangePart.Detail(), nil); err != nil {
+					return input, err
+				}
+				return input, c.returnFailure("an IPv4 number exceeds the supported integer range")
+			}
 			// IPv4-non-numeric-part validation error, return failure.
 			if err := c.reportValidation(CodeIPv4NonNumericPart, ErrIPv4NonNumericPart.Detail(), nil); err != nil {
 				return input, err
@@ -260,13 +282,15 @@ func (c *parseContext) parseIPv4(u *Url, input string) (string, error) {
 		numbers = append(numbers, n)
 	}
 	last := len(numbers) - 1
+	// If any item in numbers is greater than 255, IPv4-out-of-range-part
+	// validation error. This is one standard event regardless of how many
+	// individual parts exceed the limit.
 	for _, n := range numbers {
-		// If any item in numbers is greater than 255,
 		if n > 255 {
-			// IPv4-out-of-range-part validation error.
 			if err := c.reportValidation(CodeIPv4OutOfRangePart, ErrIPv4OutOfRangePart.Detail(), nil); err != nil {
 				return input, err
 			}
+			break
 		}
 	}
 	for _, n := range numbers[:last] {
@@ -300,9 +324,10 @@ func (c *parseContext) parseIPv4(u *Url, input string) (string, error) {
 }
 
 func parseIPv6(input []byte) (*ipv6Addr, error) {
-	if len(input) < 2 {
-		return nil, ErrIPv6TooFewPieces
-	}
+	return parseIPv6WithValidation(input, nil)
+}
+
+func parseIPv6WithValidation(input []byte, reportValidation func(ValidationErrorCode, string, error) error) (*ipv6Addr, error) {
 
 	// Let address be a new IPv6 address whose pieces are all 0.
 	address := &ipv6Addr{}
@@ -313,12 +338,10 @@ func parseIPv6(input []byte) (*ipv6Addr, error) {
 	// Let pointer be a pointer for input.
 	i := 0
 
-	c := input[i]
-
 	// If c is U+003A (:), then:
-	if c == ':' {
+	if len(input) > 0 && input[i] == ':' {
 		// If remaining does not start with U+003A (:),
-		if input[i+1] != ':' {
+		if i+1 >= len(input) || input[i+1] != ':' {
 			// IPv6-invalid-compression validation error, return failure.
 			return nil, ErrIPv6InvalidCompression
 		}
@@ -332,7 +355,7 @@ func parseIPv6(input []byte) (*ipv6Addr, error) {
 
 	// While c is not the EOF code point:
 	for i < len(input) {
-		c = input[i]
+		c := input[i]
 
 		// If pieceIndex is 8,
 		if pieceIdx == 8 {
@@ -359,6 +382,7 @@ func parseIPv6(input []byte) (*ipv6Addr, error) {
 		value := uint16(0)
 		// and length be 0.
 		length := 0
+		pieceStart := i
 
 		// While length is less than 4 and c is an ASCII hex digit
 		for length < 4 && isHex(c) {
@@ -479,6 +503,13 @@ func parseIPv6(input []byte) (*ipv6Addr, error) {
 		if !eof {
 			// IPv6-invalid-code-point validation error, return failure.
 			return nil, ErrIPv6InvalidCodePoint
+		}
+		// If length is greater than 1 and the first code point of the piece is
+		// U+0030 (0), IPv6-piece-leading-zero validation error.
+		if length > 1 && input[pieceStart] == '0' && reportValidation != nil {
+			if err := reportValidation(CodeIPv6PieceLeadingZero, ErrIPv6PieceLeadingZero.Detail(), nil); err != nil {
+				return nil, err
+			}
 		}
 		// Set address[pieceIndex] to value.
 		address[pieceIdx] = uint16(value)
@@ -812,12 +843,15 @@ func processDomainToASCII(domain string, beStrict, validate bool) (result string
 		var err error
 		result, err = idnaNonStrict.ToASCII(domain)
 		if err != nil {
-			return result, warning, validationErrorWithCause(ErrDomainToASCII, err)
+			// Strict processing above is the single domain-to-ASCII validation
+			// occurrence. Failure of the relaxed conversion is the subsequent
+			// bare failure step.
+			return result, warning, err
 		}
 	}
 
 	if result == "" {
-		return "", warning, ErrDomainToASCII
+		return "", warning, errors.New("Unicode ToASCII returned the empty string")
 	}
 
 	for _, r := range result {
