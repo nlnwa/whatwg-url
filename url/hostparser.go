@@ -88,7 +88,7 @@ func (p *parser) parseHost(u *Url, input []byte, isNotSpecial bool) (string, err
 	if asciiNoPunycodeLabels(buf) {
 		for i, c := range buf {
 			if forbiddenDomainASCII[c] {
-				return "", ErrDomainInvalidCodePoint
+				return "", errors.New("the host contains a forbidden domain code point")
 			}
 			if 'A' <= c && c <= 'Z' {
 				buf[i] |= 0x20
@@ -103,7 +103,7 @@ func (p *parser) parseHost(u *Url, input []byte, isNotSpecial bool) (string, err
 			// when it detects a possible validation error so that x/net remains
 			// the source of the detailed error.
 			if _, err := idnaStrict.ToASCII(asciiDomain); err != nil {
-				warning := ErrDomainToASCII.Wrap(err)
+				warning := validationErrorWithCause(ErrDomainToASCII, err)
 				if err := p.handleValidationWarning(u, warning); err != nil {
 					return "", err
 				}
@@ -756,7 +756,7 @@ func processDomainToASCII(domain string, beStrict, validate bool) (result string
 	if beStrict {
 		result, err := idnaStrict.ToASCII(domain)
 		if err != nil {
-			return result, nil, ErrDomainToASCII.Wrap(err)
+			return result, nil, validationErrorWithCause(ErrDomainToASCII, err)
 		}
 		return result, nil, nil
 	}
@@ -771,7 +771,7 @@ func processDomainToASCII(domain string, beStrict, validate bool) (result string
 				haveResult = true
 			}
 		} else {
-			warning = ErrDomainToASCII.Wrap(err)
+			warning = validationErrorWithCause(ErrDomainToASCII, err)
 		}
 	}
 
@@ -783,7 +783,7 @@ func processDomainToASCII(domain string, beStrict, validate bool) (result string
 		var err error
 		result, err = idnaNonStrict.ToASCII(domain)
 		if err != nil {
-			return result, warning, ErrDomainToASCII.Wrap(err)
+			return result, warning, validationErrorWithCause(ErrDomainToASCII, err)
 		}
 	}
 
@@ -793,7 +793,7 @@ func processDomainToASCII(domain string, beStrict, validate bool) (result string
 
 	for _, r := range result {
 		if r < utf8.RuneSelf && forbiddenDomainASCII[r] {
-			return result, warning, ErrDomainInvalidCodePoint
+			return result, warning, errors.New("the host contains a forbidden domain code point")
 		}
 	}
 

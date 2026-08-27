@@ -34,27 +34,25 @@ func invalidUTF8ByteDescription(b byte) string {
 }
 
 func isValidationFailure(verr *ValidationError) bool {
-	switch verr.kind {
-	case errDomainToASCII,
-		errDomainInvalidCodePoint,
-		errHostInvalidCodePoint,
-		errIPv4TooManyParts,
-		errIPv4NonNumericPart,
-		errIPv6Unclosed,
-		errIPv6InvalidCompression,
-		errIPv6TooManyPieces,
-		errIPv6MultipleCompression,
-		errIPv6InvalidCodePoint,
-		errIPv6TooFewPieces,
-		errIPv4InIPv6TooManyPieces,
-		errIPv4InIPv6InvalidCodePoint,
-		errIPv4InIPv6OutOfRangePart,
-		errIPv4InIPv6TooFewParts,
-		errMissingSchemeNonRelativeURL,
-		errHostMissing,
-		errPortMissing,
-		errPortOutOfRange,
-		errPortInvalid:
+	switch verr.Code() {
+	case CodeDomainToASCII,
+		CodeHostInvalidCodePoint,
+		CodeIPv4TooManyParts,
+		CodeIPv4NonNumericPart,
+		CodeIPv6Unclosed,
+		CodeIPv6InvalidCompression,
+		CodeIPv6TooManyPieces,
+		CodeIPv6MultipleCompression,
+		CodeIPv6InvalidCodePoint,
+		CodeIPv6TooFewPieces,
+		CodeIPv4InIPv6TooManyPieces,
+		CodeIPv4InIPv6InvalidCodePoint,
+		CodeIPv4InIPv6OutOfRangePart,
+		CodeIPv4InIPv6TooFewParts,
+		CodeMissingSchemeNonRelativeURL,
+		CodeHostMissing,
+		CodePortOutOfRange,
+		CodePortInvalid:
 		return true
 	default:
 		return false
@@ -67,12 +65,13 @@ func (p *parser) handleError(u *Url, err error) error {
 	if !ok {
 		return err
 	}
+	verr = cloneValidationError(verr)
 	if u != nil && p.ReportValidationErrors {
-		u.validationErrors = append(u.validationErrors, err)
+		u.validationErrors = append(u.validationErrors, verr)
 	}
 	failure := isValidationFailure(verr)
 	if failure || p.FailOnValidationError {
-		return err
+		return verr
 	}
 	return nil
 }
@@ -80,11 +79,16 @@ func (p *parser) handleError(u *Url, err error) error {
 // handleValidationWarning handles a validation error that does not make URL
 // parsing fail unless FailOnValidationError is enabled.
 func (p *parser) handleValidationWarning(u *Url, err error) error {
+	verr, ok := err.(*ValidationError)
+	if !ok {
+		return err
+	}
+	verr = cloneValidationError(verr)
 	if u != nil && p.ReportValidationErrors {
-		u.validationErrors = append(u.validationErrors, err)
+		u.validationErrors = append(u.validationErrors, verr)
 	}
 	if p.FailOnValidationError {
-		return err
+		return verr
 	}
 	return nil
 }
@@ -96,12 +100,12 @@ func (p *parser) handleErrorWithDescription(u *Url, err *ValidationError, descri
 
 // handleWrappedError handles an error according to the options set for the parser
 func (p *parser) handleWrappedError(u *Url, err *ValidationError, cause error) error {
-	err = err.Wrap(cause)
+	err = validationErrorWithCause(err, cause)
 	return p.handleError(u, err)
 }
 
 // handleErrorAndFail returns a failure error for parser states that explicitly terminate.
 // Unlike handleError, it intentionally does not record validation state on URL.
 func (p *parser) handleErrorAndFail(_ *Url, err *ValidationError) error {
-	return err
+	return cloneValidationError(err)
 }

@@ -16,112 +16,204 @@
 
 package url
 
-func validationError(kind errorKind, msg string) *ValidationError {
-	return &ValidationError{kind: kind, msg: msg}
+import "errors"
+
+// ValidationErrorCode is a stable WHATWG validation-error identifier.
+type ValidationErrorCode string
+
+// WHATWG validation-error codes.
+const (
+	CodeDomainToASCII                        ValidationErrorCode = "domain-to-ASCII"
+	CodeDomainPercentEncoded                 ValidationErrorCode = "domain-percent-encoded"
+	CodeHostInvalidCodePoint                 ValidationErrorCode = "host-invalid-code-point"
+	CodeIPv4EmptyPart                        ValidationErrorCode = "IPv4-empty-part"
+	CodeIPv4TooFewParts                      ValidationErrorCode = "IPv4-too-few-parts"
+	CodeIPv4TooManyParts                     ValidationErrorCode = "IPv4-too-many-parts"
+	CodeIPv4NonNumericPart                   ValidationErrorCode = "IPv4-non-numeric-part"
+	CodeIPv4NonDecimalPart                   ValidationErrorCode = "IPv4-non-decimal-part"
+	CodeIPv4OutOfRangePart                   ValidationErrorCode = "IPv4-out-of-range-part"
+	CodeIPv4NonASCIIInput                    ValidationErrorCode = "IPv4-non-ASCII-input"
+	CodeIPv6Unclosed                         ValidationErrorCode = "IPv6-unclosed"
+	CodeIPv6InvalidCompression               ValidationErrorCode = "IPv6-invalid-compression"
+	CodeIPv6TooManyPieces                    ValidationErrorCode = "IPv6-too-many-pieces"
+	CodeIPv6MultipleCompression              ValidationErrorCode = "IPv6-multiple-compression"
+	CodeIPv6InvalidCodePoint                 ValidationErrorCode = "IPv6-invalid-code-point"
+	CodeIPv6TooFewPieces                     ValidationErrorCode = "IPv6-too-few-pieces"
+	CodeIPv6PieceLeadingZero                 ValidationErrorCode = "IPv6-piece-leading-zero"
+	CodeIPv4InIPv6TooManyPieces              ValidationErrorCode = "IPv4-in-IPv6-too-many-pieces"
+	CodeIPv4InIPv6InvalidCodePoint           ValidationErrorCode = "IPv4-in-IPv6-invalid-code-point"
+	CodeIPv4InIPv6OutOfRangePart             ValidationErrorCode = "IPv4-in-IPv6-out-of-range-part"
+	CodeIPv4InIPv6TooFewParts                ValidationErrorCode = "IPv4-in-IPv6-too-few-parts"
+	CodeInvalidURLUnit                       ValidationErrorCode = "invalid-URL-unit"
+	CodeSpecialSchemeMissingFollowingSolidus ValidationErrorCode = "special-scheme-missing-following-solidus"
+	CodeMissingSchemeNonRelativeURL          ValidationErrorCode = "missing-scheme-non-relative-URL"
+	CodeInvalidReverseSolidus                ValidationErrorCode = "invalid-reverse-solidus"
+	CodeInvalidCredentials                   ValidationErrorCode = "invalid-credentials"
+	CodeHostMissing                          ValidationErrorCode = "host-missing"
+	CodePortOutOfRange                       ValidationErrorCode = "port-out-of-range"
+	CodePortInvalid                          ValidationErrorCode = "port-invalid"
+	CodeFileInvalidWindowsDriveLetter        ValidationErrorCode = "file-invalid-Windows-drive-letter"
+	CodeFileInvalidWindowsDriveLetterHost    ValidationErrorCode = "file-invalid-Windows-drive-letter-host"
+)
+
+// ValidationError represents one occurrence of a WHATWG validation error.
+// Its state is immutable outside this package.
+type ValidationError struct {
+	cause  error
+	code   ValidationErrorCode
+	detail string
 }
 
-// ValidationError indicates that the url is not valid
-type ValidationError struct {
-	cause error
-	kind  errorKind
-	msg   string
+func validationError(code ValidationErrorCode, detail string) *ValidationError {
+	return &ValidationError{code: code, detail: detail}
+}
+
+func validationErrorWithCause(template *ValidationError, cause error) *ValidationError {
+	if template == nil {
+		return &ValidationError{cause: cause}
+	}
+	return &ValidationError{code: template.code, detail: template.detail, cause: cause}
+}
+
+func cloneValidationError(err *ValidationError) *ValidationError {
+	if err == nil {
+		return nil
+	}
+	return &ValidationError{code: err.code, detail: err.detail, cause: err.cause}
+}
+
+// Code returns the WHATWG identifier for this validation error.
+func (e *ValidationError) Code() ValidationErrorCode {
+	if e == nil {
+		return ""
+	}
+	return e.code
+}
+
+// Detail returns the human-readable description of this validation error.
+func (e *ValidationError) Detail() string {
+	if e == nil {
+		return ""
+	}
+	return e.detail
 }
 
 func (e *ValidationError) Error() string {
-	msg := e.msg
+	if e == nil {
+		return ""
+	}
 	if e.cause != nil {
-		return msg + ": " + e.cause.Error()
+		return e.detail + ": " + e.cause.Error()
 	}
-	return msg
+	return e.detail
 }
 
-func (e *ValidationError) Wrap(err error) *ValidationError {
-	return &ValidationError{
-		cause: err,
-		kind:  e.kind,
-		msg:   e.msg,
-	}
-}
-
+// Is reports whether target is a validation error with the same non-empty code.
 func (e *ValidationError) Is(target error) bool {
 	t, ok := target.(*ValidationError)
-	if !ok {
-		return false
-	}
-	return e.kind == t.kind
+	return ok && e != nil && t != nil && e.code != "" && t.code != "" && e.code == t.code
 }
 
+// Unwrap returns the genuine underlying cause, if any.
 func (e *ValidationError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
 	return e.cause
 }
 
-type errorKind uint8
-
-const (
-	errDomainToASCII errorKind = iota
-	errDomainPercentEncoded
-	errDomainToUnicode
-	errDomainInvalidCodePoint
-	errHostInvalidCodePoint
-	errIPv4EmptyPart
-	errIPv4TooManyParts
-	errIPv4NonNumericPart
-	errIPv4NonDecimalPart
-	errIPv4OutOfRangePart
-	errIPv4NonASCIIInput
-	errIPv6Unclosed
-	errIPv6InvalidCompression
-	errIPv6TooManyPieces
-	errIPv6MultipleCompression
-	errIPv6InvalidCodePoint
-	errIPv6TooFewPieces
-	errIPv4InIPv6TooManyPieces
-	errIPv4InIPv6InvalidCodePoint
-	errIPv4InIPv6OutOfRangePart
-	errIPv4InIPv6TooFewParts
-	errInvalidURLUnit
-	errSpecialSchemeMissingFollowingSolidus
-	errMissingSchemeNonRelativeURL
-	errInvalidReverseSolidus
-	errInvalidCredentials
-	errHostMissing
-	errPortMissing
-	errPortOutOfRange
-	errPortInvalid
-	errFileInvalidWindowsDriveLetter
-	errFileInvalidWindowsDriveLetterHost
-)
-
 var (
-	ErrDomainToASCII                        = validationError(errDomainToASCII, "unicode ToASCII records an error or returns the empty string")
-	ErrDomainPercentEncoded                 = validationError(errDomainPercentEncoded, "the input's host to be processed as a domain contains a percent-encoded byte")
-	ErrDomainToUnicode                      = validationError(errDomainToUnicode, "unicode ToUnicode records an error")
-	ErrDomainInvalidCodePoint               = validationError(errDomainInvalidCodePoint, "the host contains a forbidden domain code point")
-	ErrHostInvalidCodePoint                 = validationError(errHostInvalidCodePoint, "an opaque host (in a URL that is not special) contains a forbidden host code point")
-	ErrIPv4EmptyPart                        = validationError(errIPv4EmptyPart, "an IPv4 address ends with a U+002E (.)")
-	ErrIPv4TooManyParts                     = validationError(errIPv4TooManyParts, "an IPv4 address has more than four parts")
-	ErrIPv4NonNumericPart                   = validationError(errIPv4NonNumericPart, "an IPv4 address contains a non-numeric part")
-	ErrIPv4NonDecimalPart                   = validationError(errIPv4NonDecimalPart, "the IPv4 address contains numbers expressed using hexadecimal or octal digits")
-	ErrIPv4OutOfRangePart                   = validationError(errIPv4OutOfRangePart, "an IPv4 address contains a part that is greater than 255")
-	ErrIPv4NonASCIIInput                    = validationError(errIPv4NonASCIIInput, "an IPv4 address is derived from a non-ASCII string through IDNA processing")
-	ErrIPv6Unclosed                         = validationError(errIPv6Unclosed, "an IPv6 address is missing the closing U+005D (])")
-	ErrIPv6InvalidCompression               = validationError(errIPv6InvalidCompression, "an IPv6 address begins with improper compression")
-	ErrIPv6TooManyPieces                    = validationError(errIPv6TooManyPieces, "an IPv6 address has more than eight pieces")
-	ErrIPv6MultipleCompression              = validationError(errIPv6MultipleCompression, "an IPv6 address contains multiple instances of '::'")
-	ErrIPv6InvalidCodePoint                 = validationError(errIPv6InvalidCodePoint, "an IPv6 address contains a code point that is neither an ASCII hex digit nor a U+003A (:). Or it unexpectedly ends")
-	ErrIPv6TooFewPieces                     = validationError(errIPv6TooFewPieces, "an uncompressed IPv6 address contains fewer than 8 pieces")
-	ErrIPv4InIPv6TooManyPieces              = validationError(errIPv4InIPv6TooManyPieces, "an IPv4 address is found in an IPv6 address, but the IPv6 address has more than 6 pieces")
-	ErrIPv4InIPv6InvalidCodePoint           = validationError(errIPv4InIPv6InvalidCodePoint, "an IPv4 address is found in an IPv6 address and one of the following is true: 1. An IPv4 part is empty or contains a non-ASCII digit. 2. An IPv4 part contains a leading 0. 3. There are too many IPv4 parts")
-	ErrIPv4InIPv6OutOfRangePart             = validationError(errIPv4InIPv6OutOfRangePart, "an IPv4 address is found in an IPv6 address and one of the IPv4 parts is greater than 255")
-	ErrIPv4InIPv6TooFewParts                = validationError(errIPv4InIPv6TooFewParts, "an IPv4 address is found in an IPv6 address and there are too few IPv4 parts")
-	ErrInvalidURLUnit                       = validationError(errInvalidURLUnit, "a code point is found that is not a URL unit")
-	ErrSpecialSchemeMissingFollowingSolidus = validationError(errSpecialSchemeMissingFollowingSolidus, "the input’s scheme is not followed by '//'")
-	ErrMissingSchemeNonRelativeURL          = validationError(errMissingSchemeNonRelativeURL, "the input is missing a scheme, because it does not begin with an ASCII alpha, and either no base URL was provided or the base URL cannot be used as a base URL because it has an opaque path")
-	ErrInvalidReverseSolidus                = validationError(errInvalidReverseSolidus, "the URL has a special scheme and it uses U+005C (\\) instead of U+002F (/)")
-	ErrInvalidCredentials                   = validationError(errInvalidCredentials, "the input includes credentials")
-	ErrHostMissing                          = validationError(errHostMissing, "the input has a special scheme, but does not contain a host")
-	ErrPortOutOfRange                       = validationError(errPortOutOfRange, "the input's port is outside the range [0-65535]")
-	ErrPortInvalid                          = validationError(errPortInvalid, "the input's port is not a number")
-	ErrFileInvalidWindowsDriveLetter        = validationError(errFileInvalidWindowsDriveLetter, "the input is a relative-URL string that starts with a Windows drive letter and the base URL’s scheme is 'file'")
-	ErrFileInvalidWindowsDriveLetterHost    = validationError(errFileInvalidWindowsDriveLetterHost, "a file: URL’s host is a Windows drive letter")
+	ErrDomainToASCII                        = validationError(CodeDomainToASCII, "unicode ToASCII records an error or returns the empty string")
+	ErrDomainPercentEncoded                 = validationError(CodeDomainPercentEncoded, "the input's host to be processed as a domain contains a percent-encoded byte")
+	ErrHostInvalidCodePoint                 = validationError(CodeHostInvalidCodePoint, "an opaque host (in a URL that is not special) contains a forbidden host code point")
+	ErrIPv4EmptyPart                        = validationError(CodeIPv4EmptyPart, "an IPv4 address ends with a U+002E (.)")
+	ErrIPv4TooFewParts                      = validationError(CodeIPv4TooFewParts, "an IPv4 address has fewer than four parts")
+	ErrIPv4TooManyParts                     = validationError(CodeIPv4TooManyParts, "an IPv4 address has more than four parts")
+	ErrIPv4NonNumericPart                   = validationError(CodeIPv4NonNumericPart, "an IPv4 address contains a non-numeric part")
+	ErrIPv4NonDecimalPart                   = validationError(CodeIPv4NonDecimalPart, "the IPv4 address contains numbers expressed using hexadecimal or octal digits")
+	ErrIPv4OutOfRangePart                   = validationError(CodeIPv4OutOfRangePart, "an IPv4 address contains a part that is greater than 255")
+	ErrIPv4NonASCIIInput                    = validationError(CodeIPv4NonASCIIInput, "an IPv4 address is derived from a non-ASCII string through IDNA processing")
+	ErrIPv6Unclosed                         = validationError(CodeIPv6Unclosed, "an IPv6 address is missing the closing U+005D (])")
+	ErrIPv6InvalidCompression               = validationError(CodeIPv6InvalidCompression, "an IPv6 address begins with improper compression")
+	ErrIPv6TooManyPieces                    = validationError(CodeIPv6TooManyPieces, "an IPv6 address has more than eight pieces")
+	ErrIPv6MultipleCompression              = validationError(CodeIPv6MultipleCompression, "an IPv6 address contains multiple instances of '::'")
+	ErrIPv6InvalidCodePoint                 = validationError(CodeIPv6InvalidCodePoint, "an IPv6 address contains a code point that is neither an ASCII hex digit nor a U+003A (:). Or it unexpectedly ends")
+	ErrIPv6TooFewPieces                     = validationError(CodeIPv6TooFewPieces, "an uncompressed IPv6 address contains fewer than 8 pieces")
+	ErrIPv6PieceLeadingZero                 = validationError(CodeIPv6PieceLeadingZero, "an IPv6 address piece contains a leading U+0030 (0)")
+	ErrIPv4InIPv6TooManyPieces              = validationError(CodeIPv4InIPv6TooManyPieces, "an IPv4 address is found in an IPv6 address, but the IPv6 address has more than 6 pieces")
+	ErrIPv4InIPv6InvalidCodePoint           = validationError(CodeIPv4InIPv6InvalidCodePoint, "an IPv4 address is found in an IPv6 address and one of the following is true: 1. An IPv4 part is empty or contains a non-ASCII digit. 2. An IPv4 part contains a leading 0. 3. There are too many IPv4 parts")
+	ErrIPv4InIPv6OutOfRangePart             = validationError(CodeIPv4InIPv6OutOfRangePart, "an IPv4 address is found in an IPv6 address and one of the IPv4 parts is greater than 255")
+	ErrIPv4InIPv6TooFewParts                = validationError(CodeIPv4InIPv6TooFewParts, "an IPv4 address is found in an IPv6 address and there are too few IPv4 parts")
+	ErrInvalidURLUnit                       = validationError(CodeInvalidURLUnit, "a code point is found that is not a URL unit")
+	ErrSpecialSchemeMissingFollowingSolidus = validationError(CodeSpecialSchemeMissingFollowingSolidus, "the input’s scheme is not followed by '//'")
+	ErrMissingSchemeNonRelativeURL          = validationError(CodeMissingSchemeNonRelativeURL, "the input is missing a scheme, because it does not begin with an ASCII alpha, and either no base URL was provided or the base URL cannot be used as a base URL because it has an opaque path")
+	ErrInvalidReverseSolidus                = validationError(CodeInvalidReverseSolidus, "the URL has a special scheme and it uses U+005C (\\) instead of U+002F (/)")
+	ErrInvalidCredentials                   = validationError(CodeInvalidCredentials, "the input includes credentials")
+	ErrHostMissing                          = validationError(CodeHostMissing, "the input has a special scheme, but does not contain a host")
+	ErrPortOutOfRange                       = validationError(CodePortOutOfRange, "the input's port is outside the range [0-65535]")
+	ErrPortInvalid                          = validationError(CodePortInvalid, "the input's port is not a number")
+	ErrFileInvalidWindowsDriveLetter        = validationError(CodeFileInvalidWindowsDriveLetter, "the input is a relative-URL string that starts with a Windows drive letter and the base URL’s scheme is 'file'")
+	ErrFileInvalidWindowsDriveLetterHost    = validationError(CodeFileInvalidWindowsDriveLetterHost, "a file: URL’s host is a Windows drive letter")
 )
+
+// ErrParseFailure identifies every parser failure.
+var ErrParseFailure = errors.New("URL parse failure")
+
+// ParseError represents a failed Parse, ParseRef, or BasicParse operation.
+type ParseError struct {
+	detail           string
+	validationErrors []*ValidationError
+}
+
+func newParseError(detail string, validationErrors ...*ValidationError) *ParseError {
+	return &ParseError{
+		detail:           detail,
+		validationErrors: append([]*ValidationError(nil), validationErrors...),
+	}
+}
+
+func asParseError(err error) *ParseError {
+	if err == nil {
+		return nil
+	}
+	var parseErr *ParseError
+	if errors.As(err, &parseErr) {
+		return parseErr
+	}
+	var validationErr *ValidationError
+	if errors.As(err, &validationErr) {
+		return newParseError(err.Error(), cloneValidationError(validationErr))
+	}
+	return newParseError(err.Error())
+}
+
+func (e *ParseError) Error() string {
+	if e == nil || e.detail == "" {
+		return ErrParseFailure.Error()
+	}
+	return ErrParseFailure.Error() + ": " + e.detail
+}
+
+// ValidationErrors returns a defensive copy of the validation errors associated
+// with this parser failure.
+func (e *ParseError) ValidationErrors() []*ValidationError {
+	if e == nil {
+		return nil
+	}
+	return append([]*ValidationError(nil), e.validationErrors...)
+}
+
+// Unwrap exposes the parse-failure sentinel and all associated validation errors.
+func (e *ParseError) Unwrap() []error {
+	if e == nil {
+		return []error{ErrParseFailure}
+	}
+	errs := make([]error, 1, 1+len(e.validationErrors))
+	errs[0] = ErrParseFailure
+	for _, validationErr := range e.validationErrors {
+		if validationErr != nil {
+			errs = append(errs, validationErr)
+		}
+	}
+	return errs
+}

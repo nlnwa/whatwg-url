@@ -123,6 +123,14 @@ const (
 // BasicParse implements WHATWG basic URL parser (https://url.spec.whatwg.org/#concept-basic-url-parser)
 // In most cases, when possible, prefer using the higher level Parse method.
 func (p *parser) BasicParse(urlOrRef string, base *Url, url *Url, stateOverride State) (*Url, error) {
+	parsed, err := p.basicParse(urlOrRef, base, url, stateOverride)
+	if err != nil {
+		return parsed, asParseError(err)
+	}
+	return parsed, nil
+}
+
+func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride State) (*Url, error) {
 	var changed bool
 
 	// If url is not given:

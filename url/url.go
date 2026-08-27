@@ -22,7 +22,7 @@ import (
 
 // Url represents a URL.
 type Url struct {
-	validationErrors []error
+	validationErrors []*ValidationError
 
 	scheme   string
 	username string
@@ -428,8 +428,8 @@ func (u *Url) String() string {
 	return u.Href(false)
 }
 
-func (u *Url) ValidationErrors() []error {
-	return u.validationErrors
+func (u *Url) ValidationErrors() []*ValidationError {
+	return append([]*ValidationError(nil), u.validationErrors...)
 }
 
 func (u *Url) IsIPv4() bool {
@@ -443,22 +443,25 @@ func (u *Url) IsIPv6() bool {
 // Clone returns a deep copy of the URL.
 func (u *Url) Clone() *Url {
 	return &Url{
-		scheme:       u.scheme,
-		username:     u.username,
-		password:     u.password,
-		host:         u.host,
-		hasHost:      u.hasHost,
-		port:         u.port,
-		hasPort:      u.hasPort,
-		path:         u.path.clone(),
-		query:        u.query,
-		hasQuery:     u.hasQuery,
-		fragment:     u.fragment,
-		hasFragment:  u.hasFragment,
-		searchParams: nil,
-		parser:       u.parser,
-		isIPv4:       u.isIPv4,
-		isIPv6:       u.isIPv6,
+		validationErrors: append([]*ValidationError(nil), u.validationErrors...),
+		scheme:           u.scheme,
+		username:         u.username,
+		password:         u.password,
+		host:             u.host,
+		hasHost:          u.hasHost,
+		port:             u.port,
+		defaultPort:      u.defaultPort,
+		hasPort:          u.hasPort,
+		path:             u.path.clone(),
+		query:            u.query,
+		hasQuery:         u.hasQuery,
+		fragment:         u.fragment,
+		hasFragment:      u.hasFragment,
+		searchParams:     nil,
+		parser:           u.parser,
+		isIPv4:           u.isIPv4,
+		isIPv6:           u.isIPv6,
+		isSpecial:        u.isSpecial,
 	}
 }
 
