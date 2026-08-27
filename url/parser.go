@@ -81,7 +81,11 @@ func NewParser(opts ...ParserOption) Parser {
 }
 
 func (p *parser) Parse(rawUrl string) (*Url, error) {
-	return p.BasicParse(rawUrl, nil, nil, NoState)
+	parsed, err := p.BasicParse(rawUrl, nil, nil, NoState)
+	if err != nil {
+		return nil, err
+	}
+	return parsed, nil
 }
 
 func (p *parser) ParseRef(rawUrl, ref string) (*Url, error) {
@@ -89,7 +93,11 @@ func (p *parser) ParseRef(rawUrl, ref string) (*Url, error) {
 	if err != nil {
 		return nil, err
 	}
-	return p.BasicParse(ref, b, nil, NoState)
+	parsed, err := p.BasicParse(ref, b, nil, NoState)
+	if err != nil {
+		return nil, err
+	}
+	return parsed, nil
 }
 
 type State int
@@ -123,14 +131,22 @@ const (
 // BasicParse implements WHATWG basic URL parser (https://url.spec.whatwg.org/#concept-basic-url-parser)
 // In most cases, when possible, prefer using the higher level Parse method.
 func (p *parser) BasicParse(urlOrRef string, base *Url, url *Url, stateOverride State) (*Url, error) {
-	parsed, err := p.basicParse(urlOrRef, base, url, stateOverride)
+	ctx := newParseContext(p)
+	parsed, err := p.basicParse(ctx, urlOrRef, base, url, stateOverride)
+	if url != nil {
+		// State-override parses operate on an existing URL. Preserve every
+		// detected event even when the URL API setter discards a failure.
+		ctx.attachValidationErrors(url)
+	} else if err == nil {
+		ctx.attachValidationErrors(parsed)
+	}
 	if err != nil {
-		return parsed, asParseError(err)
+		return parsed, ctx.normalizeFailure(err)
 	}
 	return parsed, nil
 }
 
-func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride State) (*Url, error) {
+func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *Url, stateOverride State) (*Url, error) {
 	var changed bool
 
 	// If url is not given:
@@ -142,7 +158,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 		// Remove any leading and trailing C0 control or space from input.
 		if urlOrRef, changed = trimC0OrSpace(urlOrRef); changed {
 			// invalid-URL-unit validation error.
-			if err := p.handleError(url, ErrInvalidURLUnit); err != nil {
+			if err := ctx.reportValidation(CodeInvalidURLUnit, ErrInvalidURLUnit.Detail(), nil); err != nil {
 				return nil, err
 			}
 		}
@@ -154,7 +170,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 	// Remove all ASCII tab or newline from input.
 	if urlOrRef, changed = removeASCIITabNewline(urlOrRef); changed {
 		// invalid-URL-unit validation error.
-		if err := p.handleError(url, ErrInvalidURLUnit); err != nil {
+		if err := ctx.reportValidation(CodeInvalidURLUnit, ErrInvalidURLUnit.Detail(), nil); err != nil {
 			return nil, err
 		}
 	}
@@ -245,7 +261,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 			}
 
 			// Otherwise, return failure.
-			return nil, p.handleErrorAndFail(url, ErrInvalidURLUnit)
+			return nil, ctx.returnFailure("scheme start state override did not begin with an ASCII alpha")
 			// Note: This indication of failure is used exclusively by the Location object’s protocol setter.
 
 		case StateScheme:
@@ -308,7 +324,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 					// If remaining does not start with "//", special-scheme-missing-following-solidus validation error.
 					nextIdx := pos + size
 					if nextIdx+1 >= len(urlOrRef) || urlOrRef[nextIdx] != '/' || urlOrRef[nextIdx+1] != '/' {
-						if err := p.handleError(url, ErrSpecialSchemeMissingFollowingSolidus); err != nil {
+						if err := ctx.reportValidation(CodeSpecialSchemeMissingFollowingSolidus, ErrSpecialSchemeMissingFollowingSolidus.Detail(), nil); err != nil {
 							return nil, err
 						}
 					}
@@ -356,16 +372,16 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				continue
 			}
 			// Otherwise, return failure.
-			return nil, p.handleErrorAndFail(url, ErrInvalidURLUnit)
+			return nil, ctx.returnFailure("scheme state override did not produce a valid scheme")
 
 		case StateNoScheme:
 			// If base is null, or base has an opaque path and c is not U+0023 (#),
 			if base == nil || (base.path.isOpaque() && r != '#') {
 				// missing-scheme-non-relative-URL validation error, return failure.
-				if err := p.handleError(url, ErrMissingSchemeNonRelativeURL); err != nil {
+				if err := ctx.reportValidation(CodeMissingSchemeNonRelativeURL, ErrMissingSchemeNonRelativeURL.Detail(), nil); err != nil {
 					return nil, err
 				}
-				continue
+				return nil, ctx.returnFailure(ErrMissingSchemeNonRelativeURL.Detail())
 			}
 			// Otherwise, if base has an opaque path and c is U+0023 (#),
 			if base.path.isOpaque() && r == '#' {
@@ -411,7 +427,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				}
 			}
 			// Otherwise, special-scheme-missing-following-solidus validation error,
-			if err := p.handleError(url, ErrSpecialSchemeMissingFollowingSolidus); err != nil {
+			if err := ctx.reportValidation(CodeSpecialSchemeMissingFollowingSolidus, ErrSpecialSchemeMissingFollowingSolidus.Detail(), nil); err != nil {
 				return nil, err
 			}
 			// set state to relative state
@@ -447,7 +463,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 			// Otherwise, if url is special and c is U+005C (\),
 			if url.isSpecial && r == '\\' {
 				// invalid-reverse-solidus validation error,
-				if err := p.handleError(url, ErrInvalidReverseSolidus); err != nil {
+				if err := ctx.reportValidation(CodeInvalidReverseSolidus, ErrInvalidReverseSolidus.Detail(), nil); err != nil {
 					return nil, err
 				}
 				// set state to relative slash state.
@@ -510,7 +526,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				// If c is U+005C (\),
 				if r == '\\' {
 					// invalid-reverse-solidus validation error.
-					if err := p.handleError(url, ErrInvalidReverseSolidus); err != nil {
+					if err := ctx.reportValidation(CodeInvalidReverseSolidus, ErrInvalidReverseSolidus.Detail(), nil); err != nil {
 						return nil, err
 					}
 				}
@@ -555,7 +571,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				}
 			}
 			// Otherwise, special-scheme-missing-following-solidus validation error,
-			if err := p.handleError(url, ErrSpecialSchemeMissingFollowingSolidus); err != nil {
+			if err := ctx.reportValidation(CodeSpecialSchemeMissingFollowingSolidus, ErrSpecialSchemeMissingFollowingSolidus.Detail(), nil); err != nil {
 				return nil, err
 			}
 			// set state to special authority ignore slashes state
@@ -573,7 +589,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				goto reconsume
 			}
 			// Otherwise, special-scheme-missing-following-solidus validation error.
-			if err := p.handleError(url, ErrSpecialSchemeMissingFollowingSolidus); err != nil {
+			if err := ctx.reportValidation(CodeSpecialSchemeMissingFollowingSolidus, ErrSpecialSchemeMissingFollowingSolidus.Detail(), nil); err != nil {
 				return nil, err
 			}
 
@@ -585,7 +601,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 			// If c is U+0040 (@), then:
 			if r == '@' {
 				// Invalid-credentials validation error.
-				if err := p.handleError(url, ErrInvalidCredentials); err != nil {
+				if err := ctx.reportValidation(CodeInvalidCredentials, ErrInvalidCredentials.Detail(), nil); err != nil {
 					return nil, err
 				}
 				// Let authorityChunk be the substring from authorityStart up to this '@'
@@ -615,9 +631,10 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				// If atSignSeen is true and buffer is the empty string,
 				if atFlag && authorityStart == pos {
 					// host-missing validation error, return failure.
-					if err := p.handleError(url, ErrHostMissing); err != nil {
+					if err := ctx.reportValidation(CodeHostMissing, ErrHostMissing.Detail(), nil); err != nil {
 						return nil, err
 					}
+					return nil, ctx.returnFailure(ErrHostMissing.Detail())
 				}
 				// Decrease pointer by buffer’s code point length + 1,
 				pos = authorityStart - 1
@@ -654,17 +671,18 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				// If buffer is the empty string,
 				if len(buf) == 0 {
 					// host-missing validation error, return failure.
-					if err := p.handleError(url, ErrHostMissing); err != nil {
+					if err := ctx.reportValidation(CodeHostMissing, ErrHostMissing.Detail(), nil); err != nil {
 						return nil, err
 					}
+					return nil, ctx.returnFailure(ErrHostMissing.Detail())
 				}
 				// If state override is given and state override is hostname state,
 				if stateOverride == StateHostname {
 					// then return failure.
-					return nil, p.handleErrorAndFail(url, ErrInvalidURLUnit)
+					return nil, ctx.returnFailure("hostname state override encountered a port separator")
 				}
 				// Let host be the result of host parsing buffer with url is not special.
-				host, err := p.parseHost(url, buf, !url.isSpecial)
+				host, err := ctx.parseHost(url, buf, !url.isSpecial)
 				if err != nil {
 					// If host is failure, then return failure.
 					return finalizeURLPath(url), err
@@ -687,10 +705,10 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				// If url is special and buffer is the empty string,
 				if url.isSpecial && len(buf) == 0 {
 					// host-missing validation error, return failure.
-					if err := p.handleError(url, ErrHostMissing); err != nil {
+					if err := ctx.reportValidation(CodeHostMissing, ErrHostMissing.Detail(), nil); err != nil {
 						return nil, err
 					}
-					goto reconsume
+					return nil, ctx.returnFailure(ErrHostMissing.Detail())
 				}
 				// Otherwise, if state override is given, buffer is the empty string,
 				// and either url includes credentials or url’s port is non-null,
@@ -699,7 +717,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 					return finalizeURLPath(url), nil
 				}
 				// Let host be the result of host parsing buffer with url is not special.
-				host, err := p.parseHost(url, buf, !url.isSpecial)
+				host, err := ctx.parseHost(url, buf, !url.isSpecial)
 				if err != nil {
 					// If host is failure, then return failure.
 					return finalizeURLPath(url), err
@@ -760,9 +778,10 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				if sawPortDigits {
 					if portOverflow {
 						// If port is not a 16-bit unsigned integer, port-out-of-range validation error, return failure.
-						if err := p.handleError(url, ErrPortOutOfRange); err != nil {
+						if err := ctx.reportValidation(CodePortOutOfRange, ErrPortOutOfRange.Detail(), nil); err != nil {
 							return nil, err
 						}
+						return nil, ctx.returnFailure(ErrPortOutOfRange.Detail())
 					} else {
 						// Let port be the mathematical integer value that is represented by buffer in radix-10 using ASCII digits for digits with values 0 through 9.
 						p16 := uint16(port)
@@ -786,9 +805,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				// If state override is given,
 				if stateOverridden {
 					// then return failure.
-					if err := p.handleError(url, ErrPortInvalid); err != nil {
-						return nil, err
-					}
+					return nil, ctx.returnFailure("port state override contained no port digits")
 				}
 				// Set state to path start state
 				state = StatePathStart
@@ -797,9 +814,10 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 			}
 
 			// Otherwise, port-invalid validation error, return failure.
-			if err := p.handleError(url, ErrPortInvalid); err != nil {
+			if err := ctx.reportValidation(CodePortInvalid, ErrPortInvalid.Detail(), nil); err != nil {
 				return nil, err
 			}
+			return nil, ctx.returnFailure(ErrPortInvalid.Detail())
 
 		case StateFile:
 			// Set url’s scheme to "file".
@@ -814,7 +832,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				// If c is U+005C (\),
 				if r == '\\' {
 					// invalid-reverse-solidus validation error.
-					if err := p.handleError(url, ErrInvalidReverseSolidus); err != nil {
+					if err := ctx.reportValidation(CodeInvalidReverseSolidus, ErrInvalidReverseSolidus.Detail(), nil); err != nil {
 						return nil, err
 					}
 				}
@@ -863,7 +881,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 
 					} else { // Otherwise:
 						// File-invalid-Windows-drive-letter validation error.
-						if err := p.handleError(url, ErrFileInvalidWindowsDriveLetter); err != nil {
+						if err := ctx.reportValidation(CodeFileInvalidWindowsDriveLetter, ErrFileInvalidWindowsDriveLetter.Detail(), nil); err != nil {
 							return nil, err
 						}
 						// Set url’s path to « ».
@@ -889,7 +907,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				// If c is U+005C (\),
 				if r == '\\' {
 					// invalid-reverse-solidus validation error.
-					if err := p.handleError(url, ErrInvalidReverseSolidus); err != nil {
+					if err := ctx.reportValidation(CodeInvalidReverseSolidus, ErrInvalidReverseSolidus.Detail(), nil); err != nil {
 						return nil, err
 					}
 				}
@@ -927,7 +945,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				// If state override is not given and buffer is a Windows drive letter,
 				if !stateOverridden && isWindowsDriveLetter(string(buf)) {
 					// file-invalid-Windows-drive-letter-host validation error,
-					if err := p.handleError(url, ErrFileInvalidWindowsDriveLetterHost); err != nil {
+					if err := ctx.reportValidation(CodeFileInvalidWindowsDriveLetterHost, ErrFileInvalidWindowsDriveLetterHost.Detail(), nil); err != nil {
 						return nil, err
 					}
 					// set state to path state.
@@ -950,7 +968,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				// Otherwise, run these steps:
 
 				// Let host be the result of host parsing buffer with url is not special.
-				host, err := p.parseHost(url, buf, !url.isSpecial)
+				host, err := ctx.parseHost(url, buf, !url.isSpecial)
 				if err != nil {
 					// If host is failure, then return failure.
 					return finalizeURLPath(url), err
@@ -986,7 +1004,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				// If c is U+005C (\),
 				if r == '\\' {
 					// invalid-reverse-solidus validation error.
-					if err := p.handleError(url, ErrInvalidReverseSolidus); err != nil {
+					if err := ctx.reportValidation(CodeInvalidReverseSolidus, ErrInvalidReverseSolidus.Detail(), nil); err != nil {
 						return nil, err
 					}
 				}
@@ -1048,7 +1066,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				// If url is special and c is U+005C (\)
 				if url.isSpecial && r == '\\' {
 					// , invalid-reverse-solidus validation error.
-					if err := p.handleError(url, ErrInvalidReverseSolidus); err != nil {
+					if err := ctx.reportValidation(CodeInvalidReverseSolidus, ErrInvalidReverseSolidus.Detail(), nil); err != nil {
 						return nil, err
 					}
 				}
@@ -1122,7 +1140,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 			// If c is not a URL code point and not U+0025 (%),
 			if !isURLCodePoint(r) && r != '%' {
 				// invalid-URL-unit validation error.
-				if err := p.handleErrorWithDescription(url, ErrInvalidURLUnit, codePointDescription(r)); err != nil {
+				if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetail(ErrInvalidURLUnit, codePointDescription(r)), nil); err != nil {
 					return nil, err
 				}
 			}
@@ -1132,7 +1150,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				invalidPercentEncoding, d := remainingIsInvalidPercentEncoded(urlOrRef[pos:])
 				if invalidPercentEncoding {
 					// invalid-URL-unit validation error.
-					if err := p.handleErrorWithDescription(url, ErrInvalidURLUnit, d); err != nil {
+					if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetail(ErrInvalidURLUnit, d), nil); err != nil {
 						return nil, err
 					}
 					if p.PercentEncodeSinglePercentSign {
@@ -1179,7 +1197,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				// If c is not a URL code point and not U+0025 (%),
 				if !isURLCodePoint(r) && r != '%' {
 					// invalid-URL-unit validation error.
-					if err := p.handleErrorWithDescription(url, ErrInvalidURLUnit, codePointDescription(r)); err != nil {
+					if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetail(ErrInvalidURLUnit, codePointDescription(r)), nil); err != nil {
 						return nil, err
 					}
 				}
@@ -1189,7 +1207,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 					invalidPercentEncoding, d := remainingIsInvalidPercentEncoded(urlOrRef[pos:])
 					if invalidPercentEncoding {
 						// invalid-URL-unit validation error.
-						if err := p.handleErrorWithDescription(url, ErrInvalidURLUnit, d); err != nil {
+						if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetail(ErrInvalidURLUnit, d), nil); err != nil {
 							return nil, err
 						}
 						if p.PercentEncodeSinglePercentSign {
@@ -1250,7 +1268,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				// If c is not a URL code point and not U+0025 (%),
 				if !isURLCodePoint(r) && r != '%' {
 					// invalid-URL-unit validation error.
-					if err := p.handleErrorWithDescription(url, ErrInvalidURLUnit, codePointDescription(r)); err != nil {
+					if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetail(ErrInvalidURLUnit, codePointDescription(r)), nil); err != nil {
 						return nil, err
 					}
 				}
@@ -1261,7 +1279,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 					invalidPercentEncoding, d := remainingIsInvalidPercentEncoded(urlOrRef[pos:])
 					if invalidPercentEncoding {
 						// invalid-URL-unit validation error.
-						if err := p.handleErrorWithDescription(url, ErrInvalidURLUnit, d); err != nil {
+						if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetail(ErrInvalidURLUnit, d), nil); err != nil {
 							return nil, err
 						}
 						if p.PercentEncodeSinglePercentSign {
@@ -1285,7 +1303,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 				// If c is not a URL code point and not U+0025 (%),
 				if !isURLCodePoint(r) && r != '%' {
 					// invalid-URL-unit validation error.
-					if err := p.handleErrorWithDescription(url, ErrInvalidURLUnit, codePointDescription(r)); err != nil {
+					if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetail(ErrInvalidURLUnit, codePointDescription(r)), nil); err != nil {
 						return nil, err
 					}
 				}
@@ -1295,7 +1313,7 @@ func (p *parser) basicParse(urlOrRef string, base *Url, url *Url, stateOverride 
 					invalidPercentEncoding, d := remainingIsInvalidPercentEncoded(urlOrRef[pos:])
 					if invalidPercentEncoding {
 						// invalid-URL-unit validation error.
-						if err := p.handleErrorWithDescription(url, ErrInvalidURLUnit, d); err != nil {
+						if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetail(ErrInvalidURLUnit, d), nil); err != nil {
 							return nil, err
 						}
 						if p.PercentEncodeSinglePercentSign {

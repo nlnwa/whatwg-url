@@ -75,13 +75,6 @@ func validationErrorWithCause(template *ValidationError, cause error) *Validatio
 	return &ValidationError{code: template.code, detail: template.detail, cause: cause}
 }
 
-func cloneValidationError(err *ValidationError) *ValidationError {
-	if err == nil {
-		return nil
-	}
-	return &ValidationError{code: err.code, detail: err.detail, cause: err.cause}
-}
-
 // Code returns the WHATWG identifier for this validation error.
 func (e *ValidationError) Code() ValidationErrorCode {
 	if e == nil {
@@ -170,21 +163,6 @@ func newParseError(detail string, validationErrors ...*ValidationError) *ParseEr
 		detail:           detail,
 		validationErrors: append([]*ValidationError(nil), validationErrors...),
 	}
-}
-
-func asParseError(err error) *ParseError {
-	if err == nil {
-		return nil
-	}
-	var parseErr *ParseError
-	if errors.As(err, &parseErr) {
-		return parseErr
-	}
-	var validationErr *ValidationError
-	if errors.As(err, &validationErr) {
-		return newParseError(err.Error(), cloneValidationError(validationErr))
-	}
-	return newParseError(err.Error())
 }
 
 func (e *ParseError) Error() string {

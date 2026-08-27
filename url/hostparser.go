@@ -29,21 +29,39 @@ import (
 // parseHost parses the host part of the input string.
 //
 // The host parser takes a scalar value string input with an optional boolean isOpaque (default false), and then runs these steps. They return failure or a host.
+// parseHost is retained as a package-internal convenience for focused host
+// parser tests. Basic URL parsing uses parseContext.parseHost directly so all
+// nested validation events share the same per-parse ledger.
 func (p *parser) parseHost(u *Url, input []byte, isNotSpecial bool) (string, error) {
+	ctx := newParseContext(p)
+	host, err := ctx.parseHost(u, input, isNotSpecial)
+	ctx.attachValidationErrors(u)
+	if err != nil {
+		return host, ctx.normalizeFailure(err)
+	}
+	return host, nil
+}
+
+func (c *parseContext) parseHost(u *Url, input []byte, isNotSpecial bool) (string, error) {
 	// If input starts with U+005B ([), then:
 	if len(input) > 0 && input[0] == '[' {
 		// If input does not end with U+005D (]),
 		if input[len(input)-1] != ']' {
 			// IPv6-unclosed validation error, return failure.
-			return "", p.handleErrorAndFail(u, ErrIPv6Unclosed)
+			if err := c.reportValidation(CodeIPv6Unclosed, ErrIPv6Unclosed.Detail(), nil); err != nil {
+				return "", err
+			}
+			return "", c.returnFailure(ErrIPv6Unclosed.Detail())
 		}
 		// Return the result of IPv6 parsing input with its leading U+005B ([)
 		// and trailing U+005D (]) removed.
 		addr, err := parseIPv6(input[1 : len(input)-1])
 		if err != nil {
-			if err := p.handleError(u, err); err != nil {
+			validationErr := err.(*ValidationError)
+			if err := c.reportValidation(validationErr.Code(), validationErr.Detail(), validationErr.Unwrap()); err != nil {
 				return "", err
 			}
+			return "", c.returnFailure(validationErr.Detail())
 		}
 		u.isIPv6 = true
 		return addr.StringWithBrackets(), nil
@@ -51,7 +69,7 @@ func (p *parser) parseHost(u *Url, input []byte, isNotSpecial bool) (string, err
 
 	// If isOpaque is true, then return the result of opaque-host parsing input.
 	if isNotSpecial {
-		return p.parseOpaqueHost(u, input)
+		return c.parseOpaqueHost(u, input)
 	}
 
 	// Assert: input is not the empty string.
@@ -71,7 +89,9 @@ func (p *parser) parseHost(u *Url, input []byte, isNotSpecial bool) (string, err
 	if bytes.IndexByte(buf, '%') != -1 {
 		buf, isPercentEncoded = percentDecodeInPlace(buf)
 		if isPercentEncoded {
-			_ = p.handleError(u, ErrDomainPercentEncoded)
+			if err := c.reportValidation(CodeDomainPercentEncoded, ErrDomainPercentEncoded.Detail(), nil); err != nil {
+				return "", err
+			}
 		}
 	}
 
@@ -94,8 +114,7 @@ func (p *parser) parseHost(u *Url, input []byte, isNotSpecial bool) (string, err
 				buf[i] |= 0x20
 			}
 		}
-		needsStrictValidation := (p.ReportValidationErrors || p.FailOnValidationError) &&
-			!isStrictASCIIValid(buf)
+		needsStrictValidation := !isStrictASCIIValid(buf)
 		endsInNumber := endsInANumber(buf)
 		asciiDomain := string(buf)
 		if needsStrictValidation {
@@ -103,20 +122,22 @@ func (p *parser) parseHost(u *Url, input []byte, isNotSpecial bool) (string, err
 			// when it detects a possible validation error so that x/net remains
 			// the source of the detailed error.
 			if _, err := idnaStrict.ToASCII(asciiDomain); err != nil {
-				warning := validationErrorWithCause(ErrDomainToASCII, err)
-				if err := p.handleValidationWarning(u, warning); err != nil {
+				if err := c.reportValidation(CodeDomainToASCII, ErrDomainToASCII.Detail(), err); err != nil {
 					return "", err
 				}
 			}
 		}
 		if endsInNumber {
-			return p.parseIPv4(u, asciiDomain)
+			return c.parseIPv4(u, asciiDomain)
 		}
 		return asciiDomain, nil
 	}
 
 	if !utf8.Valid(buf) {
-		return "", ErrDomainToASCII
+		if err := c.reportValidation(CodeDomainToASCII, ErrDomainToASCII.Detail(), nil); err != nil {
+			return "", err
+		}
+		return "", c.returnFailure(ErrDomainToASCII.Detail())
 	}
 
 	// Let asciiDomain be the result of running domain to ASCII with domain and false.
@@ -125,31 +146,40 @@ func (p *parser) parseHost(u *Url, input []byte, isNotSpecial bool) (string, err
 	asciiDomain, warning, failure := processDomainToASCII(
 		domain,
 		false,
-		p.ReportValidationErrors || p.FailOnValidationError,
+		true,
 	)
 	if warning != nil {
-		if err := p.handleValidationWarning(u, warning); err != nil {
-			return "", err
+		var validationErr *ValidationError
+		if errors.As(warning, &validationErr) {
+			if err := c.reportValidation(validationErr.Code(), validationErr.Detail(), validationErr.Unwrap()); err != nil {
+				return "", err
+			}
 		}
 	}
 	// If asciiDomain is failure,
 	if failure != nil {
-		if p.LaxHostParsing {
+		var validationErr *ValidationError
+		if errors.As(failure, &validationErr) {
+			if err := c.reportValidation(validationErr.Code(), validationErr.Detail(), validationErr.Unwrap()); err != nil {
+				return "", err
+			}
+		}
+		if c.LaxHostParsing {
 			return string(input), nil
 		}
 		// then return failure.
-		if err := p.handleError(u, failure); err != nil {
-			return "", err
-		}
+		return "", c.returnFailure(failure.Error())
 	}
 	// If asciiDomain ends in a number,
 	if endsInANumber(asciiDomain) {
 		// If domain is not an ASCII string, IPv4-non-ASCII-input validation error.
 		if !isASCII(domain) {
-			_ = p.handleError(u, ErrIPv4NonASCIIInput)
+			if err := c.reportValidation(CodeIPv4NonASCIIInput, ErrIPv4NonASCIIInput.Detail(), nil); err != nil {
+				return "", err
+			}
 		}
 		// Return the result of IPv4 parsing asciiDomain.
-		return p.parseIPv4(u, asciiDomain)
+		return c.parseIPv4(u, asciiDomain)
 	}
 
 	// Return asciiDomain.
@@ -182,13 +212,13 @@ func endsInANumber[T ByteSequence](input T) bool {
 		onlyASCIIHexDigits(last[2:])
 }
 
-func (p *parser) parseIPv4(u *Url, input string) (string, error) {
+func (c *parseContext) parseIPv4(u *Url, input string) (string, error) {
 	// Let parts be the result of strictly splitting input on U+002E (.).
 	parts := strings.Split(input, ".")
 	// If the last item in parts is the empty string, then:
 	if parts[len(parts)-1] == "" {
 		// IPv4-empty-part validation error.
-		if err := p.handleError(u, ErrIPv4EmptyPart); err != nil {
+		if err := c.reportValidation(CodeIPv4EmptyPart, ErrIPv4EmptyPart.Detail(), nil); err != nil {
 			return input, err
 		}
 		// If parts’s size is greater than 1,
@@ -200,9 +230,10 @@ func (p *parser) parseIPv4(u *Url, input string) (string, error) {
 	// If parts’s size is greater than 4,
 	if len(parts) > 4 {
 		// IPv4-too-many-parts validation error, return failure.
-		if err := p.handleError(u, ErrIPv4TooManyParts); err != nil {
+		if err := c.reportValidation(CodeIPv4TooManyParts, ErrIPv4TooManyParts.Detail(), nil); err != nil {
 			return input, err
 		}
+		return input, c.returnFailure(ErrIPv4TooManyParts.Detail())
 	}
 	// Let numbers be an empty list.
 	var numbers []int64
@@ -213,14 +244,15 @@ func (p *parser) parseIPv4(u *Url, input string) (string, error) {
 		// If result is failure,
 		if err != nil {
 			// IPv4-non-numeric-part validation error, return failure.
-			if err := p.handleError(u, ErrIPv4NonNumericPart); err != nil {
+			if err := c.reportValidation(CodeIPv4NonNumericPart, ErrIPv4NonNumericPart.Detail(), nil); err != nil {
 				return input, err
 			}
+			return input, c.returnFailure(ErrIPv4NonNumericPart.Detail())
 		}
 		// If result[1] is true,
 		if validationError {
 			// IPv4-non-decimal-part validation error.
-			if err := p.handleError(u, ErrIPv4NonDecimalPart); err != nil {
+			if err := c.reportValidation(CodeIPv4NonDecimalPart, ErrIPv4NonDecimalPart.Detail(), nil); err != nil {
 				return input, err
 			}
 		}
@@ -232,7 +264,7 @@ func (p *parser) parseIPv4(u *Url, input string) (string, error) {
 		// If any item in numbers is greater than 255,
 		if n > 255 {
 			// IPv4-out-of-range-part validation error.
-			if err := p.handleError(u, ErrIPv4OutOfRangePart); err != nil {
+			if err := c.reportValidation(CodeIPv4OutOfRangePart, ErrIPv4OutOfRangePart.Detail(), nil); err != nil {
 				return input, err
 			}
 		}
@@ -241,18 +273,14 @@ func (p *parser) parseIPv4(u *Url, input string) (string, error) {
 		// If any but the last item in numbers is greater than 255,
 		if n > 255 {
 			// then return failure.
-			if err := p.handleErrorAndFail(u, ErrIPv4OutOfRangePart); err != nil {
-				return input, err
-			}
+			return input, c.returnFailure("an IPv4 part other than the last exceeds 255")
 		}
 	}
 	// If the last item in numbers is greater than or equal to 256(5 − numbers’s size),
 	// note: 1<<uint(8*(5-len(numbers))) is the same as 256(5 − numbers’s size)
 	if numbers[last] >= 1<<uint(8*(5-len(numbers))) {
 		// then return failure.
-		if err := p.handleErrorAndFail(u, ErrIPv4OutOfRangePart); err != nil {
-			return input, err
-		}
+		return input, c.returnFailure("the final IPv4 part exceeds the available address range")
 	}
 	// Let ipv4 be the last item in numbers.
 	ipv4 := uint64(numbers[last])
@@ -484,7 +512,7 @@ func parseIPv6(input []byte) (*ipv6Addr, error) {
 	return address, nil
 }
 
-func (p *parser) parseOpaqueHost(u *Url, input []byte) (string, error) {
+func (ctx *parseContext) parseOpaqueHost(u *Url, input []byte) (string, error) {
 	// Worst case: every byte becomes %HH (3x).
 	out := make([]byte, 0, len(input)*3)
 
@@ -496,19 +524,20 @@ func (p *parser) parseOpaqueHost(u *Url, input []byte) (string, error) {
 		if c < utf8.RuneSelf {
 			// If input contains a forbidden host code point,
 			if forbiddenHostASCII[c] {
-				if p.LaxHostParsing {
-					return string(input), nil
-				}
 				// host-invalid-code-point validation error, return failure.
-				if err := p.handleErrorWithDescription(u, ErrHostInvalidCodePoint, byteCodePointDescription(c)); err != nil {
+				if err := ctx.reportValidation(CodeHostInvalidCodePoint, validationDetail(ErrHostInvalidCodePoint, byteCodePointDescription(c)), nil); err != nil {
 					return "", err
 				}
+				if ctx.LaxHostParsing {
+					return string(input), nil
+				}
+				return "", ctx.returnFailure(ErrHostInvalidCodePoint.Detail())
 			}
 
 			// If input contains a code point that is not a URL code point and not U+0025 (%),
 			if !urlCodePointASCII[c] && c != '%' {
 				// invalid-URL-unit validation error.
-				if err := p.handleErrorWithDescription(u, ErrInvalidURLUnit, byteCodePointDescription(c)); err != nil {
+				if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetail(ErrInvalidURLUnit, byteCodePointDescription(c)), nil); err != nil {
 					return "", err
 				}
 			}
@@ -520,10 +549,10 @@ func (p *parser) parseOpaqueHost(u *Url, input []byte) (string, error) {
 					// Provide whatever description you currently build (here: just "%").
 
 					// invalid-URL-unit validation error.
-					if err := p.handleErrorWithDescription(u, ErrInvalidURLUnit, codePointDescription('%')); err != nil {
+					if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetail(ErrInvalidURLUnit, codePointDescription('%')), nil); err != nil {
 						return "", err
 					}
-					if p.PercentEncodeSinglePercentSign {
+					if ctx.PercentEncodeSinglePercentSign {
 						out = append(out, percentPercentEncoded...)
 						i++
 						continue
@@ -548,11 +577,11 @@ func (p *parser) parseOpaqueHost(u *Url, input []byte) (string, error) {
 			// Invalid UTF-8 byte in opaque host.
 			// Spec-wise this is an invalid-URL-unit; decide whether you want strict fail or
 			// tolerate under AcceptInvalidCodepoints (if that option is meant to apply here).
-			if err := p.handleErrorWithDescription(u, ErrInvalidURLUnit, invalidUTF8ByteDescription(input[i])); err != nil {
+			if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetail(ErrInvalidURLUnit, invalidUTF8ByteDescription(input[i])), nil); err != nil {
 				return "", err
 			}
 			// Encode the raw byte (not U+FFFD) if you accept invalid code points; otherwise encode U+FFFD.
-			if p.AcceptInvalidCodepoints {
+			if ctx.AcceptInvalidCodepoints {
 				c = input[i]
 				if C0PercentEncodeSet.ByteShouldBeEncoded(c) {
 					out = append(out, '%', upperHex[c>>4], upperHex[c&15])
@@ -570,7 +599,7 @@ func (p *parser) parseOpaqueHost(u *Url, input []byte) (string, error) {
 		// If input contains a code point that is not a URL code point and not U+0025 (%),
 		if !isURLCodePoint(r) && r != '%' {
 			// host-invalid-code-point validation error, return failure.
-			if err := p.handleErrorWithDescription(u, ErrInvalidURLUnit, codePointDescription(r)); err != nil {
+			if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetail(ErrInvalidURLUnit, codePointDescription(r)), nil); err != nil {
 				return "", err
 			}
 		}

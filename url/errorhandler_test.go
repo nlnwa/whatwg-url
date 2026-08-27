@@ -91,8 +91,9 @@ func TestParseFailuresUseParseError(t *testing.T) {
 	bp := p.(BasicParsing)
 
 	tests := []struct {
-		name string
-		call func() error
+		name                 string
+		call                 func() error
+		wantValidationErrors int
 	}{
 		{
 			name: "Parse",
@@ -100,6 +101,7 @@ func TestParseFailuresUseParseError(t *testing.T) {
 				_, err := p.Parse("https://example.org:7z")
 				return err
 			},
+			wantValidationErrors: 1,
 		},
 		{
 			name: "ParseRef",
@@ -107,6 +109,7 @@ func TestParseFailuresUseParseError(t *testing.T) {
 				_, err := p.ParseRef("https://example.org/", "https://example.org:7z")
 				return err
 			},
+			wantValidationErrors: 1,
 		},
 		{
 			name: "BasicParse",
@@ -114,6 +117,7 @@ func TestParseFailuresUseParseError(t *testing.T) {
 				_, err := bp.BasicParse("1http", nil, newUrl(), StateSchemeStart)
 				return err
 			},
+			wantValidationErrors: 0,
 		},
 	}
 
@@ -127,8 +131,8 @@ func TestParseFailuresUseParseError(t *testing.T) {
 			if !errors.Is(err, ErrParseFailure) {
 				t.Fatal("parser error does not match ErrParseFailure")
 			}
-			if len(parseErr.ValidationErrors()) != 1 {
-				t.Fatalf("ValidationErrors() = %v, want one error", parseErr.ValidationErrors())
+			if got := len(parseErr.ValidationErrors()); got != tt.wantValidationErrors {
+				t.Fatalf("len(ValidationErrors()) = %d, want %d", got, tt.wantValidationErrors)
 			}
 		})
 	}
@@ -248,7 +252,7 @@ func TestParse_RecordsValidationWarning(t *testing.T) {
 	}
 }
 
-func TestParse_ExplicitFailure_DoesNotRecordValidationError(t *testing.T) {
+func TestBasicParse_BareStateOverrideFailure(t *testing.T) {
 	p := NewParser()
 	bp, ok := p.(BasicParsing)
 	if !ok {
@@ -263,15 +267,101 @@ func TestParse_ExplicitFailure_DoesNotRecordValidationError(t *testing.T) {
 		t.Fatal("expected nil URL on parse failure")
 	}
 
-	var v *ValidationError
-	if !errors.As(err, &v) {
-		t.Fatalf("expected ValidationError, got %T", err)
+	var parseErr *ParseError
+	if !errors.As(err, &parseErr) {
+		t.Fatalf("expected ParseError, got %T", err)
 	}
-	if !errors.Is(v, ErrInvalidURLUnit) {
-		t.Fatalf("expected %v, got %v", ErrInvalidURLUnit, v)
+	if got := parseErr.ValidationErrors(); len(got) != 0 {
+		t.Fatalf("bare failure contains validation errors: %v", got)
 	}
 
 	if len(u.ValidationErrors()) != 0 {
 		t.Fatal("expected explicit failure path to not record validation error on URL")
+	}
+}
+
+func TestParseError_ContainsAllEventsWhenReportingIsDisabled(t *testing.T) {
+	p := NewParser(WithReportValidationErrors(false))
+	tests := []struct {
+		name      string
+		input     string
+		wantCodes []ValidationErrorCode
+	}{
+		{"preprocessing", " https://example.org:7z ", []ValidationErrorCode{CodeInvalidURLUnit, CodePortInvalid}},
+		{"strict IDNA check", "https://a_b.example:7z", []ValidationErrorCode{CodeDomainToASCII, CodePortInvalid}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u, err := p.Parse(tt.input)
+			if u != nil {
+				t.Fatalf("Parse returned partial URL %q on failure", u)
+			}
+			var parseErr *ParseError
+			if !errors.As(err, &parseErr) {
+				t.Fatalf("error = %T, want *ParseError", err)
+			}
+			errs := parseErr.ValidationErrors()
+			if len(errs) != len(tt.wantCodes) {
+				t.Fatalf("ValidationErrors() = %v, want codes %v", errs, tt.wantCodes)
+			}
+			for i, code := range tt.wantCodes {
+				if errs[i].Code() != code {
+					t.Fatalf("ValidationErrors()[%d].Code() = %q, want %q", i, errs[i].Code(), code)
+				}
+			}
+		})
+	}
+}
+
+func TestBasicParse_AppendsEventsToExistingURLOnFailure(t *testing.T) {
+	p := NewParser()
+	bp := p.(BasicParsing)
+	u := newUrl()
+
+	// ASCII tab removal is a validation event; the resulting leading digit is
+	// then a bare scheme-state-override failure.
+	_, err := bp.BasicParse("1\thttp", nil, u, StateSchemeStart)
+	if err == nil {
+		t.Fatal("expected parse failure")
+	}
+	urlErrors := u.ValidationErrors()
+	if len(urlErrors) != 1 || urlErrors[0].Code() != CodeInvalidURLUnit {
+		t.Fatalf("existing URL validation history = %v, want one invalid-URL-unit occurrence", urlErrors)
+	}
+	var parseErr *ParseError
+	if !errors.As(err, &parseErr) {
+		t.Fatalf("error = %T, want *ParseError", err)
+	}
+	failureErrors := parseErr.ValidationErrors()
+	if len(failureErrors) != 1 || failureErrors[0].Code() != CodeInvalidURLUnit {
+		t.Fatalf("failure validation history = %v, want the same detected occurrence", failureErrors)
+	}
+	if urlErrors[0] != failureErrors[0] {
+		t.Fatal("URL and ParseError do not reference the same validation occurrence")
+	}
+}
+
+func TestParseAndParseRef_DoNotExposePartialURL(t *testing.T) {
+	p := NewParser()
+	for name, call := range map[string]func() (*Url, error){
+		"Parse": func() (*Url, error) {
+			return p.Parse("https://example^example")
+		},
+		"ParseRef": func() (*Url, error) {
+			return p.ParseRef("https://example.org/", "https://example^example")
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			u, err := call()
+			if err == nil {
+				t.Fatal("expected parse failure")
+			}
+			if u != nil {
+				t.Fatalf("returned partial URL %q", u)
+			}
+			if !errors.Is(err, ErrParseFailure) {
+				t.Fatalf("error = %v, want ErrParseFailure", err)
+			}
+		})
 	}
 }

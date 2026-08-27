@@ -33,79 +33,67 @@ func invalidUTF8ByteDescription(b byte) string {
 	return fmt.Sprintf("invalid UTF-8 byte 0x%02X", b)
 }
 
-func isValidationFailure(verr *ValidationError) bool {
-	switch verr.Code() {
-	case CodeDomainToASCII,
-		CodeHostInvalidCodePoint,
-		CodeIPv4TooManyParts,
-		CodeIPv4NonNumericPart,
-		CodeIPv6Unclosed,
-		CodeIPv6InvalidCompression,
-		CodeIPv6TooManyPieces,
-		CodeIPv6MultipleCompression,
-		CodeIPv6InvalidCodePoint,
-		CodeIPv6TooFewPieces,
-		CodeIPv4InIPv6TooManyPieces,
-		CodeIPv4InIPv6InvalidCodePoint,
-		CodeIPv4InIPv6OutOfRangePart,
-		CodeIPv4InIPv6TooFewParts,
-		CodeMissingSchemeNonRelativeURL,
-		CodeHostMissing,
-		CodePortOutOfRange,
-		CodePortInvalid:
-		return true
-	default:
-		return false
+func validationDetail(template *ValidationError, context string) string {
+	if template == nil {
+		return context
 	}
+	if context == "" {
+		return template.Detail()
+	}
+	return template.Detail() + ": " + context
 }
 
-// handleError handles an error according to the options set for the parser
-func (p *parser) handleError(u *Url, err error) error {
-	verr, ok := err.(*ValidationError)
-	if !ok {
-		return err
-	}
-	verr = cloneValidationError(verr)
-	if u != nil && p.ReportValidationErrors {
-		u.validationErrors = append(u.validationErrors, verr)
-	}
-	failure := isValidationFailure(verr)
-	if failure || p.FailOnValidationError {
-		return verr
+// parseContext owns all validation events detected by one invocation of the
+// basic URL parser. It deliberately keeps diagnostics separate from parser
+// control flow and from any partially constructed URL.
+type parseContext struct {
+	*parser
+	validationErrors []*ValidationError
+}
+
+func newParseContext(p *parser) *parseContext {
+	return &parseContext{parser: p}
+}
+
+// reportValidation records exactly one WHATWG validation-error occurrence.
+// FailOnValidationError is a policy layered over that standard event; it does
+// not determine which standard parser steps return failure.
+func (c *parseContext) reportValidation(code ValidationErrorCode, detail string, cause error) error {
+	occurrence := &ValidationError{code: code, detail: detail, cause: cause}
+	c.validationErrors = append(c.validationErrors, occurrence)
+	if c.FailOnValidationError {
+		return c.returnFailure(occurrence.Error())
 	}
 	return nil
 }
 
-// handleValidationWarning handles a validation error that does not make URL
-// parsing fail unless FailOnValidationError is enabled.
-func (p *parser) handleValidationWarning(u *Url, err error) error {
-	verr, ok := err.(*ValidationError)
-	if !ok {
-		return err
-	}
-	verr = cloneValidationError(verr)
-	if u != nil && p.ReportValidationErrors {
-		u.validationErrors = append(u.validationErrors, verr)
-	}
-	if p.FailOnValidationError {
-		return verr
-	}
-	return nil
+// returnFailure represents a specification "return failure" step without
+// inventing a validation category. Previously reported events are included.
+func (c *parseContext) returnFailure(detail string) *ParseError {
+	return newParseError(detail, c.validationErrors...)
 }
 
-// handleErrorWithDescription handles an error according to the options set for the parser
-func (p *parser) handleErrorWithDescription(u *Url, err *ValidationError, description string) error {
-	return p.handleWrappedError(u, err, errors.New(description))
+func (c *parseContext) attachValidationErrors(u *Url) {
+	if u == nil || !c.ReportValidationErrors || len(c.validationErrors) == 0 {
+		return
+	}
+	u.validationErrors = append(u.validationErrors, c.validationErrors...)
 }
 
-// handleWrappedError handles an error according to the options set for the parser
-func (p *parser) handleWrappedError(u *Url, err *ValidationError, cause error) error {
-	err = validationErrorWithCause(err, cause)
-	return p.handleError(u, err)
-}
-
-// handleErrorAndFail returns a failure error for parser states that explicitly terminate.
-// Unlike handleError, it intentionally does not record validation state on URL.
-func (p *parser) handleErrorAndFail(_ *Url, err *ValidationError) error {
-	return cloneValidationError(err)
+// normalizeFailure is a defensive boundary for helper errors. Parser states
+// use reportValidation and returnFailure directly; this also ensures no raw
+// helper error can escape BasicParse.
+func (c *parseContext) normalizeFailure(err error) *ParseError {
+	if err == nil {
+		return nil
+	}
+	var parseErr *ParseError
+	if errors.As(err, &parseErr) {
+		return parseErr
+	}
+	var validationErr *ValidationError
+	if errors.As(err, &validationErr) {
+		_ = c.reportValidation(validationErr.Code(), validationErr.Detail(), validationErr.Unwrap())
+	}
+	return c.returnFailure(err.Error())
 }
