@@ -333,8 +333,6 @@ func (u *Url) Search() string {
 func (u *Url) SetSearch(query string) {
 	// Let url be this’s URL.
 
-	u.searchParams = nil // invalidate search params
-
 	// If the given value is the empty string,
 	if query == "" {
 		// then set url’s query to null,
@@ -343,6 +341,7 @@ func (u *Url) SetSearch(query string) {
 		if !u.hasFragment {
 			u.path.stripTrailingSpacesIfOpaque()
 		}
+		u.refreshSearchParams()
 		// and return.
 		return
 	}
@@ -358,6 +357,14 @@ func (u *Url) SetSearch(query string) {
 	if query == "" && !u.hasFragment {
 		u.path.stripTrailingSpacesIfOpaque()
 	}
+	u.refreshSearchParams()
+}
+
+func (u *Url) refreshSearchParams() {
+	if u.searchParams == nil {
+		return
+	}
+	u.searchParams.values.Init(u.query)
 }
 
 // SearchParams implements WHATWG url api (https://url.spec.whatwg.org/#api)

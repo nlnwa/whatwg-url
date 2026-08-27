@@ -21,6 +21,155 @@ import (
 	"testing"
 )
 
+func TestUrlSearchParams_IsLazyAssociatedObject(t *testing.T) {
+	u, err := testParser.Parse("https://example.test/?a=1")
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if u.searchParams != nil {
+		t.Fatal("Parse() initialized searchParams")
+	}
+
+	u.SetSearch("?b=2")
+	if u.searchParams != nil {
+		t.Fatal("SetSearch() initialized searchParams")
+	}
+
+	got := u.SearchParams()
+	if got == nil {
+		t.Fatal("SearchParams() = nil")
+	}
+	if got != u.SearchParams() {
+		t.Fatal("SearchParams() returned different objects")
+	}
+}
+
+func TestUrlSearchParams_SetSearchUpdatesAssociatedObject(t *testing.T) {
+	tests := []struct {
+		name           string
+		search         string
+		wantParams     string
+		wantHref       string
+		wantQuery      string
+		wantSearch     string
+		wantMutatedURL string
+	}{
+		{
+			name:           "non-empty",
+			search:         "?b=2",
+			wantParams:     "b=2",
+			wantHref:       "https://example.test/?b=2",
+			wantQuery:      "b=2",
+			wantSearch:     "?b=2",
+			wantMutatedURL: "https://example.test/?b=2&c=3",
+		},
+		{
+			name:           "empty",
+			search:         "",
+			wantParams:     "",
+			wantHref:       "https://example.test/",
+			wantQuery:      "",
+			wantSearch:     "",
+			wantMutatedURL: "https://example.test/?c=3",
+		},
+		{
+			name:           "empty query",
+			search:         "?",
+			wantParams:     "",
+			wantHref:       "https://example.test/?",
+			wantQuery:      "",
+			wantSearch:     "",
+			wantMutatedURL: "https://example.test/?c=3",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u, err := testParser.Parse("https://example.test/?a=1")
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			searchParams := u.SearchParams()
+
+			u.SetSearch(tt.search)
+
+			if searchParams != u.SearchParams() {
+				t.Fatal("SetSearch() replaced the associated SearchParams object")
+			}
+			if got := searchParams.String(); got != tt.wantParams {
+				t.Errorf("SearchParams().String() = %q, want %q", got, tt.wantParams)
+			}
+			if got := u.Query(); got != tt.wantQuery {
+				t.Errorf("Query() = %q, want %q", got, tt.wantQuery)
+			}
+			if got := u.Search(); got != tt.wantSearch {
+				t.Errorf("Search() = %q, want %q", got, tt.wantSearch)
+			}
+			if got := u.Href(false); got != tt.wantHref {
+				t.Errorf("Href() = %q, want %q", got, tt.wantHref)
+			}
+
+			searchParams.Append("c", "3")
+			if got := u.Href(false); got != tt.wantMutatedURL {
+				t.Errorf("Href() after Append() = %q, want %q", got, tt.wantMutatedURL)
+			}
+		})
+	}
+}
+
+func TestUrlSearchParams_MutationsUpdateURL(t *testing.T) {
+	u, err := testParser.Parse("https://example.test/?b=2&a=1&a=2")
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	searchParams := u.SearchParams()
+
+	searchParams.Set("a", "3")
+	searchParams.Append("c", "4")
+	searchParams.Delete("b")
+	searchParams.Sort()
+
+	if got, want := u.Query(), "a=3&c=4"; got != want {
+		t.Errorf("Query() = %q, want %q", got, want)
+	}
+	if got, want := u.Search(), "?a=3&c=4"; got != want {
+		t.Errorf("Search() = %q, want %q", got, want)
+	}
+	if got, want := u.Href(false), "https://example.test/?a=3&c=4"; got != want {
+		t.Errorf("Href() = %q, want %q", got, want)
+	}
+}
+
+func TestUrlSearchParams_CloneHasIndependentAssociatedObject(t *testing.T) {
+	original, err := testParser.Parse("https://example.test/?a=1")
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	originalParams := original.SearchParams()
+
+	clone := original.Clone()
+	cloneParams := clone.SearchParams()
+	if originalParams == cloneParams {
+		t.Fatal("Clone() reused the original SearchParams object")
+	}
+
+	cloneParams.Set("a", "2")
+	if got, want := clone.Href(false), "https://example.test/?a=2"; got != want {
+		t.Errorf("clone Href() = %q, want %q", got, want)
+	}
+	if got, want := original.Href(false), "https://example.test/?a=1"; got != want {
+		t.Errorf("original Href() = %q, want %q", got, want)
+	}
+
+	originalParams.Append("b", "3")
+	if got, want := original.Href(false), "https://example.test/?a=1&b=3"; got != want {
+		t.Errorf("original Href() after Append() = %q, want %q", got, want)
+	}
+	if got, want := clone.Href(false), "https://example.test/?a=2"; got != want {
+		t.Errorf("clone Href() after original mutation = %q, want %q", got, want)
+	}
+}
+
 func TestUrlSearchParams_Get(t *testing.T) {
 	tests := []struct {
 		name    string
