@@ -31,6 +31,14 @@ func (p *path) setOpaque(opaquePath string) {
 	p.dirty = false
 }
 
+// setSerialized replaces the serialized path without changing whether it is
+// opaque or hierarchical.
+func (p *path) setSerialized(serialized string) {
+	p.value = serialized
+	p.buf = nil
+	p.dirty = false
+}
+
 func (p *path) addSegment(segment string) {
 	if segment == "" && p.isEmpty() {
 		p.value = "/"

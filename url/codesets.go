@@ -343,6 +343,28 @@ func percentDecode[T ByteSequence](raw T, encoding *charmap.Charmap) string {
 	return out.String()
 }
 
+// PercentDecode decodes valid percent-encoded byte triplets in input.
+//
+// Malformed percent sequences are preserved. PercentDecode does not treat '+'
+// as a space and does not perform character-set conversion, so the returned
+// string can contain arbitrary bytes and need not be valid UTF-8.
+//
+// This API is an EXPERIMENTAL extension and is not part of the WHATWG URL API.
+func PercentDecode[T ByteSequence](input T) string {
+	return percentDecode(input, nil)
+}
+
+// PercentDecodeRepeated applies PercentDecode until a pass makes no change.
+//
+// Malformed percent sequences are preserved. PercentDecodeRepeated does not
+// treat '+' as a space and does not perform character-set conversion, so the
+// returned string can contain arbitrary bytes and need not be valid UTF-8.
+//
+// This API is an EXPERIMENTAL extension and is not part of the WHATWG URL API.
+func PercentDecodeRepeated[T ByteSequence](input T) string {
+	return repeatPercentDecodeString(string(input), nil)
+}
+
 func unhex[T ByteRune](c T) T {
 	switch {
 	case '0' <= c && c <= '9':

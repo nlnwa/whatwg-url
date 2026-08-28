@@ -191,7 +191,13 @@ func (v *params) Values() iter.Seq[*NameValuePair] {
 	}
 }
 
-// SearchParams represents a set of query parameters.
+// SearchParams represents a query as application/x-www-form-urlencoded data.
+// Parsing decodes percent escapes, converts '+' to space, drops empty terms,
+// and loses the distinction between a bare term ("flag") and an empty value
+// ("flag="). Every mutation serializes the query as form data.
+//
+// Use SearchParams when the query represents form data. Use RawQuery when its
+// serialized spelling matters.
 type SearchParams struct {
 	url    *Url
 	values params
@@ -224,11 +230,15 @@ func (p *SearchParams) Set(name, value string) {
 	p.markDirty()
 }
 
+// Sort stably sorts the decoded form parameters by name and synchronizes the
+// URL using application/x-www-form-urlencoded serialization.
 func (p *SearchParams) Sort() {
 	p.values.Sort()
 	p.markDirty()
 }
 
+// SortAbsolute stably sorts the decoded form parameters by name and value and
+// synchronizes the URL using application/x-www-form-urlencoded serialization.
 func (p *SearchParams) SortAbsolute() {
 	p.values.SortAbsolute()
 	p.markDirty()

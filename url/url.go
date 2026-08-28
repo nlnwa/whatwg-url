@@ -329,7 +329,11 @@ func (u *Url) Search() string {
 	return "?" + u.query
 }
 
-// SetSearch implements WHATWG url api (https://url.spec.whatwg.org/#api)
+// SetSearch implements WHATWG url api (https://url.spec.whatwg.org/#api).
+// It parses the supplied query as a URL component and applies the configured
+// URL query percent-encoding rules. For form-data semantics use SearchParams;
+// to rewrite serialized query terms without decoding use RawQuery together
+// with RewriteQuery.
 func (u *Url) SetSearch(query string) {
 	// Let url be this’s URL.
 

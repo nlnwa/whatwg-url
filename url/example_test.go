@@ -16,6 +16,46 @@ func ExampleNewParser() {
 	// Output: http://example*.com/a/d?b#c
 }
 
+func ExampleSearchParams_lossyFormSemantics() {
+	u, _ := url.Parse("https://example.org/?q=a+b&flag&space=%20")
+	u.SearchParams().Sort()
+	fmt.Println(u.Query())
+	// Output: flag=&q=a+b&space=+
+}
+
+func ExampleRawQuery_losslessCanonicalization() {
+	u, _ := url.Parse("https://example.org/?q=a+b&flag&space=%20")
+	u.RewriteQuery(func(_ *url.Url, raw string, present bool) (string, bool) {
+		query := url.ParseRawQuery(raw)
+		query.SortAbsolute()
+		return query.String(), present
+	})
+	fmt.Println(u.Query())
+	// Output: flag&q=a+b&space=%20
+}
+
+// This example mirrors the composition used by Safe Browsing-style URL
+// canonicalizers without defining a Safe Browsing profile or lookup API.
+func ExampleUrl_safeBrowsingStyleCanonicalization() {
+	u, _ := url.Parse("http://user:pass@host:8080/%25%32%35#fragment")
+
+	// Safe Browsing's escape policy encodes controls, non-ASCII bytes, spaces,
+	// '#', and '%' after recursively decoding percent escapes.
+	safeBrowsingEscapes := url.NewPercentEncodeSet(0x20, ' ', '#', '%')
+	u.RewritePathname(func(_ *url.Url, path string) string {
+		return url.PercentEncode(url.PercentDecodeRepeated(path), safeBrowsingEscapes)
+	})
+	u.SetUsername("")
+	u.SetPassword("")
+	u.SetPort("")
+	u.RewriteFragment(func(_ *url.Url, _ string, _ bool) (string, bool) {
+		return "", false
+	})
+
+	fmt.Println(u)
+	// Output: http://host/%25
+}
+
 func ExampleUrl_Scheme() {
 	u, _ := url.Parse("http://example.com:80/a?b#c")
 	fmt.Println(u.Scheme())
@@ -119,36 +159,3 @@ func ExampleWithQueryPercentEncodeSet() {
 	fmt.Println(u.String())
 	// Output: foo://example.com/?a%26b
 }
-
-// func ExampleNewCanonicalizer() {
-// 	c := url.NewCanonicalizer(url.WithRemoveUserInfo(), url.WithRemoveFragment())
-// 	u, err := c.Parse("http://user@example.com/a//d?b#c")
-// 	if err == nil {
-// 		fmt.Println(u)
-// 	}
-// 	// Output: http://example.com/a//d?b
-// }
-
-// func ExampleGoogleSafeBrowsing() {
-// 	u, err := url.GoogleSafeBrowsing.Parse("http://user@example.com/a//d?b#c")
-// 	if err == nil {
-// 		fmt.Println(u)
-// 	}
-// 	// Output: http://user@example.com/a/d?b
-// }
-
-// func ExampleWithRepeatedPercentDecodingEncoding() {
-// 	strict := url.NewCanonicalizer(url.WithRepeatedPercentDecoding())
-// 	legacy := url.NewCanonicalizer(
-// 		url.WithRepeatedPercentDecoding(),
-// 		url.WithRepeatedPercentDecodingEncoding(charmap.ISO8859_1),
-// 	)
-
-// 	u1, _ := strict.Parse("http://example.com/%E5")
-// 	u2, _ := legacy.Parse("http://example.com/%E5")
-
-// 	fmt.Println(u1)
-// 	fmt.Println(u2)
-// 	// Output: http://example.com/%E5
-// 	// http://example.com/%C3%A5
-// }
