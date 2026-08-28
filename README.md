@@ -6,6 +6,10 @@ whatwg-url is a spec-compliant URL parser written in Go. See [WHATWG](https://ur
 
 Whatwg-url parser is up to date as of [16 January 2026](https://github.com/web-platform-tests/wpt/tree/b200561bc63dc0951a6df7d11fc333c71cb68e36) and passes all relevant tests from [web-platform-tests](https://github.com/web-platform-tests/wpt/tree/master/url).
 
+The library requires Go 1.27 or later. Go 1.27 provides the Unicode 17.0
+tables needed to pass the complete bundled WPT URL and IDNA conformance test
+suites.
+
 ## Usage
 
 API is similar to [Chapter 6 in WHATWG URL Standard](https://url.spec.whatwg.org/#api). See [documentation](https://pkg.go.dev/github.com/nlnwa/whatwg-url) for details.
@@ -91,38 +95,72 @@ if parseErr, ok := errors.AsType[*url.ParseError](err); ok {
 
 ### Canonicalization
 
-If you want canonicalization beyond what's described in the standard, you can use the
-[Canonicalizer API](https://pkg.go.dev/github.com/nationallibraryofnorway/whatwg-url/canonicalizer). You can define your own canonicalization profile:
+The default `Parse` function and `NewParser` implement WHATWG parsing. Opt-in,
+policy-neutral primitives are available for applications that need additional
+canonicalization:
 
 ```go
-import "github.com/nationallibraryofnorway/whatwg-url/canonicalizer"
-
-c := canonicalizer.New(
-    canonicalizer.WithRemoveUserInfo(),
-    canonicalizer.WithRemoveFragment(),
-)
-u, err := c.Parse("http://user@example.com/a?b#c")
+u, _ := url.Parse("https://example.org/?q=a+b&flag&space=%20")
+u.RewriteQuery(func(_ *url.Url, raw string, present bool) (string, bool) {
+    query := url.ParseRawQuery(raw)
+    query.SortAbsolute()
+    return query.String(), present
+})
+fmt.Println(u.Query()) // flag&q=a+b&space=%20
 ```
 
-Or use one of the predefined profiles:
+These APIs rewrite already-serialized components without reparsing or
+re-encoding them. They are experimental extensions, not WHATWG behavior.
+Callers are responsible for returning valid serialized component values.
+
+Use `SearchParams` when the query represents form data. Use `RawQuery` when its
+serialized spelling matters. `SearchParams` uses
+`application/x-www-form-urlencoded` semantics: it decodes percent escapes,
+turns `+` into a space, discards empty terms, treats `flag` like `flag=`, and
+form-serializes after mutation. `RawQuery` preserves those distinctions.
+
+#### Migration from the removed canonicalizer API
+
+- Replace WHATWG canonicalizer profiles with `Parse` or `NewParser`.
+- Remove credentials, ports, and fragments with `SetUsername("")`,
+  `SetPassword("")`, `SetPort("")`, and `SetHash("")` (or
+  `RewriteFragment` when absent versus empty matters).
+- Use `SearchParams` for form-query operations.
+- Use `ParseRawQuery` inside `RewriteQuery` for lossless query sorting or
+  filtering.
+- Use `PercentDecodeRepeated` followed by `PercentEncode` for repeated escape
+  normalization.
+- Implement default-scheme behavior as a caller-owned parse fallback.
+- Replace component transformers with `RewriteHostname`, `RewritePathname`,
+  `RewriteQuery`, and `RewriteFragment`.
+
+For example, repeated Safe Browsing-style path escape normalization can be
+composed without a Safe Browsing package or profile:
 
 ```go
-u, err := canonicalizer.GoogleSafeBrowsing.Parse("http://user@example.com/a?b#c")
+escapeSet := url.NewPercentEncodeSet(0x20, ' ', '#', '%')
+u.RewritePathname(func(_ *url.Url, path string) string {
+    return url.PercentEncode(url.PercentDecodeRepeated(path), escapeSet)
+})
 ```
 
-Parser behavior remains UTF-8 based and does not guess alternate encodings.
-If you need compatibility handling for legacy percent-encoded Latin-1 octets during canonicalization,
-use canonicalizer options:
+This composition follows the repeated decode/one-pass escape shape used by
+[Google Safe Browsing](https://github.com/google/safebrowsing/blob/master/urls.go),
+but it deliberately does not define that product's full legacy parsing policy.
 
-```go
-c := canonicalizer.New(
-    canonicalizer.WithRepeatedPercentDecoding(),
-    canonicalizer.WithRepeatedPercentDecodingEncoding(charmap.ISO8859_1),
-)
-```
+### Experimental SURT support
 
-For advanced WHATWG state-machine usage (`BasicParser` and parser states), use
-`github.com/nationallibraryofnorway/whatwg-url/x/whatwg`.
+Package `github.com/nationallibraryofnorway/whatwg-url/surt` builds
+Internet Archive-style Sort-friendly URI Reordering Transform keys from the
+public `url` APIs. SURT is not a web standard, and this package is experimental.
+Its `UnSURT` reverse API is an extension. SSURT support follows the
+[IIPC format description](https://github.com/iipc/urlcanon/blob/master/ssurt.rst),
+with an experimental Go API and reverse helper. The historical SURT format is
+described in the
+[Heritrix glossary](http://crawler.archive.org/articles/user_manual/glossary.html#surt).
+
+The relevant language-neutral vectors from IIPC urlcanon are vendored under
+`testdata/iipc-urlcanon` and run as part of `go test ./...`.
 
 ### Percent-encode set customization
 
@@ -132,10 +170,3 @@ For advanced WHATWG state-machine usage (`BasicParser` and parser states), use
 set := url.QueryPercentEncodeSet.Set('#', '&').Clear(';')
 p := url.NewParser(url.WithQueryPercentEncodeSet(set))
 ```
-
-## Web Platform Tests Compliance
-
-Go 1.27 is required because the WPT and IDNA conformance data depend on its
-Unicode 17.0 tables. The included WHATWG URL and IDNA tests run normally as
-part of `go test ./...`; no tests are skipped and no extra test flags are
-needed.
