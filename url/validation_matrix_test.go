@@ -235,8 +235,8 @@ func TestWHATWGValidationErrorConformanceMatrix(t *testing.T) {
 			if u != nil {
 				t.Fatalf("parse returned partial URL %q on failure", u)
 			}
-			var parseErr *ParseError
-			if !errors.As(err, &parseErr) {
+			parseErr, ok := errors.AsType[*ParseError](err)
+			if !ok {
 				t.Fatalf("error = %T, want *ParseError", err)
 			}
 			if !errors.Is(err, ErrParseFailure) {

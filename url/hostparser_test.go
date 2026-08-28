@@ -16,8 +16,8 @@ var (
 
 func Test_parser_parseHost(t *testing.T) {
 	type args struct {
-		input        string
-		isNotSpecial bool
+		input    string
+		isOpaque bool
 	}
 	tests := []struct {
 		name                  string
@@ -26,42 +26,42 @@ func Test_parser_parseHost(t *testing.T) {
 		want                  string
 		wantErr               bool
 	}{
-		{"1-1", args{input: "EXAMPLE.COM", isNotSpecial: false}, false, "example.com", false},
-		{"1-2", args{input: "EXAMPLE.COM", isNotSpecial: true}, false, "EXAMPLE.COM", false},
-		{"2-1", args{input: "example%2Ecom", isNotSpecial: false}, false, "example.com", false},
-		{"2-2", args{input: "example%2Ecom", isNotSpecial: true}, false, "example%2Ecom", false},
-		{"3-1", args{input: "faß.example", isNotSpecial: false}, false, "xn--fa-hia.example", false},
-		{"3-2", args{input: "faß.example", isNotSpecial: true}, false, "fa%C3%9F.example", false},
-		{"4-1", args{input: "0", isNotSpecial: false}, false, "0.0.0.0", false},
-		{"4-2", args{input: "0", isNotSpecial: true}, false, "0", false},
-		{"5-1", args{input: "%30", isNotSpecial: false}, false, "0.0.0.0", false},
-		{"5-2", args{input: "%30", isNotSpecial: true}, false, "%30", false},
-		{"6-1", args{input: "0x", isNotSpecial: false}, false, "0.0.0.0", false},
-		{"6-2", args{input: "0x", isNotSpecial: true}, false, "0x", false},
-		{"7-1", args{input: "0xffffffff", isNotSpecial: false}, false, "255.255.255.255", false},
-		{"7-2", args{input: "0xffffffff", isNotSpecial: true}, false, "0xffffffff", false},
-		{"8-1", args{input: "[0:0::1]", isNotSpecial: false}, false, "[::1]", false},
-		{"8-2", args{input: "[0:0::1]", isNotSpecial: true}, false, "[::1]", false},
-		{"9-1", args{input: "[0:0::1%5d]", isNotSpecial: false}, false, "", true},
-		{"9-2", args{input: "[0:0::1%5d]", isNotSpecial: true}, false, "", true},
-		{"10-1", args{input: "[0:0::1%31]", isNotSpecial: false}, false, "", true},
-		{"10-2", args{input: "[0:0::1%31]", isNotSpecial: true}, false, "", true},
-		{"11-1", args{input: "09", isNotSpecial: false}, false, "09", true},
-		{"11-2", args{input: "09", isNotSpecial: true}, false, "09", false},
-		{"12-1", args{input: "example.255", isNotSpecial: false}, false, "example.255", true},
-		{"12-2", args{input: "example.255", isNotSpecial: true}, false, "example.255", false},
-		{"13-1", args{input: "example^example", isNotSpecial: false}, false, "", true},
-		{"13-2", args{input: "example^example", isNotSpecial: true}, false, "", true},
-		{"14-1", args{input: "bad%hostname", isNotSpecial: false}, true, "", true},
-		{"14-2", args{input: "bad%hostname", isNotSpecial: true}, true, "", true},
-		{"15-1", args{input: "bad\\:hostname", isNotSpecial: false}, true, "", true},
-		{"15-2", args{input: "bad\\:hostname", isNotSpecial: true}, true, "", true},
+		{"1-1", args{input: "EXAMPLE.COM", isOpaque: false}, false, "example.com", false},
+		{"1-2", args{input: "EXAMPLE.COM", isOpaque: true}, false, "EXAMPLE.COM", false},
+		{"2-1", args{input: "example%2Ecom", isOpaque: false}, false, "example.com", false},
+		{"2-2", args{input: "example%2Ecom", isOpaque: true}, false, "example%2Ecom", false},
+		{"3-1", args{input: "faß.example", isOpaque: false}, false, "xn--fa-hia.example", false},
+		{"3-2", args{input: "faß.example", isOpaque: true}, false, "fa%C3%9F.example", false},
+		{"4-1", args{input: "0", isOpaque: false}, false, "0.0.0.0", false},
+		{"4-2", args{input: "0", isOpaque: true}, false, "0", false},
+		{"5-1", args{input: "%30", isOpaque: false}, false, "0.0.0.0", false},
+		{"5-2", args{input: "%30", isOpaque: true}, false, "%30", false},
+		{"6-1", args{input: "0x", isOpaque: false}, false, "0.0.0.0", false},
+		{"6-2", args{input: "0x", isOpaque: true}, false, "0x", false},
+		{"7-1", args{input: "0xffffffff", isOpaque: false}, false, "255.255.255.255", false},
+		{"7-2", args{input: "0xffffffff", isOpaque: true}, false, "0xffffffff", false},
+		{"8-1", args{input: "[0:0::1]", isOpaque: false}, false, "[::1]", false},
+		{"8-2", args{input: "[0:0::1]", isOpaque: true}, false, "[::1]", false},
+		{"9-1", args{input: "[0:0::1%5d]", isOpaque: false}, false, "", true},
+		{"9-2", args{input: "[0:0::1%5d]", isOpaque: true}, false, "", true},
+		{"10-1", args{input: "[0:0::1%31]", isOpaque: false}, false, "", true},
+		{"10-2", args{input: "[0:0::1%31]", isOpaque: true}, false, "", true},
+		{"11-1", args{input: "09", isOpaque: false}, false, "09", true},
+		{"11-2", args{input: "09", isOpaque: true}, false, "09", false},
+		{"12-1", args{input: "example.255", isOpaque: false}, false, "example.255", true},
+		{"12-2", args{input: "example.255", isOpaque: true}, false, "example.255", false},
+		{"13-1", args{input: "example^example", isOpaque: false}, false, "", true},
+		{"13-2", args{input: "example^example", isOpaque: true}, false, "", true},
+		{"14-1", args{input: "bad%hostname", isOpaque: false}, true, "", true},
+		{"14-2", args{input: "bad%hostname", isOpaque: true}, true, "", true},
+		{"15-1", args{input: "bad\\:hostname", isOpaque: false}, true, "", true},
+		{"15-2", args{input: "bad\\:hostname", isOpaque: true}, true, "", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := &parser{FailOnValidationError: tt.failOnValidationError}
 
-			got, err := p.parseHost(&Url{}, []byte(tt.args.input), tt.args.isNotSpecial)
+			got, err := p.parseHost(&Url{}, []byte(tt.args.input), tt.args.isOpaque)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("parseHost() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -73,26 +73,39 @@ func Test_parser_parseHost(t *testing.T) {
 	}
 }
 
-func TestContainsOnlyASCIIOrMiscAndNoPunycode(t *testing.T) {
+func TestParseHostCopyOnWriteAndReturnedStringOwnership(t *testing.T) {
 	tests := []struct {
-		Input  string
-		Output bool
+		name  string
+		input string
+		want  string
 	}{
-		{"abc", true},
-		{"xn--abc", false},
-		{"abcxn--", true},
-		{"abc.xn--", false},
-		{"xnabc--", true},
-		{"xn.--", true},
-		{"ab\u2260c", true},
-		{"ab\u2261c", false},
+		{name: "borrowed lowercase ASCII", input: "example.com", want: "example.com"},
+		{name: "copied mixed-case ASCII", input: "EXAMPLE.COM", want: "example.com"},
+		{name: "copied percent-encoded ASCII", input: "example%2Ecom", want: "example.com"},
+		{name: "borrowed IDN input", input: "faß.example", want: "xn--fa-hia.example"},
 	}
-	for _, tt := range tests {
-		t.Run(tt.Input, func(t *testing.T) {
-			got := containsOnlyASCIIOrMiscAndNoPunycode(tt.Input)
 
-			if got != tt.Output {
-				t.Errorf("containsOnlyASCIIOrMiscAndNoPunycode(%v) = '%v', want '%v'", tt.Input, got, tt.Output)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := []byte(tt.input)
+			original := append([]byte(nil), input...)
+
+			host, err := newDefaultParser().parseHost(&Url{}, input, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if host != tt.want {
+				t.Fatalf("parseHost(%q) = %q, want %q", tt.input, host, tt.want)
+			}
+			if string(input) != string(original) {
+				t.Fatalf("parseHost mutated input: got %q, want %q", input, original)
+			}
+
+			for i := range input {
+				input[i] = 'x'
+			}
+			if host != tt.want {
+				t.Fatalf("returned host changed with input buffer: got %q, want %q", host, tt.want)
 			}
 		})
 	}
@@ -246,13 +259,13 @@ func TestIsStrictASCIIValid(t *testing.T) {
 func TestIsStrictASCIIValid_MatchesIDNA(t *testing.T) {
 	check := func(t *testing.T, domain string) {
 		t.Helper()
-		if !asciiNoPunycodeLabels([]byte(domain)) {
+		if !isASCIIWithoutACEPrefix([]byte(domain)) {
 			return
 		}
-		_, err := strictDomainToASCII(domain)
+		_, err := domainParserToASCII(domain, true)
 		want := err == nil
 		if got := isStrictASCIIValid([]byte(domain)); got != want {
-			t.Fatalf("isStrictASCIIValid(%q) = %v, strictDomainToASCII error = %v", domain, got, err)
+			t.Fatalf("isStrictASCIIValid(%q) = %v, domainParserToASCII error = %v", domain, got, err)
 		}
 	}
 
@@ -280,7 +293,7 @@ func TestIsStrictASCIIValid_MatchesIDNA(t *testing.T) {
 	}
 }
 
-func TestStrictDomainToASCII_PreservesTrailingRootLabel(t *testing.T) {
+func TestDomainParserToASCII_PreservesTrailingRootLabel(t *testing.T) {
 	for _, tt := range []struct {
 		input string
 		want  string
@@ -291,12 +304,12 @@ func TestStrictDomainToASCII_PreservesTrailingRootLabel(t *testing.T) {
 		{"example\uff61", "example."},
 	} {
 		t.Run(tt.input, func(t *testing.T) {
-			got, err := strictDomainToASCII(tt.input)
+			got, err := domainParserToASCII(tt.input, true)
 			if err != nil {
-				t.Fatalf("strictDomainToASCII(%q) error = %v", tt.input, err)
+				t.Fatalf("domainParserToASCII(%q) error = %v", tt.input, err)
 			}
 			if got != tt.want {
-				t.Fatalf("strictDomainToASCII(%q) = %q, want %q", tt.input, got, tt.want)
+				t.Fatalf("domainParserToASCII(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}

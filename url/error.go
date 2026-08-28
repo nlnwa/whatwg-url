@@ -64,8 +64,13 @@ type ValidationError struct {
 	detail string
 }
 
+var validationErrorSentinels = make(map[*ValidationError]struct{}, 31)
+
+// validationError creates and registers a package-level sentinel template.
 func validationError(code ValidationErrorCode, detail string) *ValidationError {
-	return &ValidationError{code: code, detail: detail}
+	err := &ValidationError{code: code, detail: detail}
+	validationErrorSentinels[err] = struct{}{}
+	return err
 }
 
 func validationErrorWithCause(template *ValidationError, cause error) *ValidationError {
@@ -149,6 +154,11 @@ var (
 	ErrFileInvalidWindowsDriveLetterHost    = validationError(CodeFileInvalidWindowsDriveLetterHost, "a file: URL’s host is a Windows drive letter")
 )
 
+func isValidationErrorSentinel(err *ValidationError) bool {
+	_, ok := validationErrorSentinels[err]
+	return ok
+}
+
 // ErrParseFailure identifies every parser failure.
 var ErrParseFailure = errors.New("URL parse failure")
 
@@ -158,10 +168,10 @@ type ParseError struct {
 	validationErrors []*ValidationError
 }
 
-func newParseError(detail string, validationErrors ...*ValidationError) *ParseError {
+func newParseError(detail string, validationErrors []*ValidationError) *ParseError {
 	return &ParseError{
 		detail:           detail,
-		validationErrors: append([]*ValidationError(nil), validationErrors...),
+		validationErrors: validationErrors,
 	}
 }
 

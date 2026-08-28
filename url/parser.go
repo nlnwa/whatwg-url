@@ -1140,7 +1140,7 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 			// If c is not a URL code point and not U+0025 (%),
 			if !isURLCodePoint(r) && r != '%' {
 				// invalid-URL-unit validation error.
-				if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetail(ErrInvalidURLUnit, codePointDescription(r)), nil); err != nil {
+				if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetailForCodePoint(ErrInvalidURLUnit, r), nil); err != nil {
 					return nil, err
 				}
 			}
@@ -1183,7 +1183,7 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 			if r == ' ' {
 				// Record each internal opaque-path space before applying the
 				// opaque-path-specific space handling below.
-				if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetail(ErrInvalidURLUnit, codePointDescription(r)), nil); err != nil {
+				if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetailForCodePoint(ErrInvalidURLUnit, r), nil); err != nil {
 					return nil, err
 				}
 				// If remaining starts with U+003F (?) or U+003F (#),
@@ -1202,7 +1202,7 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 				// If c is not a URL code point and not U+0025 (%),
 				if !isURLCodePoint(r) && r != '%' {
 					// invalid-URL-unit validation error.
-					if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetail(ErrInvalidURLUnit, codePointDescription(r)), nil); err != nil {
+					if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetailForCodePoint(ErrInvalidURLUnit, r), nil); err != nil {
 						return nil, err
 					}
 				}
@@ -1273,7 +1273,7 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 				// If c is not a URL code point and not U+0025 (%),
 				if !isURLCodePoint(r) && r != '%' {
 					// invalid-URL-unit validation error.
-					if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetail(ErrInvalidURLUnit, codePointDescription(r)), nil); err != nil {
+					if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetailForCodePoint(ErrInvalidURLUnit, r), nil); err != nil {
 						return nil, err
 					}
 				}
@@ -1308,7 +1308,7 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 				// If c is not a URL code point and not U+0025 (%),
 				if !isURLCodePoint(r) && r != '%' {
 					// invalid-URL-unit validation error.
-					if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetail(ErrInvalidURLUnit, codePointDescription(r)), nil); err != nil {
+					if err := ctx.reportValidation(CodeInvalidURLUnit, validationDetailForCodePoint(ErrInvalidURLUnit, r), nil); err != nil {
 						return nil, err
 					}
 				}

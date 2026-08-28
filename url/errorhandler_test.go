@@ -86,6 +86,81 @@ func TestValidationError_UnwrapsGenuineCause(t *testing.T) {
 	}
 }
 
+func TestValidationDetailFormatting(t *testing.T) {
+	if got, want := validationDetailForCodePoint(ErrInvalidURLUnit, '^'), ErrInvalidURLUnit.Detail()+": U+005E ('^')"; got != want {
+		t.Fatalf("validationDetailForCodePoint() = %q, want %q", got, want)
+	}
+	if got, want := validationDetailForCodePoint(nil, '\n'), "U+000A ('\\n')"; got != want {
+		t.Fatalf("validationDetailForCodePoint(nil) = %q, want %q", got, want)
+	}
+	if got, want := validationDetailForInvalidUTF8Byte(ErrInvalidURLUnit, 0xff), ErrInvalidURLUnit.Detail()+": invalid UTF-8 byte 0xFF"; got != want {
+		t.Fatalf("validationDetailForInvalidUTF8Byte() = %q, want %q", got, want)
+	}
+}
+
+func TestReportValidationOccurrencePreservesOccurrencesAndClonesSentinels(t *testing.T) {
+	t.Run("materialized occurrence", func(t *testing.T) {
+		ctx := newParseContext(newDefaultParser())
+		occurrence := validationErrorWithCause(ErrDomainToASCII, errors.New("IDNA failed"))
+
+		if err := ctx.reportValidationOccurrence(occurrence); err != nil {
+			t.Fatal(err)
+		}
+		if got := ctx.validationErrors[0]; got != occurrence {
+			t.Fatal("reportValidationOccurrence replaced a materialized occurrence")
+		}
+	})
+
+	t.Run("package sentinel", func(t *testing.T) {
+		ctx := newParseContext(newDefaultParser())
+
+		if err := ctx.reportValidationOccurrence(ErrIPv6MultipleCompression); err != nil {
+			t.Fatal(err)
+		}
+		got := ctx.validationErrors[0]
+		if got == ErrIPv6MultipleCompression {
+			t.Fatal("reportValidationOccurrence stored a package-level sentinel")
+		}
+		if got.Code() != ErrIPv6MultipleCompression.Code() || got.Detail() != ErrIPv6MultipleCompression.Detail() {
+			t.Fatalf("cloned occurrence = %#v, want %v", got, ErrIPv6MultipleCompression)
+		}
+	})
+}
+
+func TestReturnFailureTransfersValidationLedger(t *testing.T) {
+	ctx := newParseContext(newDefaultParser())
+	if err := ctx.reportValidation(CodeInvalidURLUnit, ErrInvalidURLUnit.Detail(), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	parseErr := ctx.returnFailure("failed")
+	if &parseErr.validationErrors[0] != &ctx.validationErrors[0] {
+		t.Fatal("returnFailure copied the validation ledger")
+	}
+}
+
+func TestNormalizeFailureHandlesUnexpectedHelperErrors(t *testing.T) {
+	t.Run("raw error", func(t *testing.T) {
+		ctx := newParseContext(newDefaultParser())
+		parseErr := ctx.normalizeFailure(errors.New("helper failed"))
+		if got := parseErr.ValidationErrors(); len(got) != 0 {
+			t.Fatalf("raw helper error produced validation events: %v", got)
+		}
+	})
+
+	t.Run("wrapped validation error", func(t *testing.T) {
+		ctx := newParseContext(newDefaultParser())
+		parseErr := ctx.normalizeFailure(fmt.Errorf("helper failed: %w", ErrPortInvalid))
+		got := parseErr.ValidationErrors()
+		if len(got) != 1 || got[0].Code() != CodePortInvalid {
+			t.Fatalf("ValidationErrors() = %v, want one port-invalid occurrence", got)
+		}
+		if got[0] == ErrPortInvalid {
+			t.Fatal("normalizeFailure exposed a package-level sentinel")
+		}
+	})
+}
+
 func TestParseFailuresUseParseError(t *testing.T) {
 	p := NewParser()
 	bp := p.(BasicParsing)
@@ -124,8 +199,8 @@ func TestParseFailuresUseParseError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.call()
-			var parseErr *ParseError
-			if !errors.As(err, &parseErr) {
+			parseErr, ok := errors.AsType[*ParseError](err)
+			if !ok {
 				t.Fatalf("error = %T, want *ParseError", err)
 			}
 			if !errors.Is(err, ErrParseFailure) {
@@ -140,16 +215,16 @@ func TestParseFailuresUseParseError(t *testing.T) {
 
 func TestParseError_MultiUnwrapAndDefensiveValidationErrors(t *testing.T) {
 	_, err := Parse("https://example.org:7z")
-	var parseErr *ParseError
-	if !errors.As(err, &parseErr) {
+	parseErr, ok := errors.AsType[*ParseError](err)
+	if !ok {
 		t.Fatalf("error = %T, want *ParseError", err)
 	}
 	if !errors.Is(err, ErrParseFailure) || !errors.Is(err, ErrPortInvalid) {
 		t.Fatalf("error does not expose both failure and validation identities: %v", err)
 	}
-	var validationErr *ValidationError
-	if !errors.As(err, &validationErr) || validationErr.Code() != CodePortInvalid {
-		t.Fatalf("error does not expose its validation occurrence through errors.As: %v", err)
+	validationErr, ok := errors.AsType[*ValidationError](err)
+	if !ok || validationErr.Code() != CodePortInvalid {
+		t.Fatalf("error does not expose its validation occurrence through errors.AsType: %v", err)
 	}
 
 	errs := parseErr.ValidationErrors()
@@ -164,11 +239,24 @@ func TestParseError_MultiUnwrapAndDefensiveValidationErrors(t *testing.T) {
 	}
 }
 
+func TestPublicErrorsSupportTraditionalErrorsAs(t *testing.T) {
+	_, err := Parse("https://example.org:7z")
+
+	var parseErr *ParseError
+	if !errors.As(err, &parseErr) {
+		t.Fatalf("error = %T, want *ParseError", err)
+	}
+	var validationErr *ValidationError
+	if !errors.As(err, &validationErr) || validationErr.Code() != CodePortInvalid {
+		t.Fatalf("error does not expose its validation occurrence through errors.As: %v", err)
+	}
+}
+
 func TestParseError_IncludesValidationErrorWhenReportingIsDisabled(t *testing.T) {
 	p := NewParser(WithReportValidationErrors(false))
 	_, err := p.Parse("https://example.org:7z")
-	var parseErr *ParseError
-	if !errors.As(err, &parseErr) {
+	parseErr, ok := errors.AsType[*ParseError](err)
+	if !ok {
 		t.Fatalf("error = %T, want *ParseError", err)
 	}
 	if !errors.Is(parseErr, ErrPortInvalid) {
@@ -182,8 +270,8 @@ func TestParseError_IncludesValidationErrorWhenReportingIsDisabled(t *testing.T)
 func TestParseError_CanRepresentBareFailure(t *testing.T) {
 	p := NewParser().(BasicParsing)
 	_, err := p.BasicParse("1http", nil, newUrl(), StateSchemeStart)
-	var parseErr *ParseError
-	if !errors.As(err, &parseErr) {
+	parseErr, ok := errors.AsType[*ParseError](err)
+	if !ok {
 		t.Fatalf("error = %T, want *ParseError", err)
 	}
 	if got := parseErr.ValidationErrors(); len(got) != 0 {
@@ -272,8 +360,8 @@ func TestBasicParse_BareStateOverrideFailure(t *testing.T) {
 		t.Fatal("expected nil URL on parse failure")
 	}
 
-	var parseErr *ParseError
-	if !errors.As(err, &parseErr) {
+	parseErr, ok := errors.AsType[*ParseError](err)
+	if !ok {
 		t.Fatalf("expected ParseError, got %T", err)
 	}
 	if got := parseErr.ValidationErrors(); len(got) != 0 {
@@ -301,8 +389,8 @@ func TestParseError_ContainsAllEventsWhenReportingIsDisabled(t *testing.T) {
 			if u != nil {
 				t.Fatalf("Parse returned partial URL %q on failure", u)
 			}
-			var parseErr *ParseError
-			if !errors.As(err, &parseErr) {
+			parseErr, ok := errors.AsType[*ParseError](err)
+			if !ok {
 				t.Fatalf("error = %T, want *ParseError", err)
 			}
 			errs := parseErr.ValidationErrors()
@@ -333,8 +421,8 @@ func TestBasicParse_AppendsEventsToExistingURLOnFailure(t *testing.T) {
 	if len(urlErrors) != 1 || urlErrors[0].Code() != CodeInvalidURLUnit {
 		t.Fatalf("existing URL validation history = %v, want one invalid-URL-unit occurrence", urlErrors)
 	}
-	var parseErr *ParseError
-	if !errors.As(err, &parseErr) {
+	parseErr, ok := errors.AsType[*ParseError](err)
+	if !ok {
 		t.Fatalf("error = %T, want *ParseError", err)
 	}
 	failureErrors := parseErr.ValidationErrors()

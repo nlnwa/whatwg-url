@@ -52,8 +52,8 @@ func TestIPv4ValidationAndRangeFailures(t *testing.T) {
 		if err == nil || u != nil {
 			t.Fatalf("Parse() = (%v, %v), want nil URL and failure", u, err)
 		}
-		var parseErr *ParseError
-		if !errors.As(err, &parseErr) {
+		parseErr, ok := errors.AsType[*ParseError](err)
+		if !ok {
 			t.Fatalf("error = %T, want *ParseError", err)
 		}
 		requireValidationCodes(t, parseErr.ValidationErrors(), CodeIPv4OutOfRangePart)
@@ -64,8 +64,8 @@ func TestIPv4ValidationAndRangeFailures(t *testing.T) {
 		if err == nil || u != nil {
 			t.Fatalf("Parse() = (%v, %v), want nil URL and failure", u, err)
 		}
-		var parseErr *ParseError
-		if !errors.As(err, &parseErr) {
+		parseErr, ok := errors.AsType[*ParseError](err)
+		if !ok {
 			t.Fatalf("error = %T, want *ParseError", err)
 		}
 		requireValidationCodes(t, parseErr.ValidationErrors(), CodeIPv4TooFewParts, CodeIPv4OutOfRangePart)
@@ -89,8 +89,8 @@ func TestIPv6ClassificationsAndLeadingZeros(t *testing.T) {
 			if err == nil || u != nil {
 				t.Fatalf("Parse() = (%v, %v), want nil URL and failure", u, err)
 			}
-			var parseErr *ParseError
-			if !errors.As(err, &parseErr) {
+			parseErr, ok := errors.AsType[*ParseError](err)
+			if !ok {
 				t.Fatalf("error = %T, want *ParseError", err)
 			}
 			requireValidationCodes(t, parseErr.ValidationErrors(), tt.code)
@@ -124,6 +124,54 @@ func TestOpaquePathReportsEveryInternalSpace(t *testing.T) {
 	requireValidationCodes(t, u.ValidationErrors(), CodeInvalidURLUnit, CodeInvalidURLUnit)
 }
 
+func TestOpaqueHostFusedValidationOrdering(t *testing.T) {
+	tests := []struct {
+		name      string
+		input     string
+		wantCodes []ValidationErrorCode
+	}{
+		{
+			name:      "invalid URL unit before forbidden code point",
+			input:     "foo://{^/",
+			wantCodes: []ValidationErrorCode{CodeInvalidURLUnit, CodeHostInvalidCodePoint},
+		},
+		{
+			name:      "malformed percent before forbidden code point",
+			input:     "foo://%z^/",
+			wantCodes: []ValidationErrorCode{CodeInvalidURLUnit, CodeHostInvalidCodePoint},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			u, err := Parse(tt.input)
+			if err == nil || u != nil {
+				t.Fatalf("Parse(%q) = (%v, %v), want nil URL and failure", tt.input, u, err)
+			}
+			parseErr, ok := errors.AsType[*ParseError](err)
+			if !ok {
+				t.Fatalf("Parse(%q) error = %T, want *ParseError", tt.input, err)
+			}
+			requireValidationCodes(t, parseErr.ValidationErrors(), tt.wantCodes...)
+		})
+	}
+}
+
+func TestOpaqueHostFusedFailFastOrdering(t *testing.T) {
+	u, err := NewParser(WithFailOnValidationError()).Parse("foo://{^/")
+	if err == nil || u != nil {
+		t.Fatalf("Parse() = (%v, %v), want nil URL and failure", u, err)
+	}
+	parseErr, ok := errors.AsType[*ParseError](err)
+	if !ok {
+		t.Fatalf("Parse() error = %T, want *ParseError", err)
+	}
+	requireValidationCodes(t, parseErr.ValidationErrors(), CodeInvalidURLUnit)
+	if errors.Is(err, ErrHostInvalidCodePoint) {
+		t.Fatalf("fail-fast reached the later forbidden code point: %v", err)
+	}
+}
+
 func TestIDNAFailureHasOneOccurrenceWithCause(t *testing.T) {
 	for _, input := range []string{
 		"https://ä.\u200d.example/", // strict and relaxed conversion both fail
@@ -134,8 +182,8 @@ func TestIDNAFailureHasOneOccurrenceWithCause(t *testing.T) {
 			if err == nil || u != nil {
 				t.Fatalf("Parse() = (%v, %v), want nil URL and failure", u, err)
 			}
-			var parseErr *ParseError
-			if !errors.As(err, &parseErr) {
+			parseErr, ok := errors.AsType[*ParseError](err)
+			if !ok {
 				t.Fatalf("error = %T, want *ParseError", err)
 			}
 			verrs := parseErr.ValidationErrors()
@@ -152,8 +200,8 @@ func TestInvalidUTF8DomainFailsDuringDomainToASCII(t *testing.T) {
 	if err == nil || u != nil {
 		t.Fatalf("Parse() = (%v, %v), want nil URL and failure", u, err)
 	}
-	var parseErr *ParseError
-	if !errors.As(err, &parseErr) {
+	parseErr, ok := errors.AsType[*ParseError](err)
+	if !ok {
 		t.Fatalf("error = %T, want *ParseError", err)
 	}
 	requireValidationCodes(
@@ -169,8 +217,8 @@ func TestEmptyIDNAOutputIsBareFailure(t *testing.T) {
 	if err == nil || u != nil {
 		t.Fatalf("Parse() = (%v, %v), want nil URL and failure", u, err)
 	}
-	var parseErr *ParseError
-	if !errors.As(err, &parseErr) {
+	parseErr, ok := errors.AsType[*ParseError](err)
+	if !ok {
 		t.Fatalf("error = %T, want *ParseError", err)
 	}
 	// Strict processing still reports its one standard occurrence. The empty
@@ -221,8 +269,8 @@ func TestStateOverrideFailuresAreBare(t *testing.T) {
 			if err == nil || got != nil {
 				t.Fatalf("BasicParse() = (%v, %v), want nil URL and failure", got, err)
 			}
-			var parseErr *ParseError
-			if !errors.As(err, &parseErr) {
+			parseErr, ok := errors.AsType[*ParseError](err)
+			if !ok {
 				t.Fatalf("error = %T, want *ParseError", err)
 			}
 			if len(parseErr.ValidationErrors()) != 0 {

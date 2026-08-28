@@ -50,8 +50,8 @@ func TestValidationPolicy_FailOnFirstOccurrence(t *testing.T) {
 	if u != nil {
 		t.Fatalf("Parse() URL = %q, want nil", u)
 	}
-	var parseErr *ParseError
-	if !errors.As(err, &parseErr) {
+	parseErr, ok := errors.AsType[*ParseError](err)
+	if !ok {
 		t.Fatalf("Parse() error = %T, want *ParseError", err)
 	}
 	requireValidationCodes(t, parseErr.ValidationErrors(), CodeInvalidURLUnit)
@@ -132,8 +132,8 @@ func TestValidationPolicy_ExtensionPrecedence(t *testing.T) {
 					if u != nil {
 						t.Fatalf("Parse() URL = %q, want nil", u)
 					}
-					var parseErr *ParseError
-					if !errors.As(err, &parseErr) {
+					parseErr, ok := errors.AsType[*ParseError](err)
+					if !ok {
 						t.Fatalf("Parse() error = %T, want *ParseError", err)
 					}
 					requireValidationCodes(t, parseErr.ValidationErrors(), tt.wantCode)
@@ -203,8 +203,8 @@ func TestValidationPolicy_CrossProduct(t *testing.T) {
 			if u != nil {
 				t.Fatalf("Parse() URL = %q, want nil", u)
 			}
-			var parseErr *ParseError
-			if !errors.As(err, &parseErr) {
+			parseErr, ok := errors.AsType[*ParseError](err)
+			if !ok {
 				t.Fatalf("Parse() error = %T, want *ParseError", err)
 			}
 			requireValidationCodes(t, parseErr.ValidationErrors(), tt.wantCodes...)
@@ -239,8 +239,8 @@ func TestValidationPolicy_FailFastBeforeDomainRecovery(t *testing.T) {
 			if u != nil {
 				t.Fatalf("Parse() URL = %q, want nil", u)
 			}
-			var parseErr *ParseError
-			if !errors.As(err, &parseErr) {
+			parseErr, ok := errors.AsType[*ParseError](err)
+			if !ok {
 				t.Fatalf("Parse() error = %T, want *ParseError", err)
 			}
 			requireValidationCodes(t, parseErr.ValidationErrors(), tt.code)

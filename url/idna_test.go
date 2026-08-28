@@ -98,7 +98,7 @@ func TestIdnaV2(t *testing.T) {
 
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("%03d: %s", i, tt.Comment), func(t *testing.T) {
-			got, err := domainToASCII(tt.Input, false)
+			got, _, err := domainParser(tt.Input, false)
 			wantErr := tt.Output == nil
 			if wantErr && err != nil {
 				t.Logf("ToASCII(%v), got an expected error: %v", tt.Input, err)

@@ -21,16 +21,18 @@ import (
 	"fmt"
 )
 
-func codePointDescription(r rune) string {
-	return fmt.Sprintf("U+%04X (%q)", r, r)
+func validationDetailForCodePoint(template *ValidationError, r rune) string {
+	if template == nil {
+		return fmt.Sprintf("U+%04X (%q)", r, r)
+	}
+	return fmt.Sprintf("%s: U+%04X (%q)", template.Detail(), r, r)
 }
 
-func byteCodePointDescription(b byte) string {
-	return codePointDescription(rune(b))
-}
-
-func invalidUTF8ByteDescription(b byte) string {
-	return fmt.Sprintf("invalid UTF-8 byte 0x%02X", b)
+func validationDetailForInvalidUTF8Byte(template *ValidationError, b byte) string {
+	if template == nil {
+		return fmt.Sprintf("invalid UTF-8 byte 0x%02X", b)
+	}
+	return fmt.Sprintf("%s: invalid UTF-8 byte 0x%02X", template.Detail(), b)
 }
 
 func validationDetail(template *ValidationError, context string) string {
@@ -60,6 +62,30 @@ func newParseContext(p *parser) *parseContext {
 // not determine which standard parser steps return failure.
 func (c *parseContext) reportValidation(code ValidationErrorCode, detail string, cause error) error {
 	occurrence := &ValidationError{code: code, detail: detail, cause: cause}
+	if failure := c.recordValidationOccurrence(occurrence); failure != nil {
+		return failure
+	}
+	return nil
+}
+
+// reportValidationOccurrence records an already-materialized validation
+// occurrence without replacing it. Package-level sentinels are templates, not
+// parse occurrences, so clone them before adding them to the event ledger.
+func (c *parseContext) reportValidationOccurrence(occurrence *ValidationError) *ParseError {
+	if occurrence == nil {
+		return nil
+	}
+	if isValidationErrorSentinel(occurrence) {
+		occurrence = &ValidationError{
+			code:   occurrence.code,
+			detail: occurrence.detail,
+			cause:  occurrence.cause,
+		}
+	}
+	return c.recordValidationOccurrence(occurrence)
+}
+
+func (c *parseContext) recordValidationOccurrence(occurrence *ValidationError) *ParseError {
 	c.validationErrors = append(c.validationErrors, occurrence)
 	if c.FailOnValidationError {
 		return c.returnFailure(occurrence.Error())
@@ -70,7 +96,7 @@ func (c *parseContext) reportValidation(code ValidationErrorCode, detail string,
 // returnFailure represents a specification "return failure" step without
 // inventing a validation category. Previously reported events are included.
 func (c *parseContext) returnFailure(detail string) *ParseError {
-	return newParseError(detail, c.validationErrors...)
+	return newParseError(detail, c.validationErrors)
 }
 
 func (c *parseContext) attachValidationErrors(u *Url) {
@@ -87,13 +113,13 @@ func (c *parseContext) normalizeFailure(err error) *ParseError {
 	if err == nil {
 		return nil
 	}
-	var parseErr *ParseError
-	if errors.As(err, &parseErr) {
+	if parseErr, ok := errors.AsType[*ParseError](err); ok {
 		return parseErr
 	}
-	var validationErr *ValidationError
-	if errors.As(err, &validationErr) {
-		_ = c.reportValidation(validationErr.Code(), validationErr.Detail(), validationErr.Unwrap())
+	if validationErr, ok := errors.AsType[*ValidationError](err); ok {
+		if failure := c.reportValidationOccurrence(validationErr); failure != nil {
+			return failure
+		}
 	}
 	return c.returnFailure(err.Error())
 }
