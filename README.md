@@ -9,7 +9,7 @@ whatwg-url is a spec-compliant URL parser written in Go. See [WHATWG](https://ur
 
 ## Status
 
-Whatwg-url parser is up to date as of [16 January 2026](https://github.com/web-platform-tests/wpt/tree/b200561bc63dc0951a6df7d11fc333c71cb68e36) and passes all relevant tests from [web-platform-tests](https://github.com/web-platform-tests/wpt/tree/master/url).
+Whatwg-url parser is up to date as of [19 september 2026](https://github.com/web-platform-tests/wpt/tree/c48d58747e1f211527fb695fd60548a997fae617) and passes all relevant tests from [web-platform-tests](https://github.com/web-platform-tests/wpt/tree/master/url).
 
 ## Upgrading from v0.6.2
 
