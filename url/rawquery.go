@@ -27,9 +27,8 @@ type RawQuery []RawQueryParameter
 // ParseRawQuery parses a serialized query without a leading '?'. It splits on
 // '&' and the first '=' only, retaining empty terms and exact byte spelling.
 func ParseRawQuery(raw string) RawQuery {
-	terms := strings.Split(raw, "&")
-	query := make(RawQuery, 0, len(terms))
-	for _, term := range terms {
+	query := make(RawQuery, 0, strings.Count(raw, "&")+1)
+	for term := range strings.SplitSeq(raw, "&") {
 		name, value, hasEquals := strings.Cut(term, "=")
 		query = append(query, RawQueryParameter{
 			Name:      name,
