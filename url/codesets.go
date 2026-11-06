@@ -127,7 +127,10 @@ var UserInfoPercentEncodeSet = PathPercentEncodeSet.Set(0x2f, 0x3a, 0x3b, 0x3d, 
 var HostPercentEncodeSet *PercentEncodeSet
 
 var ComponentPercentEncodeSet = UserInfoPercentEncodeSet.Set(0x24, 0x25, 0x26, 0x2B, 0x2C)
-var FormPercentEncodeSet = QueryPercentEncodeSet.Set(0x21, 0x27, 0x28, 0x29, 0x7E)
+
+// FormPercentEncodeSet extends the component percent-encode set with !, ', (, ), and ~.
+// https://url.spec.whatwg.org/#application-x-www-form-urlencoded-percent-encode-set
+var FormPercentEncodeSet = ComponentPercentEncodeSet.Set(0x21, 0x27, 0x28, 0x29, 0x7E)
 
 var LaxPathPercentEncodeSet = PathPercentEncodeSet.Clear(0x2e, 0x3c, 0x3e, 0x5e)
 var LaxQueryPercentEncodeSet = QueryPercentEncodeSet.Clear(0x22, 0x25, 0x2f, 0x3b, 0x3f, 0x7b)
