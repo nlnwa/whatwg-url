@@ -18,8 +18,10 @@ package url
 
 import (
 	"iter"
+	"slices"
 	"sort"
 	"strings"
+	"unicode/utf16"
 
 	"golang.org/x/text/encoding/unicode"
 )
@@ -173,20 +175,25 @@ func (s *params) Set(name, value string) {
 	}
 }
 
-// Sort sorts the search parameters by name.
+// Sort stably sorts names by UTF-16 code units, as required by WHATWG.
+// https://url.spec.whatwg.org/#dom-urlsearchparams-sort
 func (s *params) Sort() {
 	sort.SliceStable(*s, func(i, j int) bool {
-		return (*s)[i].Name < (*s)[j].Name
+		return compareUTF16((*s)[i].Name, (*s)[j].Name) < 0
 	})
 }
 
-// SortAbsolute sorts the search parameters by name and value.
+func compareUTF16(a, b string) int {
+	return slices.Compare(utf16.Encode([]rune(a)), utf16.Encode([]rune(b)))
+}
+
+// SortAbsolute stably sorts names and then values by UTF-16 code units.
 func (s *params) SortAbsolute() {
 	sort.SliceStable(*s, func(i, j int) bool {
-		if (*s)[i].Name != (*s)[j].Name {
-			return (*s)[i].Name < (*s)[j].Name
+		if order := compareUTF16((*s)[i].Name, (*s)[j].Name); order != 0 {
+			return order < 0
 		}
-		return (*s)[i].Value < (*s)[j].Value
+		return compareUTF16((*s)[i].Value, (*s)[j].Value) < 0
 	})
 }
 
@@ -240,15 +247,20 @@ func (p *SearchParams) Set(name, value string) {
 	p.markDirty()
 }
 
-// Sort stably sorts the decoded form parameters by name and synchronizes the
-// URL using application/x-www-form-urlencoded serialization.
+// Sort stably sorts the decoded form parameters by name in UTF-16 code-unit
+// order and synchronizes the URL using application/x-www-form-urlencoded
+// serialization. Entries with equal names retain their relative order.
+// https://url.spec.whatwg.org/#dom-urlsearchparams-sort
 func (p *SearchParams) Sort() {
 	p.values.Sort()
 	p.markDirty()
 }
 
-// SortAbsolute stably sorts the decoded form parameters by name and value and
-// synchronizes the URL using application/x-www-form-urlencoded serialization.
+// SortAbsolute stably sorts the decoded form parameters by name, then by value,
+// using UTF-16 code-unit order for both. It synchronizes the URL using
+// application/x-www-form-urlencoded serialization. This extension uses the
+// same name ordering as WHATWG Sort and additionally orders equal-name values.
+// https://url.spec.whatwg.org/#dom-urlsearchparams-sort
 func (p *SearchParams) SortAbsolute() {
 	p.values.SortAbsolute()
 	p.markDirty()
