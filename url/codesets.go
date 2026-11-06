@@ -162,9 +162,10 @@ func init() {
 		urlCodePointASCII[b] = true
 	}
 
-	// "someURLCodePoints" set:
+	// ASCII punctuation included in the WHATWG URL code points.
+	// https://url.spec.whatwg.org/#url-code-points
 	for _, b := range []byte{
-		'$', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/', ':', ';', '=',
+		'!', '$', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/', ':', ';', '=',
 		'?', '@', '_', '~',
 	} {
 		urlCodePointASCII[b] = true
