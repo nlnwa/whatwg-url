@@ -20,6 +20,8 @@ import (
 	"iter"
 	"sort"
 	"strings"
+
+	"golang.org/x/text/encoding/unicode"
 )
 
 type NameValuePair struct {
@@ -28,9 +30,10 @@ type NameValuePair struct {
 
 type params []NameValuePair
 
-// https://url.spec.whatwg.org/#urlencoded-parsing
+// https://url.spec.whatwg.org/#concept-urlencoded-parser
 func (s *params) Init(query string) {
 	*s = (*s)[:0]
+	decoder := unicode.UTF8.NewDecoder()
 	for q := range strings.SplitSeq(query, "&") {
 		if q == "" {
 			continue
@@ -45,6 +48,12 @@ func (s *params) Init(query string) {
 			value = strings.ReplaceAll(value, "+", " ")
 			value = percentDecode(value, nil)
 		}
+
+		// UTF-8 decode without BOM handling preserves a leading U+FEFF.
+		// This decoder replaces malformed sequences with U+FFFD and cannot fail.
+		// https://encoding.spec.whatwg.org/#utf-8-decode-without-bom
+		name, _ = decoder.String(name)
+		value, _ = decoder.String(value)
 
 		*s = append(*s, NameValuePair{Name: name, Value: value})
 	}
@@ -192,7 +201,8 @@ func (v *params) Values() iter.Seq[*NameValuePair] {
 }
 
 // SearchParams represents a query as application/x-www-form-urlencoded data.
-// Parsing decodes percent escapes, converts '+' to space, drops empty terms,
+// Parsing converts '+' to space, percent-decodes and UTF-8 decodes names and
+// values (replacing malformed UTF-8 with U+FFFD), drops empty terms,
 // and loses the distinction between a bare term ("flag") and an empty value
 // ("flag="). Every mutation serializes the query as form data.
 //
