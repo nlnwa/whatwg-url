@@ -46,7 +46,7 @@ type setterTestCollection struct {
 func TestUrl_SetProtocol(t *testing.T) {
 	var tests setterTestCollection
 
-	jsonFile, err := os.Open("../testdata/setters_tests.json")
+	jsonFile, err := os.Open("../testdata/wpt-url/setters_tests.json")
 	if err != nil {
 		t.Error(err)
 	}
@@ -74,7 +74,7 @@ func TestUrl_SetProtocol(t *testing.T) {
 func TestUrl_SetUsername(t *testing.T) {
 	var tests setterTestCollection
 
-	jsonFile, err := os.Open("../testdata/setters_tests.json")
+	jsonFile, err := os.Open("../testdata/wpt-url/setters_tests.json")
 	if err != nil {
 		t.Error(err)
 	}
@@ -98,7 +98,7 @@ func TestUrl_SetUsername(t *testing.T) {
 func TestUrl_SetPassword(t *testing.T) {
 	var tests setterTestCollection
 
-	jsonFile, err := os.Open("../testdata/setters_tests.json")
+	jsonFile, err := os.Open("../testdata/wpt-url/setters_tests.json")
 	if err != nil {
 		t.Error(err)
 	}
@@ -122,7 +122,7 @@ func TestUrl_SetPassword(t *testing.T) {
 func TestUrl_SetHost(t *testing.T) {
 	var tests setterTestCollection
 
-	jsonFile, err := os.Open("../testdata/setters_tests.json")
+	jsonFile, err := os.Open("../testdata/wpt-url/setters_tests.json")
 	if err != nil {
 		t.Error(err)
 	}
@@ -145,7 +145,7 @@ func TestUrl_SetHost(t *testing.T) {
 func TestUrl_SetHostname(t *testing.T) {
 	var tests setterTestCollection
 
-	jsonFile, err := os.Open("../testdata/setters_tests.json")
+	jsonFile, err := os.Open("../testdata/wpt-url/setters_tests.json")
 	if err != nil {
 		t.Error(err)
 	}
@@ -169,7 +169,7 @@ func TestUrl_SetHostname(t *testing.T) {
 func TestUrl_SetPort(t *testing.T) {
 	var tests setterTestCollection
 
-	jsonFile, err := os.Open("../testdata/setters_tests.json")
+	jsonFile, err := os.Open("../testdata/wpt-url/setters_tests.json")
 	if err != nil {
 		t.Error(err)
 	}
@@ -193,7 +193,7 @@ func TestUrl_SetPort(t *testing.T) {
 func TestUrl_SetPathname(t *testing.T) {
 	var tests setterTestCollection
 
-	jsonFile, err := os.Open("../testdata/setters_tests.json")
+	jsonFile, err := os.Open("../testdata/wpt-url/setters_tests.json")
 	if err != nil {
 		t.Error(err)
 	}
@@ -221,7 +221,7 @@ func TestUrl_SetPathname(t *testing.T) {
 func TestUrl_SetSearch(t *testing.T) {
 	var tests setterTestCollection
 
-	jsonFile, err := os.Open("../testdata/setters_tests.json")
+	jsonFile, err := os.Open("../testdata/wpt-url/setters_tests.json")
 	if err != nil {
 		t.Error(err)
 	}
@@ -245,7 +245,7 @@ func TestUrl_SetSearch(t *testing.T) {
 func TestUrl_SetHash(t *testing.T) {
 	var tests setterTestCollection
 
-	jsonFile, err := os.Open("../testdata/setters_tests.json")
+	jsonFile, err := os.Open("../testdata/wpt-url/setters_tests.json")
 	if err != nil {
 		t.Error(err)
 	}

@@ -31,7 +31,7 @@ var testParser = newDefaultParser()
 var benchmarkURLSink *Url
 var benchmarkPathStringSink string
 
-const urlTestData = "../testdata/urltestdata.json"
+const urlTestData = "../testdata/wpt-url/urltestdata.json"
 
 type urlTest struct {
 	Input    string

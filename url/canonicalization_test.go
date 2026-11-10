@@ -16,6 +16,12 @@ func TestPercentDecode(t *testing.T) {
 		{"plus is literal", "a+b", "a+b"},
 		{"malformed", "%2%GG%", "%2%GG%"},
 		{"one pass only", "%2525", "%25"},
+		{"legacy bytes", "%00%FC%ff", "\x00\xfc\xff"},
+		{"mixed UTF8 and legacy bytes", "%C3%BC%FC", "ü\xfc"},
+		{"existing replacement", "%EF%BF%BD", "\ufffd"},
+		{"truncated UTF8", "%E2%82", "\xe2\x82"},
+		{"nested legacy escape", "%25FC", "%FC"},
+		{"encoded plus", "a+b%2B", "a+b+"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -181,5 +187,86 @@ func TestRewriteQuerySynchronizesSearchParamsIdentity(t *testing.T) {
 	}
 	if !params.Has("flag") || params.Get("space") != " " {
 		t.Fatalf("synchronized params = %q", params.String())
+	}
+}
+
+func TestRewriteComponentsPreserveNonUTF8Bytes(t *testing.T) {
+	check := func(name, input, want string, opaque bool) {
+		t.Helper()
+		t.Run(name, func(t *testing.T) {
+			u, err := Parse(input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if u.String() != want || u.OpaquePath() != opaque {
+				t.Fatalf("parsed URL = %q, opaque=%v; want %q, opaque=%v", u, u.OpaquePath(), want, opaque)
+			}
+			clone := u.Clone()
+			params := u.SearchParams()
+			_ = params.String() // Reading the form view must not rewrite the query.
+			u.RewritePathname(func(_ *Url, raw string) string { return raw })
+			u.RewriteQuery(func(_ *Url, raw string, present bool) (string, bool) { return raw, present })
+			if u.String() != want || u.OpaquePath() != opaque || u.SearchParams() != params || clone.String() != want {
+				t.Fatalf("identity rewrites changed URL, path kind, SearchParams identity, or clone: %q", u)
+			}
+			reparsed, err := Parse(u.String())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if reparsed.String() != want || reparsed.OpaquePath() != opaque {
+				t.Fatalf("reparse = %q, opaque=%v; want %q, opaque=%v", reparsed, reparsed.OpaquePath(), want, opaque)
+			}
+		})
+	}
+	for _, tc := range []struct{ name, input string }{
+		{"legacy fields", "/%FC?%FC=%FC"},
+		{"escaped delimiters", "/%FC%2F%5C%3F%23?a%26b=c%3Dd%26%23%3F%2F"},
+		{"literal plus", "/a+b%2Bc?q=a+b%2Bc"},
+		{"allowed punctuation", "/%FC;$&=:@,?q=%FC;$:@,/?"},
+		{"escaped punctuation", "/%FC%3B%24%26%3D%3A%40%2C?q=%FC%3B%24%3A%40%2C%2F%3F"},
+		{"escaped query names", "/%FC?a%26b%3Dc=%FC"},
+		{"nested percent", "/%25FC?q=%25FC&deep=%2525FC"},
+		{"query structure", "/%FC?&q=%FC&q=%FD&&flag&empty=&=v&"},
+		{"absent query", "/%FC"},
+		{"present empty query", "/%FC?"},
+		{"fragment", "/%FC?q=%FC#%FC"},
+		{"malformed escapes", "/%FC%GG%?q=%FC%2"},
+		{"ASCII spelling", "/%fc%2f%7f?q=%00%09%20%25%2b%26%3d+"},
+		{"different path and query sets", "/%FC%22%3C%3E%3F%5E%60%7B%7D?q=%FC%22%3C%3E%3F%5E%60%7B%7D"},
+	} {
+		input := "https://example.org" + tc.input
+		check(tc.name, input, input, false)
+	}
+	// The scheme determines backslash handling and special-query escaping.
+	check("special URL", "https://example.org/%FC'\\x?q=%FC'", "https://example.org/%FC'/x?q=%FC%27", false)
+	input := "custom://example.org/%FC'\\x%5Cy%2Fz?q=%FC'%27%5C"
+	check("non-special hierarchical URL", input, input, false)
+	input = "custom:%FC/%2f?q=%FD+%2B#%FE"
+	check("opaque path", input, input, true)
+	input = "https://user%FC:pass%FD@example.org:8443/%FC?q=%FC#%FE"
+	check("other components", input, input, false)
+}
+
+func TestPercentHelpersPreserveAllBytes(t *testing.T) {
+	input := make([]byte, 256)
+	for i := range input {
+		input[i] = byte(i)
+	}
+	set := NewPercentEncodeSet(0x20, ' ', '#', '%')
+	encoded := PercentEncode(input, set)
+	if got := PercentDecode(encoded); got != string(input) {
+		t.Fatalf("decoded bytes = %x, want %x", got, input)
+	}
+	if got := PercentDecodeRepeated(PercentEncode(input, nil)); got != string(input) {
+		t.Fatalf("repeatedly decoded bytes = %x, want %x", got, input)
+	}
+	for _, test := range []struct{ input, want string }{
+		{"%25FC", "\xfc"},
+		{"%2525FD", "\xfd"},
+		{"%FC%00+%GG%2%", "\xfc\x00+%GG%2%"},
+	} {
+		if got := PercentDecodeRepeated(test.input); got != test.want {
+			t.Errorf("PercentDecodeRepeated(%q) = %q, want %q", test.input, got, test.want)
+		}
 	}
 }

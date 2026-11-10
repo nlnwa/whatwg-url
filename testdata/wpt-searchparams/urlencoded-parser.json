@@ -1,0 +1,351 @@
+[
+  {
+    "input": "test",
+    "output": [
+      [
+        "test",
+        ""
+      ]
+    ]
+  },
+  {
+    "input": "﻿test=﻿",
+    "output": [
+      [
+        "﻿test",
+        "﻿"
+      ]
+    ]
+  },
+  {
+    "input": "%EF%BB%BFtest=%EF%BB%BF",
+    "output": [
+      [
+        "﻿test",
+        "﻿"
+      ]
+    ]
+  },
+  {
+    "input": "%EF%BF%BF=%EF%BF%BF",
+    "output": [
+      [
+        "￿",
+        "￿"
+      ]
+    ]
+  },
+  {
+    "input": "%FE%FF",
+    "output": [
+      [
+        "��",
+        ""
+      ]
+    ]
+  },
+  {
+    "input": "%FF%FE",
+    "output": [
+      [
+        "��",
+        ""
+      ]
+    ]
+  },
+  {
+    "input": "†&†=x",
+    "output": [
+      [
+        "†",
+        ""
+      ],
+      [
+        "†",
+        "x"
+      ]
+    ]
+  },
+  {
+    "input": "%C2",
+    "output": [
+      [
+        "�",
+        ""
+      ]
+    ]
+  },
+  {
+    "input": "%C2x",
+    "output": [
+      [
+        "�x",
+        ""
+      ]
+    ]
+  },
+  {
+    "input": "_charset_=windows-1252&test=%C2x",
+    "output": [
+      [
+        "_charset_",
+        "windows-1252"
+      ],
+      [
+        "test",
+        "�x"
+      ]
+    ]
+  },
+  {
+    "input": "",
+    "output": []
+  },
+  {
+    "input": "a",
+    "output": [
+      [
+        "a",
+        ""
+      ]
+    ]
+  },
+  {
+    "input": "a=b",
+    "output": [
+      [
+        "a",
+        "b"
+      ]
+    ]
+  },
+  {
+    "input": "a=",
+    "output": [
+      [
+        "a",
+        ""
+      ]
+    ]
+  },
+  {
+    "input": "=b",
+    "output": [
+      [
+        "",
+        "b"
+      ]
+    ]
+  },
+  {
+    "input": "&",
+    "output": []
+  },
+  {
+    "input": "&a",
+    "output": [
+      [
+        "a",
+        ""
+      ]
+    ]
+  },
+  {
+    "input": "a&",
+    "output": [
+      [
+        "a",
+        ""
+      ]
+    ]
+  },
+  {
+    "input": "a&a",
+    "output": [
+      [
+        "a",
+        ""
+      ],
+      [
+        "a",
+        ""
+      ]
+    ]
+  },
+  {
+    "input": "a&b&c",
+    "output": [
+      [
+        "a",
+        ""
+      ],
+      [
+        "b",
+        ""
+      ],
+      [
+        "c",
+        ""
+      ]
+    ]
+  },
+  {
+    "input": "a=b&c=d",
+    "output": [
+      [
+        "a",
+        "b"
+      ],
+      [
+        "c",
+        "d"
+      ]
+    ]
+  },
+  {
+    "input": "a=b&c=d&",
+    "output": [
+      [
+        "a",
+        "b"
+      ],
+      [
+        "c",
+        "d"
+      ]
+    ]
+  },
+  {
+    "input": "&&&a=b&&&&c=d&",
+    "output": [
+      [
+        "a",
+        "b"
+      ],
+      [
+        "c",
+        "d"
+      ]
+    ]
+  },
+  {
+    "input": "a=a&a=b&a=c",
+    "output": [
+      [
+        "a",
+        "a"
+      ],
+      [
+        "a",
+        "b"
+      ],
+      [
+        "a",
+        "c"
+      ]
+    ]
+  },
+  {
+    "input": "a==a",
+    "output": [
+      [
+        "a",
+        "=a"
+      ]
+    ]
+  },
+  {
+    "input": "a=a+b+c+d",
+    "output": [
+      [
+        "a",
+        "a b c d"
+      ]
+    ]
+  },
+  {
+    "input": "%=a",
+    "output": [
+      [
+        "%",
+        "a"
+      ]
+    ]
+  },
+  {
+    "input": "%a=a",
+    "output": [
+      [
+        "%a",
+        "a"
+      ]
+    ]
+  },
+  {
+    "input": "%a_=a",
+    "output": [
+      [
+        "%a_",
+        "a"
+      ]
+    ]
+  },
+  {
+    "input": "%61=a",
+    "output": [
+      [
+        "a",
+        "a"
+      ]
+    ]
+  },
+  {
+    "input": "%61+%4d%4D=",
+    "output": [
+      [
+        "a MM",
+        ""
+      ]
+    ]
+  },
+  {
+    "input": "id=0&value=%",
+    "output": [
+      [
+        "id",
+        "0"
+      ],
+      [
+        "value",
+        "%"
+      ]
+    ]
+  },
+  {
+    "input": "b=%2sf%2a",
+    "output": [
+      [
+        "b",
+        "%2sf*"
+      ]
+    ]
+  },
+  {
+    "input": "b=%2%2af%2a",
+    "output": [
+      [
+        "b",
+        "%2*f*"
+      ]
+    ]
+  },
+  {
+    "input": "b=%%2a",
+    "output": [
+      [
+        "b",
+        "%*"
+      ]
+    ]
+  }
+]

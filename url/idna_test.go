@@ -38,10 +38,10 @@ func loadIdnaTestData(filename string) ([]idnaTest, error) {
 	return tests[:n], nil
 }
 
-// TestToASCII tests the ToASCII function using the test cases in testdata/toascii.json.
+// TestToASCII tests the ToASCII function using the test cases in testdata/wpt-url/toascii.json.
 // The test cases are copied from the WHATWG URL Standard test suite.
 func TestToASCII(t *testing.T) {
-	tests, err := loadIdnaTestData("../testdata/toascii.json")
+	tests, err := loadIdnaTestData("../testdata/wpt-url/toascii.json")
 	if err != nil {
 		t.Fatalf("Failed to load test data: %v", err)
 	}
@@ -88,10 +88,10 @@ func TestToASCII(t *testing.T) {
 	}
 }
 
-// TestIdna tests the ToASCII function using the test cases in testdata/IdnaTestV2.json.
+// TestIdna tests the ToASCII function using the test cases in testdata/wpt-url/IdnaTestV2.json.
 // The test cases are copied from the WHATWG URL Standard test suite.
 func TestIdnaV2(t *testing.T) {
-	tests, err := loadIdnaTestData("../testdata/IdnaTestV2.json")
+	tests, err := loadIdnaTestData("../testdata/wpt-url/IdnaTestV2.json")
 	if err != nil {
 		t.Fatalf("Failed to load test data: %v", err)
 	}

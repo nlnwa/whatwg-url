@@ -120,3 +120,25 @@ func TestInternetArchiveDocumentedQueryOrdering(t *testing.T) {
 		t.Fatalf("String() = %q, want %q", got, want)
 	}
 }
+
+// The four data pairs from internetarchive/surt PR #30 at head revision
+// 9a6717a64e374c4690cf6e28ae7d3504b3bda6cc:
+// https://github.com/internetarchive/surt/pull/30
+func TestUpstreamSURTNonUTF8Compatibility(t *testing.T) {
+	for _, test := range []struct{ input, want string }{
+		{"http://example.com/city-of-M%C3%BCnchen.html", "com,example)/city-of-m%c3%bcnchen.html"},
+		{"http://example.com/city-of-M%FCnchen.html", "com,example)/city-of-m%fcnchen.html"},
+		{"http://www.aluroba.com/tags/%C3%CE%CA%C7%D1%E5%C7.htm", "com,aluroba)/tags/%c3%ce%ca%c7%d1%e5%c7.htm"},
+		{"https://1kr.ua/newslist.html?tag=%E4%EE%F8%EA%EE%EB%FC%ED%EE%E5", "ua,1kr)/newslist.html?tag=%e4%ee%f8%ea%ee%eb%fc%ed%ee%e5"},
+	} {
+		t.Run(test.input, func(t *testing.T) {
+			got, err := String(test.input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != test.want {
+				t.Fatalf("String(%q) = %q, want %q", test.input, got, test.want)
+			}
+		})
+	}
+}

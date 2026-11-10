@@ -14,6 +14,8 @@ func TestRawQueryRoundTrip(t *testing.T) {
 		"a=b=c",
 		"&&a=1&&",
 		"?literal-leading-question",
+		"&&%FC=%FD&flag&empty=&a+b=%2B&%FC=%FE&",
+		"x=%GG%2%&nested=%2525FD",
 	}
 	for _, raw := range tests {
 		if got := ParseRawQuery(raw).String(); got != raw {
@@ -48,5 +50,17 @@ func TestRawQueryFilter(t *testing.T) {
 	}
 	if !slices.Equal(seen, ParseRawQuery("keep=1&&drop=2&flag&keep=3")) {
 		t.Fatalf("Filter callback saw %#v", seen)
+	}
+}
+
+func TestRawQuerySortPreservesNonUTF8Bytes(t *testing.T) {
+	query := ParseRawQuery("b=%FC&a=%FF&a=%FE&flag&empty=&")
+	query.Sort()
+	if got, want := query.String(), "&a=%FF&a=%FE&b=%FC&empty=&flag"; got != want {
+		t.Fatalf("Sort() = %q, want %q", got, want)
+	}
+	query.SortAbsolute()
+	if got, want := query.String(), "&a=%FE&a=%FF&b=%FC&empty=&flag"; got != want {
+		t.Fatalf("SortAbsolute() = %q, want %q", got, want)
 	}
 }

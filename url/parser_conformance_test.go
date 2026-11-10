@@ -279,3 +279,83 @@ func TestStateOverrideFailuresAreBare(t *testing.T) {
 		})
 	}
 }
+
+func TestParsePreservesNonUTF8Bytes(t *testing.T) {
+	for _, v := range []struct{ Name, Input, Parsed string }{
+		{"latin1", "http://onlinestreet.de/strassen/in-M%FCnchen.html", "http://onlinestreet.de/strassen/in-M%FCnchen.html"},
+		{"commoncrawl_path", "http://www.aluroba.com/tags/%C3%CE%CA%C7%D1%E5%C7.htm", "http://www.aluroba.com/tags/%C3%CE%CA%C7%D1%E5%C7.htm"},
+		{"commoncrawl_query", "https://1kr.ua/newslist.html?tag=%E4%EE%F8%EA%EE%EB%FC%ED%EE%E5", "https://1kr.ua/newslist.html?tag=%E4%EE%F8%EA%EE%EB%FC%ED%EE%E5"},
+		{"corpus_line_210", "http://www.tubeplus.ag/info/643723/Ya_se_qui%E9n_eres_(te_he_estado_observando)_(1971)/", "http://www.tubeplus.ag/info/643723/Ya_se_qui%E9n_eres_(te_he_estado_observando)_(1971)/"},
+		{"corpus_line_212", "https://www.tubeplus.ag/player/157000/Dude%2C_Where%92s_My_Car%3F/", "https://www.tubeplus.ag/player/157000/Dude%2C_Where%92s_My_Car%3F/"},
+		{"corpus_line_24487", "http://www.algerie-forum.com/forum/forum-g%C3%A9n%C3%A9ral/parlons-en/123381-un-expert-militaire-alg%E9rien-%ABla-d%E9cision-d?abattre-l?avion-russe-est-intentionnelle%BB", "http://www.algerie-forum.com/forum/forum-g%C3%A9n%C3%A9ral/parlons-en/123381-un-expert-militaire-alg%E9rien-%ABla-d%E9cision-d?abattre-l?avion-russe-est-intentionnelle%BB"},
+		{"corpus_line_46175", "http://cncloisirs.com/Construction/T%EAteDeFraisage?from=Construction.D%C3%A9fonceuse", "http://cncloisirs.com/Construction/T%EAteDeFraisage?from=Construction.D%C3%A9fonceuse"},
+		{"iso8859_2", "http://www.nerosty.cz/nerosty/m%EC%EF/3360_m%EC%EF", "http://www.nerosty.cz/nerosty/m%EC%EF/3360_m%EC%EF"},
+		{"windows1251", "http://io.ua/c14/z/Osen/%CE%F1%E5%ED%FC", "http://io.ua/c14/z/Osen/%CE%F1%E5%ED%FC"},
+		{"utf8", "https://example.org/M%C3%BCnchen?q=%C3%BC", "https://example.org/M%C3%BCnchen?q=%C3%BC"},
+		{"replacement", "https://example.org/%EF%BF%BD?q=%EF%BF%BD", "https://example.org/%EF%BF%BD?q=%EF%BF%BD"},
+		{"nested", "https://example.org/%25FC?q=%2525FD", "https://example.org/%25FC?q=%2525FD"},
+		{"malformed", "https://example.org/%FC%GG%?q=%FD%2", "https://example.org/%FC%GG%?q=%FD%2"},
+		{"names_values_duplicates", "https://example.org/%FC?%FD=%FE&b=%FF&b=%FC&flag&empty=", "https://example.org/%FC?%FD=%FE&b=%FF&b=%FC&flag&empty="},
+		{"mixed", "https://example.org/%C3%BC%FC?q=%E2%82", "https://example.org/%C3%BC%FC?q=%E2%82"},
+	} {
+		t.Run(v.Name, func(t *testing.T) {
+			u, err := Parse(v.Input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if u.String() != v.Parsed {
+				t.Errorf("got %q, want %q", u.String(), v.Parsed)
+			}
+			reparsed, err := Parse(u.String())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if reparsed.String() != v.Parsed {
+				t.Errorf("reparse = %q, want %q", reparsed, v.Parsed)
+			}
+		})
+	}
+}
+
+func TestParseNonUTF8HostBoundary(t *testing.T) {
+	for _, input := range []string{"https://example%FC.org/", "https://example.org%80/"} {
+		if u, err := Parse(input); err == nil || u != nil {
+			t.Errorf("%q should fail WHATWG host processing", input)
+		}
+	}
+	if u, err := Parse("https://example.org/%FC?q=%80"); err != nil || u == nil {
+		t.Errorf("path/query byte escapes should parse: %v", err)
+	}
+}
+
+func TestParseExclamationValidation(t *testing.T) {
+	// https://url.spec.whatwg.org/#url-code-points
+	// https://url.spec.whatwg.org/#path-state
+	for _, input := range []string{
+		"https://example.org/!",
+		"https://example.org/?q=!",
+		"https://example.org/#!",
+		"data:!",
+	} {
+		t.Run(input, func(t *testing.T) {
+			u, err := Parse(input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if u.String() != input {
+				t.Errorf("serialization = %q, want %q", u.String(), input)
+			}
+			if len(u.ValidationErrors()) != 0 {
+				t.Errorf("permitted '!' produced validation diagnostics: %v", u.ValidationErrors())
+			}
+			if _, err := NewParser(WithFailOnValidationError()).Parse(input); err != nil {
+				t.Errorf("strict policy rejected permitted '!': %v", err)
+			}
+		})
+	}
+	t.Run("malformed_escape_still_rejected", func(t *testing.T) {
+		if _, err := NewParser(WithFailOnValidationError()).Parse("https://example.org/%GG"); err == nil {
+			t.Error("strict policy must still reject a malformed percent escape")
+		}
+	})
+}

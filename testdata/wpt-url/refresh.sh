@@ -25,8 +25,8 @@ done
 
 sed -i.bak -E \
   "s@^(Whatwg-url parser is up to date as of )\\[[^]]*\\]\\(https://github.com/web-platform-tests/wpt/tree/[^)]*\\)@\\1[${readme_date}](https://github.com/web-platform-tests/wpt/tree/${commit_hash})@" \
-  "${script_dir}/../README.md"
-rm "${script_dir}/../README.md.bak"
+  "${script_dir}/../../README.md"
+rm "${script_dir}/../../README.md.bak"
 
 echo "Commit: $commit_hash"
 echo "Date:   $commit_date"

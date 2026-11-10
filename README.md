@@ -9,9 +9,12 @@ whatwg-url is a spec-compliant URL parser written in Go. See [WHATWG](https://ur
 
 ## Status
 
-Whatwg-url parser is up to date as of [19 september 2026](https://github.com/web-platform-tests/wpt/tree/c48d58747e1f211527fb695fd60548a997fae617) and passes all relevant tests from [web-platform-tests](https://github.com/web-platform-tests/wpt/tree/master/url).
+Whatwg-url parser is up to date as of [19 september 2026](https://github.com/web-platform-tests/wpt/tree/c48d58747e1f211527fb695fd60548a997fae617) and passes the URL parsing, setter, and IDNA tests from [web-platform-tests](https://github.com/web-platform-tests/wpt/tree/master/url).
 
 ## Upgrading from v0.6.2
+
+**This upgrade includes breaking changes to the module path, public APIs, and
+validation behavior.**
 
 Starting with `v0.8.0`, the module path is
 `github.com/nationallibraryofnorway/whatwg-url`. Consumers of `v0.6.2` must
@@ -55,7 +58,7 @@ The following APIs also change when upgrading from `v0.6.2`:
 | `WithReportValidationErrors()` | Use `WithReportValidationErrors(true)`, or omit it because reporting is enabled by default. |
 | `WithSpecialSchemes(map[string]string{...})` | Use `map[string]uint16` with numeric ports, for example `map[string]uint16{"http": 80}`. |
 | `WithPreParseHostFunc` / `WithPostParseHostFunc` | Transform the input before parsing, or use `RewriteHostname` for transformations of a valid serialized hostname after parsing. |
-| `WithEncodingOverride` | Handle any legacy query encoding in the caller. The parser no longer accepts an encoding override. |
+| `WithEncodingOverride` | The option has been removed without a transcoding replacement. Already percent-encoded path/query bytes need no encoding hint and are preserved by the parser. |
 | `WithSkipEqualsForEmptySearchParamsValue` | Use `RawQuery` with `RewriteQuery` when bare query terms must be preserved. |
 | `Parser.BasicParser(...)` | Use `url.BasicParsing` and its `BasicParse(...)` method, for example `p.(url.BasicParsing).BasicParse(...)` for a parser from `NewParser`. |
 | `Parser.PercentEncodeString(...)` | Use the package-level `url.PercentEncode(...)`. |
@@ -252,6 +255,41 @@ This shows the decode-and-encode step used by
 [Google Safe Browsing](https://github.com/google/safebrowsing/blob/master/urls.go).
 It does not implement the complete Safe Browsing canonicalization rules.
 
+### Non-UTF-8 URLs
+
+The URL parser preserves percent-encoded bytes in paths and queries without
+requiring an encoding hint. For example, `https://example.org/%FC?q=%FC`
+serializes unchanged. Percent escapes do not identify a character encoding;
+invalid UTF-8 sequences can remain in serialized path and query components.
+
+Use `RawQuery` with `RewriteQuery` when edits must preserve serialized query
+terms, including literal `+`, empty terms, and the distinction between `flag`
+and `flag=`. The byte-oriented percent helpers operate on bytes without
+character-set decoding. For archival indexing, select operations consistent
+with the index's canonicalization policy.
+
+See the [fixture documentation](testdata/non-utf8/README.md) and the
+[executable examples](url/example_test.go) for details.
+
+### SearchParams
+
+`SearchParams` implements the WHATWG URL Standard's
+`application/x-www-form-urlencoded` parsing and serialization rules. Parsing
+splits the query into name/value pairs, converts literal `+` to space,
+percent-decodes names and values, and decodes the resulting bytes as UTF-8.
+Invalid UTF-8 sequences are replaced with U+FFFD. Empty terms are discarded,
+and a bare term such as `flag` is treated as an empty value, equivalent to
+`flag=`. Duplicate pairs retain their order.
+
+Reading `SearchParams` does not modify the serialized URL. Mutating it
+serializes all pairs back into the query using UTF-8 form encoding: spaces
+become `+`, and characters outside the form encoding's allowed set are
+percent-encoded. For example, `%FC` represents `ü` in ISO-8859-1, but the byte
+`0xFC` is invalid in UTF-8. SearchParams therefore decodes it as the replacement
+character `�` (U+FFFD), which is written as `%EF%BF%BD` when a mutation serializes
+the query. This can change bytes and merge distinctions between originally
+different byte sequences.
+
 ### Experimental SURT support
 
 Package `github.com/nationallibraryofnorway/whatwg-url/surt` builds
@@ -265,6 +303,14 @@ described in the
 
 The relevant language-neutral vectors from IIPC urlcanon are vendored under
 `testdata/iipc-urlcanon` and run as part of `go test ./...`.
+
+A single [Common Crawl corpus test](testdata/non-utf8/README.md) checks all
+533,168 fixture rows when enabled with `go test -tags=long ./...`.
+It is excluded from default runs. The ordinary SURT suite also includes
+the four exact-output cases from
+[Internet Archive SURT PR 30](https://github.com/internetarchive/surt/pull/30).
+Matching an existing index requires the same canonicalization policy used to
+create its keys; these checks do not prove complete historical-index parity.
 
 ### Percent-encode set customization
 

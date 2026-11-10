@@ -159,3 +159,36 @@ func ExampleWithQueryPercentEncodeSet() {
 	fmt.Println(u.String())
 	// Output: foo://example.com/?a%26b
 }
+
+func ExampleParse_preserveNonUTF8Bytes() {
+	u, err := url.Parse("https://example.org/%FC?q=%FC")
+	if err != nil {
+		panic(err)
+	}
+	// Already percent-encoded path/query bytes need no encoding hint.
+	fmt.Println(u)
+	reparsed, err := url.Parse(u.String())
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("reparse unchanged:", reparsed.String() == u.String())
+	// Output:
+	// https://example.org/%FC?q=%FC
+	// reparse unchanged: true
+}
+
+func ExampleSearchParams_nonUTF8FormSemantics() {
+	u, err := url.Parse("https://example.org/?q=%FC")
+	if err != nil {
+		panic(err)
+	}
+	params := u.SearchParams()
+	fmt.Printf("%U\n", []rune(params.Get("q"))[0])
+	fmt.Println(u) // Reading the form view does not rewrite the URL.
+	params.Append("probe", "x")
+	fmt.Println(u) // Mutation serializes all form tuples, including replacement.
+	// Output:
+	// U+FFFD
+	// https://example.org/?q=%FC
+	// https://example.org/?q=%EF%BF%BD&probe=x
+}
