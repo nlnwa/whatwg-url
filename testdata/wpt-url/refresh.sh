@@ -24,7 +24,7 @@ for file in "${files[@]}"; do
 done
 
 sed -i.bak -E \
-  "s@^(Whatwg-url parser is up to date as of )\\[[^]]*\\]\\(https://github.com/web-platform-tests/wpt/tree/[^)]*\\)@\\1[${readme_date}](https://github.com/web-platform-tests/wpt/tree/${commit_hash})@" \
+  "s@^(WPT fixture revision: )\\[[^]]*\\]\\(https://github.com/web-platform-tests/wpt/tree/[^)]*\\)@\\1[${readme_date}](https://github.com/web-platform-tests/wpt/tree/${commit_hash})@; s@https://github.com/web-platform-tests/wpt/tree/[a-f0-9]+/url@https://github.com/web-platform-tests/wpt/tree/${commit_hash}/url@g" \
   "${script_dir}/../../README.md"
 rm "${script_dir}/../../README.md.bak"
 

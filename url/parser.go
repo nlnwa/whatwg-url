@@ -30,8 +30,7 @@ type BasicParsing interface {
 	BasicParse(urlOrRef string, base *Url, url *Url, stateOverride State) (*Url, error)
 }
 
-// parser configures a url parser. parser are set by the ParserOption
-// values passed to NewParser.
+// parser holds the configuration supplied to NewParser through ParserOption values.
 type parser struct {
 	SpecialSchemes map[string]uint16
 

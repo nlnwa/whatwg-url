@@ -29,8 +29,8 @@ independently configured profiles without changing their receiver.
 
 ## Migrating from v0.6.2
 
-This guide covers configuration and normalization changes from public
-`v0.6.2` to the upcoming `v0.8.0` release.
+This guide covers configuration and normalization changes from `v0.6.2` to
+`v0.8.0`.
 
 Change imports from `github.com/nlnwa/whatwg-url/canonicalizer` to
 `github.com/nationallibraryofnorway/whatwg-url/canonicalizer`. See the root
@@ -497,9 +497,7 @@ adaptation notices are retained in the adapted test files and fixture README.
 
 | Tests | Source and adaptation |
 | --- | --- |
-| [Google Safe Browsing tests](google_safe_browsing_test.go) | All 33 examples from [Google's canonicalization documentation](https://developers.google.com/safe-browsing/v4/urls-hashing#canonicalization), checked against the original HTML on 2026-11-12 (page updated 2024-09-18). Published inputs and outputs are asserted exactly, without overrides or skips; these also retain the repository's original `v0.6.2` cases. Additional regressions exercise the written rules. Google's code samples are licensed under Apache 2.0. |
-| The first two examples in [example_test.go](example_test.go) | This repository at `v0.6.2`: both executable examples retain their inputs and expected outputs. Pipeline construction is adapted. |
-| [Rewrite rule tests](rewrite_rules_test.go) and escaped-byte baselines in [profile_test.go](profile_test.go) | Repository regression tests for component adapters, optional-query callbacks, callback and rule ordering, and byte preservation. These cover the current API in addition to the public `v0.6.2` examples above. |
+| [Google Safe Browsing tests](google_safe_browsing_test.go) | The 33 examples from [Google's canonicalization documentation](https://developers.google.com/safe-browsing/v4/urls-hashing#canonicalization), plus regressions for operation order and byte escaping. Google's code samples are licensed under Apache 2.0. |
 | `semantic_test.go` | urlcanon revision `842afd4d84089cbbef87dd3286edaf053caedb0a`, all 280 shared Python/Java `semantic_precise.json` cases; only fragment removal adapts expectations from `semantic_precise` to `semantic`. See the [fixture README](../testdata/iipc-urlcanon/README.md). |
 | `java_test.go` | The same revision's [IpAddressesTest.java](https://github.com/iipc/urlcanon/blob/842afd4d84089cbbef87dd3286edaf053caedb0a/java/test/org/netpreserve/urlcanon/IpAddressesTest.java): all 11 successful IPv6 input/output pairs and five invalid inputs, adapted to bracketed URL hosts. Successful inputs run through Semantic; invalid inputs remain rejection tests with a standard parser injected into the profile. Separate tests cover lax recovery. |
 | `path_dots_test.go` | The same revision's Apache-licensed `ResolvePathDotsTest.java` and unchanged `path_dots.json`: all 932 entries, including duplicate object keys, run against the dot-resolution primitive before slash collapsing. |

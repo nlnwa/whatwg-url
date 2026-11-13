@@ -13,9 +13,7 @@ import (
 // Google Developers code samples are licensed under Apache 2.0:
 // https://developers.google.com/terms/site-policies
 //
-// Inputs and outputs are copied from the code block in the original HTML,
-// concatenating syntax-highlighting spans without inserting spaces. All 33
-// published expectations are asserted directly, with no overrides or skips.
+// Inputs and expected outputs are copied from the published code block.
 func TestGoogleSafeBrowsingPublishedExamples(t *testing.T) {
 	tests := []struct {
 		name, input, want string

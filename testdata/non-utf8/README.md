@@ -62,8 +62,8 @@ round-trip, and unchanged URL serialization after reading SearchParams. It
 allows the standard normalization of an empty HTTP path to `/`.
 
 Focused parser, percent-helper, raw-query, component-rewriter, and SearchParams
-regressions live in their ordinary test files. Preservation and form-semantics
-examples remain in `url/example_test.go`.
+regressions run in the ordinary suite. See `url/example_test.go` for byte
+preservation and form-decoding examples.
 
 ## Upstream SURT regressions
 
@@ -72,52 +72,9 @@ adds four exact-output cases: UTF-8 and Latin-1 path variants, and the path and
 query examples from Common Crawl issue 6. Their data pairs are retained verbatim
 in `surt/compatibility_test.go`, with source head revision
 `9a6717a64e374c4690cf6e28ae7d3504b3bda6cc`. They check SURT's lowercase escapes
-and byte preservation. Four focused examples complement the corpus; they do
-not provide equivalent real-world coverage or prove complete index parity.
+and byte preservation.
 
-## Historical component profile
-
-An earlier investigation measured UTF-8 validity after exactly one
-percent-decoding pass across all 533,168 rows on 2026-11-10:
-
-| Path bytes | Query bytes | Rows |
-| --- | --- | ---: |
-| Invalid UTF-8 | Valid UTF-8 or absent | 316,575 |
-| Invalid UTF-8 | Invalid UTF-8 | 345 |
-| Valid UTF-8 | Invalid UTF-8 | 216,248 |
-| Valid UTF-8 | Valid UTF-8 or absent | 0 |
-
-These historical measurements include duplicates and count an absent query as
-valid empty UTF-8. They are documentation, not current test assertions. UTF-8
-validity does not identify the intended encoding or establish that bytes are
-text. Literal regressions retain examples from lines 210, 212, 24487, and 46175.
-At line 24487 one path contains recognizable UTF-8 `g%C3%A9n%C3%A9ral` alongside
-legacy-looking `alg%E9rien`; line 46175 has `T%EAteDeFraisage` in its path and
-valid UTF-8 `D%C3%A9fonceuse` in its query.
-
-Earlier investigation runs also recorded 3,613 serialization spelling changes,
-including 52 normalized empty HTTP paths, and 667 rows already containing
-`%EF%BF%BD`. Form serialization changed spelling on 216,793 rows and invalid
-UTF-8 was present in 216,593 queries. These are historical observations rather
-than success criteria. The current corpus test compares bytes, so existing
-replacement escapes are not treated as evidence of corruption by themselves.
-
-## Historical SURT behavior
-
-The December 2024 comparison in
-[webarchive-commons PR 102](https://github.com/iipc/webarchive-commons/pull/102)
-recorded three policies. These refer to the implementations discussed then,
-not their current releases; the local row is an earlier full-corpus measurement.
-
-| Policy and implementations | `%C3` | `%C3%23` | `%C3%80` |
-| --- | --- | --- | --- |
-| Extra escaping: jwarc, OutbackCDX, webarchive-commons at the time | `%25c3` | `%25c3%23` | `%c3%80` |
-| Replacement: Java urlcanon | `%ef%bf%bd` | `%ef%bf%bd%23` | `%c3%80` |
-| Byte preservation: Python urlcanon and surt, warcio.js | `%c3` | `%c3%23` | `%c3%80` |
-| This repository's SURT, historical measurement | `%c3` | `%c3%23` | `%c3%80` |
-
-Matching an existing index requires its canonicalization policy. Preserving
-bytes does not reproduce keys generated using replacement or extra escaping.
-The upstream discussion identifies compatibility consequences for existing
-CDX files. This work provides no automatic migration or reindexing. Transcoding
-remains deferred.
+Matching an existing index requires the canonicalization policy used to create
+its keys. Byte preservation, Unicode replacement, and extra percent-escaping
+produce different keys for some inputs. See the comparison in
+[webarchive-commons PR 102](https://github.com/iipc/webarchive-commons/pull/102).

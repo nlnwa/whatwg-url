@@ -1,13 +1,24 @@
 # whatwg-url
 
-whatwg-url is a spec-compliant URL parser written in Go. See [WHATWG](https://url.spec.whatwg.org/#url-parsing) website for the specification.
+whatwg-url is a Go implementation of the [WHATWG URL Standard](https://url.spec.whatwg.org/).
+It provides URL parsing, relative-reference resolution, component setters,
+and form query parameters, with experimental canonicalization and SURT packages.
 
 > **Module path:** `github.com/nationallibraryofnorway/whatwg-url`.
 > See [Upgrading from v0.6.2](#upgrading-from-v062) for migration instructions.
 
 ## Status
 
-Whatwg-url parser is up to date as of [19 september 2026](https://github.com/web-platform-tests/wpt/tree/c48d58747e1f211527fb695fd60548a997fae617) and passes the URL parsing, setter, and IDNA tests from [web-platform-tests](https://github.com/web-platform-tests/wpt/tree/master/url).
+The parser passes the bundled URL parsing, setter, and IDNA tests from
+[web-platform-tests](https://github.com/web-platform-tests/wpt/tree/c48d58747e1f211527fb695fd60548a997fae617/url).
+Applicable SearchParams cases are covered by [Go adaptations](testdata/wpt-searchparams/README.md).
+
+WPT fixture revision: [19 September 2026](https://github.com/web-platform-tests/wpt/tree/c48d58747e1f211527fb695fd60548a997fae617).
+
+## Requirements
+
+Go 1.27 or later is required. The IDNA and Unicode normalization dependencies
+use Unicode 17.0 tables with this toolchain.
 
 ## Upgrading from v0.6.2
 
@@ -41,9 +52,8 @@ This release also changes public APIs and validation behavior. Review
 and the [canonicalizer migration guide](canonicalizer/README.md#migrating-from-v062),
 and adapt your code before running the tests.
 
-Existing projects pinned to `v0.6.2` continue to work without changes. Future
-releases will be published under the new module path. This guide compares the
-public `v0.6.2` release with the upcoming `v0.8.0` release.
+Existing projects pinned to `v0.6.2` continue to work without changes. Releases
+from `v0.8.0` use the new module path. This guide compares `v0.6.2` with `v0.8.0`.
 
 ### Parser options and helper API migration
 
@@ -145,9 +155,15 @@ its `Type`, `Description`, `Failure`, and `Url` helpers with the types and
 sentinels described in
 [Validation errors and parse failures](#validation-errors-and-parse-failures).
 
+`ValidationError.Code()` replaces `Type`, and `ValidationError.Detail()`
+replaces `Description`. Use `errors.Is(err, url.ErrParseFailure)` in place of
+`Failure`. Errors no longer store the input URL; retain it at the call site
+if you previously used the `Url` helper for logging.
+
 ## Usage
 
-API is similar to [Chapter 6 in WHATWG URL Standard](https://url.spec.whatwg.org/#api). See [documentation](https://pkg.go.dev/github.com/nationallibraryofnorway/whatwg-url) for details.
+The API follows the [WHATWG URL API](https://url.spec.whatwg.org/#api).
+See the [package reference](https://pkg.go.dev/github.com/nationallibraryofnorway/whatwg-url/url) for details.
 
 ```go
 import "github.com/nationallibraryofnorway/whatwg-url/url"
@@ -185,8 +201,9 @@ as an IPv4 address. IPv6 recovery retains the consumed host spelling, including
 unclosed brackets, without marking it as IPv6. Valid IP addresses still normalize.
 
 `WithSkipDotSegmentNormalization()` preserves literal and percent-encoded dot
-segments during hierarchical path parsing. Semantic uses this option to resolve
-dots after repeated decoding; ordinary parsing keeps standard dot normalization.
+segments during hierarchical path parsing. The `canonicalizer.Semantic()` and
+`canonicalizer.GoogleSafeBrowsing()` profiles use this option to resolve dots
+after repeated decoding; ordinary parsing uses standard dot normalization.
 
 Example:
 
@@ -228,7 +245,7 @@ if err == nil {
 
 u, err = url.Parse("https://example.org:7z")
 if parseErr, ok := errors.AsType[*url.ParseError](err); ok {
-    fmt.Println(u == nil)                             // true
+    fmt.Println(u == nil)                           // true
     fmt.Println(errors.Is(err, url.ErrParseFailure)) // true
     fmt.Println(errors.Is(err, url.ErrPortInvalid))  // true
     for _, validationErr := range parseErr.ValidationErrors() {
@@ -312,3 +329,16 @@ The experimental `surt` package generates SURT and SSURT keys for URL indexing
 and provides helpers to convert keys back to URL strings. See the
 [SURT README](surt/README.md) for usage, canonicalization options, and format
 differences.
+
+## Testing
+
+Run from the repository root:
+
+```sh
+go test ./...
+go test -race ./...
+go vet ./...
+```
+
+Use `go test -tags=long ./...` to include the full Common Crawl non-UTF-8 URL
+corpus. See [test fixtures](testdata/README.md) for sources and refresh commands.

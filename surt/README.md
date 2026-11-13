@@ -35,13 +35,18 @@ SSURT uses a parse-only default, retaining path case, credentials,
 query order, and fragments. To select canonicalization explicitly, pass the
 result of a profile's `Parse` method to `surt.SSURTURL`.
 
+When formatting a host as a SURT key, the formatter omits credentials and
+fragments. SSURT keys include the scheme, port, and credentials only when
+`includeScheme` is true. Key serialization omits empty query markers (`?`)
+and empty fragment markers (`#`). Reversal therefore does not guarantee an
+exact round trip even without canonicalization.
+
 The relevant language-neutral vectors from IIPC urlcanon are vendored under
 `testdata/iipc-urlcanon` and run as part of `go test ./...`.
 
-A single [Common Crawl corpus test](../testdata/non-utf8/README.md) checks all
-533,168 fixture rows when enabled with `go test -tags=long ./...`.
-It is excluded from default runs. The ordinary SURT suite also includes
-the four exact-output cases from
+The [Common Crawl corpus test](../testdata/non-utf8/README.md) checks URL-parser
+byte preservation across 533,168 fixture rows with `go test -tags=long ./...`.
+The SURT suite includes the four non-UTF-8 preservation cases from
 [Internet Archive SURT PR 30](https://github.com/internetarchive/surt/pull/30).
 Matching an existing index requires the same canonicalization policy used to
 create its keys.

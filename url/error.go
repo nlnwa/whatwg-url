@@ -112,7 +112,7 @@ func (e *ValidationError) Is(target error) bool {
 	return ok && e != nil && t != nil && e.code != "" && t.code != "" && e.code == t.code
 }
 
-// Unwrap returns the genuine underlying cause, if any.
+// Unwrap returns the underlying cause, if any.
 func (e *ValidationError) Unwrap() error {
 	if e == nil {
 		return nil

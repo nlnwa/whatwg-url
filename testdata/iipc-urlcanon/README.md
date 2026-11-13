@@ -14,8 +14,7 @@ The `google` and `googleSupplementalFromSurt` groups and the IIPC raw SURT
 formatter groups are not executed. Google's 33 published canonicalization
 examples run separately in
 [`google_safe_browsing_test.go`](../../canonicalizer/google_safe_browsing_test.go),
-with their exact inputs and outputs verified against Google's original HTML
-code block. All 33 also preserve this repository's original examples. See the
+using the published inputs and expected outputs. See the
 [profile documentation](../../canonicalizer/README.md#googlesafebrowsing).
 
 `semantic_precise.json` is shared by upstream's Python `test_semantic_precise`
@@ -24,8 +23,7 @@ U+0000 through U+00FF map to the corresponding single bytes, rather than being
 UTF-8 encoded. The Go test removes fragments from expected outputs to exercise
 `Semantic` instead of `semantic_precise`.
 
-All 280 Semantic cases retain upstream expectations apart from fragment
-removal. There are no case-specific overrides or skipped cases. The profile
+The 280 Semantic cases use upstream expectations with fragments removed. The profile
 uses lax IP-host recovery and configurable opaque-host punctuation retention;
 see the [profile documentation](../../canonicalizer/README.md#semantic).
 

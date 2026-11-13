@@ -7,8 +7,7 @@ vendored URL parser fixtures. Upstream code and derived vectors are covered by
 the accompanying [BSD license](LICENSE.md).
 
 Run with `go test ./url -run '^TestWPTSearchParams' -count=1` from the repository
-root. These tests also run normally with `go test ./...`. They require only Go:
-no JavaScript runtime, network access, or new dependency.
+root. These tests also run with `go test ./...` and require only Go.
 
 The two JSON files contain the input/output arrays copied from
 `urlencoded-parser.any.js` (35 vectors) and `urlsearchparams-sort.any.js`

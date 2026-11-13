@@ -136,8 +136,8 @@ func WithPercentEncodeSinglePercentSign() ParserOption {
 	})
 }
 
-// WithAllowSettingPathForNonBaseUrl allows to set path for a url which cannot be a base url.
-// WhathWg standard says this should be illegal
+// WithAllowSettingPathForNonBaseUrl allows SetPathname to change an opaque path.
+// The WHATWG URL Standard leaves opaque paths unchanged by this setter.
 //
 // This API is EXPERIMENTAL.
 func WithAllowSettingPathForNonBaseUrl() ParserOption {
@@ -147,7 +147,7 @@ func WithAllowSettingPathForNonBaseUrl() ParserOption {
 }
 
 // WithSkipWindowsDriveLetterNormalization skips conversion of 'C|' to 'C:'.
-// WhathWg standard says only a normalized Windows drive letter is conforming.
+// The WHATWG URL Standard requires normalized Windows drive letters.
 //
 // This API is EXPERIMENTAL.
 func WithSkipWindowsDriveLetterNormalization() ParserOption {
@@ -156,20 +156,13 @@ func WithSkipWindowsDriveLetterNormalization() ParserOption {
 	})
 }
 
-// WithSpecialSchemes allows overriding the notion of special schemes.
-// special is a map of 'scheme' => 'default port'
+// WithSpecialSchemes adds or overrides special schemes and their default ports.
+// Schemes not present in the map retain their existing defaults. Scheme names
+// must be lowercase, without a trailing colon.
 //
-// WhatWg standard removed gopher from special schemes. This is how you add it back:
+// To treat gopher as a special scheme:
 //
-//	special := map[string]string{
-//	                       "ftp":    21,
-//	                       "file":   0,
-//	                       "http":   80,
-//	                       "https":  443,
-//	                       "ws":     80,
-//	                       "wss":    443,
-//	                       "gopher": 70,
-//	               }
+//	p := url.NewParser(url.WithSpecialSchemes(map[string]uint16{"gopher": 70}))
 //
 // This API is EXPERIMENTAL.
 func WithSpecialSchemes(special map[string]uint16) ParserOption {
