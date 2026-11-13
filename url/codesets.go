@@ -32,7 +32,7 @@ type PercentEncodeSet struct {
 // NewPercentEncodeSet returns a new PercentEncodeSet with the given rune values in the set.
 //
 // allBelow specifies that all runes below the given value are in the set.
-// Values outside the single-byte range are ignored.
+// Explicit values outside the ASCII range are ignored.
 func NewPercentEncodeSet(allBelow rune, chars ...rune) *PercentEncodeSet {
 	p := &PercentEncodeSet{allBelow: allBelow}
 	for _, ch := range chars {
@@ -44,7 +44,7 @@ func NewPercentEncodeSet(allBelow rune, chars ...rune) *PercentEncodeSet {
 }
 
 // Set returns a new PercentEncodeSet with the given rune values added.
-// Values outside the single-byte range are ignored.
+// Values outside the ASCII range are ignored.
 func (p *PercentEncodeSet) Set(chars ...rune) *PercentEncodeSet {
 	r := &PercentEncodeSet{
 		allBelow: p.allBelow,
@@ -59,7 +59,7 @@ func (p *PercentEncodeSet) Set(chars ...rune) *PercentEncodeSet {
 }
 
 // Clear returns a new PercentEncodeSet with the given rune values cleared.
-// Values outside the single-byte range are ignored.
+// Values outside the ASCII range are ignored.
 func (p *PercentEncodeSet) Clear(chars ...rune) *PercentEncodeSet {
 	r := &PercentEncodeSet{
 		allBelow: p.allBelow,
@@ -73,14 +73,12 @@ func (p *PercentEncodeSet) Clear(chars ...rune) *PercentEncodeSet {
 	return r
 }
 
-// Bytes returns the explicit ASCII bytes configured in this set.
+// Bytes returns ASCII bytes explicitly added to the set or below allBelow,
+// in ascending order without duplicates.
 func (p *PercentEncodeSet) Bytes() []byte {
 	var result []byte
-	for i := range max(p.allBelow-1, 0) {
-		result = append(result, byte(i))
-	}
 	for i, enabled := range p.ascii {
-		if enabled {
+		if enabled || rune(i) < p.allBelow {
 			result = append(result, byte(i))
 		}
 	}

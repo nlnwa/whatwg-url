@@ -17,8 +17,33 @@
 package url
 
 import (
+	"bytes"
 	"testing"
 )
+
+func TestPercentEncodeSetBytes(t *testing.T) {
+	allASCII := make([]byte, 128)
+	for i := range allASCII {
+		allASCII[i] = byte(i)
+	}
+	for _, test := range []struct {
+		name string
+		set  *PercentEncodeSet
+		want []byte
+	}{
+		{"empty", NewPercentEncodeSet(0), nil},
+		{"threshold", NewPercentEncodeSet(3), []byte{0, 1, 2}},
+		{"overlapping entries", NewPercentEncodeSet(3, 1, 3, 5), []byte{0, 1, 2, 3, 5}},
+		{"negative threshold", NewPercentEncodeSet(-1, 'A'), []byte{'A'}},
+		{"threshold beyond ASCII", NewPercentEncodeSet(256), allASCII},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := test.set.Bytes(); !bytes.Equal(got, test.want) {
+				t.Fatalf("Bytes() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
 
 func Test_percentEncodeSet_RuneShouldBeEncoded(t *testing.T) {
 	tests := []struct {

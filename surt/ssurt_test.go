@@ -36,6 +36,9 @@ func TestUnSSURT(t *testing.T) {
 		wantErr string
 	}{
 		{"domain", "org,example,foo,//81:http@user:pass:/path?query#frag", "http://user:pass@foo.example.org:81/path?query#frag", ""},
+		{"credentials without port", "org,example,//https@user:pass:/path", "https://user:pass@example.org/path", ""},
+		{"password without username", "org,example,//https@:pass:/path", "https://:pass@example.org/path", ""},
+		{"credentials with legacy empty port", "org,example,//:https@user:pass:/path", "https://user:pass@example.org/path", ""},
 		{"ipv4", "127.0.0.1//:http:/foo", "http://127.0.0.1/foo", ""},
 		{"passthrough", "mailto:foo@example.com", "mailto:foo@example.com", ""},
 		{"missing delimiter", "com,example/path", "", "missing '//'"},
@@ -67,19 +70,29 @@ func TestUnSSURTAcceptsLegacyEmptyPortSeparator(t *testing.T) {
 }
 
 func TestNormalizedSSURTRoundTrip(t *testing.T) {
-	first, err := SSURTString("http://user:pass@example.org:81/path?query#frag", true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	reversed, err := UnSSURT(first)
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := SSURTString(reversed, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if first != second {
-		t.Fatalf("round trip: first=%q reversed=%q second=%q", first, reversed, second)
+	for _, input := range []string{
+		"http://user:pass@example.org:81/path?query#frag",
+		"https://user:pass@example.org/path?query#frag",
+		"https://user:pass@example.org:443/path?query#frag",
+		"https://:pass@example.org/path",
+		"https://user@example.org/path",
+	} {
+		t.Run(input, func(t *testing.T) {
+			first, err := SSURTString(input, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			reversed, err := UnSSURT(first)
+			if err != nil {
+				t.Fatal(err)
+			}
+			second, err := SSURTString(reversed, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if first != second {
+				t.Fatalf("round trip: first=%q reversed=%q second=%q", first, reversed, second)
+			}
+		})
 	}
 }

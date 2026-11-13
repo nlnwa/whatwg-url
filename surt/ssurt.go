@@ -133,7 +133,10 @@ func UnSSURT(value string) (string, error) {
 			return "", fmt.Errorf("invalid SSURT: malformed metadata segment")
 		}
 		core := strings.TrimSuffix(head, ":")
-		if possiblePort, schemeAndUser, hasPortSeparator := strings.Cut(core, ":"); hasPortSeparator {
+		if before, after, hasUser := strings.Cut(core, "@"); hasUser {
+			core, userinfo = before, after
+		}
+		if possiblePort, schemePart, hasPortSeparator := strings.Cut(core, ":"); hasPortSeparator {
 			// Accept the earlier //:scheme: spelling when reading, while emitting
 			// the IIPC //scheme: spelling for a missing port.
 			if possiblePort != "" {
@@ -142,11 +145,9 @@ func UnSSURT(value string) (string, error) {
 				}
 				port = possiblePort
 			}
-			core = schemeAndUser
+			core = schemePart
 		}
-		if before, after, hasUser := strings.Cut(core, "@"); hasUser {
-			scheme, userinfo = strings.ToLower(before), after
-		} else if core != "" {
+		if core != "" {
 			scheme = strings.ToLower(core)
 		}
 		if parsed, ok := rawScheme(scheme + ":"); !ok || parsed != scheme {
