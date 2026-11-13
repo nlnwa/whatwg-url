@@ -249,7 +249,7 @@ func onlyASCIIHexDigits[T ByteSequence](s T) bool {
 	return true
 }
 
-func hasPctXX(s string) bool {
+func hasPctXX[T ByteSequence](s T) bool {
 	// Scan for a '%' followed by two hex digits.
 	for i := 0; i+2 < len(s); i++ {
 		if s[i] == '%' && isHex(s[i+1]) && isHex(s[i+2]) {
@@ -260,6 +260,24 @@ func hasPctXX(s string) bool {
 }
 
 func repeatPercentDecodeString(input string, encoding *charmap.Charmap) string {
+	if !hasPctXX(input) {
+		return input
+	}
+	if encoding == nil {
+		// Keep the one-allocation single-pass path. Only copy to a mutable
+		// buffer if the first pass will expose another valid escape.
+		if !hasPctXXAfterDecoding(input) {
+			return percentDecode(input, nil)
+		}
+		owned := []byte(input)
+		for {
+			var changed bool
+			owned, changed = percentDecodeInPlace(owned)
+			if !changed {
+				return string(owned)
+			}
+		}
+	}
 	prev := input
 	for {
 		if !hasPctXX(prev) {
@@ -271,6 +289,36 @@ func repeatPercentDecodeString(input string, encoding *charmap.Charmap) string {
 		}
 		prev = decoded
 	}
+}
+
+// hasPctXXAfterDecoding checks the virtual output of one decoding pass. An
+// escape may span decoded boundaries, as in "%%341" or "%25%34%31".
+func hasPctXXAfterDecoding(input string) bool {
+	for i := 0; i < len(input); {
+		if input[i] != '%' {
+			i++
+			continue
+		}
+		c, next := decodedByteAt(input, i)
+		if c == '%' && next < len(input) {
+			hi, end := decodedByteAt(input, next)
+			if isHex(hi) && end < len(input) {
+				lo, _ := decodedByteAt(input, end)
+				if isHex(lo) {
+					return true
+				}
+			}
+		}
+		i = next
+	}
+	return false
+}
+
+func decodedByteAt(input string, i int) (byte, int) {
+	if input[i] == '%' && i+2 < len(input) && isHex(input[i+1]) && isHex(input[i+2]) {
+		return unhex(input[i+1])<<4 | unhex(input[i+2]), i + 3
+	}
+	return input[i], i + 1
 }
 
 type ByteSequence interface {
@@ -322,6 +370,9 @@ func percentDecodeInPlace(b []byte) ([]byte, bool) {
 }
 
 func percentDecode[T ByteSequence](raw T, encoding *charmap.Charmap) string {
+	if !hasPctXX(raw) {
+		return string(raw)
+	}
 	var out strings.Builder
 	out.Grow(len(raw))
 
@@ -426,8 +477,21 @@ func remainingIsInvalidPercentEncoded(input string) (bool, string) {
 }
 
 func PercentEncode[T ByteSequence](input T, tr *PercentEncodeSet) string {
+	length := len(input)
+	if tr == nil {
+		length *= 3
+	} else {
+		for i := 0; i < len(input); i++ {
+			if tr.ByteShouldBeEncoded(input[i]) {
+				length += 2
+			}
+		}
+		if length == len(input) {
+			return string(input)
+		}
+	}
 	var buf strings.Builder
-	buf.Grow(len(input) * 3)
+	buf.Grow(length)
 
 	if tr == nil {
 		for i := 0; i < len(input); i++ {

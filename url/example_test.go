@@ -23,37 +23,14 @@ func ExampleSearchParams_lossyFormSemantics() {
 	// Output: flag=&q=a+b&space=+
 }
 
-func ExampleRawQuery_losslessCanonicalization() {
+func ExampleQuery_losslessCanonicalization() {
 	u, _ := url.Parse("https://example.org/?q=a+b&flag&space=%20")
-	u.RewriteQuery(func(_ *url.Url, raw string, present bool) (string, bool) {
-		query := url.ParseRawQuery(raw)
+	u.RewriteQuery(func(_ *url.Url, query url.Query, hasQuery bool) (url.Query, bool) {
 		query.SortAbsolute()
-		return query.String(), present
+		return query, hasQuery
 	})
 	fmt.Println(u.Query())
 	// Output: flag&q=a+b&space=%20
-}
-
-// This example mirrors the composition used by Safe Browsing-style URL
-// canonicalizers without defining a Safe Browsing profile or lookup API.
-func ExampleUrl_safeBrowsingStyleCanonicalization() {
-	u, _ := url.Parse("http://user:pass@host:8080/%25%32%35#fragment")
-
-	// Safe Browsing's escape policy encodes controls, non-ASCII bytes, spaces,
-	// '#', and '%' after recursively decoding percent escapes.
-	safeBrowsingEscapes := url.NewPercentEncodeSet(0x20, ' ', '#', '%')
-	u.RewritePathname(func(_ *url.Url, path string) string {
-		return url.PercentEncode(url.PercentDecodeRepeated(path), safeBrowsingEscapes)
-	})
-	u.SetUsername("")
-	u.SetPassword("")
-	u.SetPort("")
-	u.RewriteFragment(func(_ *url.Url, _ string, _ bool) (string, bool) {
-		return "", false
-	})
-
-	fmt.Println(u)
-	// Output: http://host/%25
 }
 
 func ExampleUrl_Scheme() {

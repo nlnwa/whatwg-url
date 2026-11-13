@@ -98,8 +98,8 @@ func TestRewriteComponents(t *testing.T) {
 	}
 
 	u.RewritePathname(func(_ *Url, path string) string { return strings.ToLower(path) })
-	u.RewriteQuery(func(_ *Url, raw string, present bool) (string, bool) {
-		return raw + "&bare", present
+	u.RewriteQueryString(func(_ *Url, raw string, hasQuery bool) (string, bool) {
+		return raw + "&bare", hasQuery
 	})
 	u.RewriteFragment(func(_ *Url, _ string, _ bool) (string, bool) { return "", false })
 	if got, want := u.String(), "https://[::1]:8443/a%2fb?x=1&bare"; got != want {
@@ -151,17 +151,17 @@ func TestRewriteOptionalComponentPresence(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			u.RewriteQuery(func(_ *Url, raw string, present bool) (string, bool) {
-				if raw != "" || present != (test.name == "empty") {
-					t.Fatalf("query callback got raw=%q present=%v", raw, present)
+			u.RewriteQueryString(func(_ *Url, raw string, hasQuery bool) (string, bool) {
+				if raw != "" || hasQuery != (test.name == "empty") {
+					t.Fatalf("query callback got raw=%q present=%v", raw, hasQuery)
 				}
-				return raw, present
+				return raw, hasQuery
 			})
-			u.RewriteFragment(func(_ *Url, raw string, present bool) (string, bool) {
-				if raw != "" || present != (test.name == "empty") {
-					t.Fatalf("fragment callback got raw=%q present=%v", raw, present)
+			u.RewriteFragment(func(_ *Url, raw string, hasFragment bool) (string, bool) {
+				if raw != "" || hasFragment != (test.name == "empty") {
+					t.Fatalf("fragment callback got raw=%q present=%v", raw, hasFragment)
 				}
-				return raw, present
+				return raw, hasFragment
 			})
 			if got := u.String(); got != test.want {
 				t.Fatalf("URL = %q, want %q", got, test.want)
@@ -170,17 +170,17 @@ func TestRewriteOptionalComponentPresence(t *testing.T) {
 	}
 }
 
-func TestRewriteQuerySynchronizesSearchParamsIdentity(t *testing.T) {
+func TestRewriteQueryStringSynchronizesSearchParamsIdentity(t *testing.T) {
 	u, err := Parse("https://example.org/?before=1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	params := u.SearchParams()
-	u.RewriteQuery(func(_ *Url, _ string, _ bool) (string, bool) {
+	u.RewriteQueryString(func(_ *Url, _ string, _ bool) (string, bool) {
 		return "q=a+b&flag&space=%20", true
 	})
 	if u.SearchParams() != params {
-		t.Fatal("RewriteQuery replaced the SearchParams object")
+		t.Fatal("RewriteQueryString replaced the SearchParams object")
 	}
 	if got := params.Get("q"); got != "a b" {
 		t.Fatalf("synchronized q = %q, want %q", got, "a b")
@@ -205,7 +205,7 @@ func TestRewriteComponentsPreserveNonUTF8Bytes(t *testing.T) {
 			params := u.SearchParams()
 			_ = params.String() // Reading the form view must not rewrite the query.
 			u.RewritePathname(func(_ *Url, raw string) string { return raw })
-			u.RewriteQuery(func(_ *Url, raw string, present bool) (string, bool) { return raw, present })
+			u.RewriteQueryString(func(_ *Url, raw string, hasQuery bool) (string, bool) { return raw, hasQuery })
 			if u.String() != want || u.OpaquePath() != opaque || u.SearchParams() != params || clone.String() != want {
 				t.Fatalf("identity rewrites changed URL, path kind, SearchParams identity, or clone: %q", u)
 			}

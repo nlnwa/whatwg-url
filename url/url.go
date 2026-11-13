@@ -332,8 +332,7 @@ func (u *Url) Search() string {
 // SetSearch implements WHATWG url api (https://url.spec.whatwg.org/#api).
 // It parses the supplied query as a URL component and applies the configured
 // URL query percent-encoding rules. For form-data semantics use SearchParams;
-// to rewrite serialized query terms without decoding use RawQuery together
-// with RewriteQuery.
+// to rewrite serialized query terms without decoding use RewriteQuery.
 func (u *Url) SetSearch(query string) {
 	// Let url be this’s URL.
 
@@ -384,6 +383,8 @@ func (u *Url) SearchParams() *SearchParams {
 	return u.searchParams
 }
 
+// Query returns the serialized query without a leading '?'. Use ParseQuery
+// to obtain lossless terms or SearchParams for decoded form data.
 func (u *Url) Query() string {
 	if !u.hasQuery || len(u.query) == 0 {
 		return ""
@@ -439,6 +440,8 @@ func (u *Url) String() string {
 	return u.Href(false)
 }
 
+// ValidationErrors returns a copy of the slice of validation errors associated
+// with this URL. The entries refer to the recorded occurrences.
 func (u *Url) ValidationErrors() []*ValidationError {
 	return append([]*ValidationError(nil), u.validationErrors...)
 }

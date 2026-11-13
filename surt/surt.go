@@ -169,11 +169,11 @@ func canonicalize(u *whatwgurl.Url, options Options) {
 		return path
 	})
 
-	u.RewriteQuery(func(_ *whatwgurl.Url, raw string, present bool) (string, bool) {
+	u.RewriteQueryString(func(_ *whatwgurl.Url, raw string, present bool) (string, bool) {
 		if !present || raw == "" {
 			return "", false
 		}
-		query := whatwgurl.ParseRawQuery(raw)
+		query := whatwgurl.ParseQuery(raw)
 		for i := range query {
 			query[i].Name = strings.ToLower(normalizeQueryPart(query[i].Name))
 			query[i].Value = strings.ToLower(normalizeQueryPart(query[i].Value))

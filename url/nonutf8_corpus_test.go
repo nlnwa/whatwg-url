@@ -54,8 +54,8 @@ func TestNonUTF8Corpus(t *testing.T) {
 		if got := again.String(); got != serialized {
 			t.Fatalf("line %d: reparse = %q, want %q", line, got, serialized)
 		}
-		if got := url.ParseRawQuery(u.Query()).String(); got != u.Query() {
-			t.Fatalf("line %d: RawQuery round-trip = %q, want %q", line, got, u.Query())
+		if got := url.ParseQuery(u.Query()).String(); got != u.Query() {
+			t.Fatalf("line %d: Query round-trip = %q, want %q", line, got, u.Query())
 		}
 		params := u.SearchParams()
 		_ = params.Get("q")

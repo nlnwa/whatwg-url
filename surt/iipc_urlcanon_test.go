@@ -77,7 +77,7 @@ func TestIIPCURLCanonCanonicalizationPrimitiveData(t *testing.T) {
 
 	t.Run("alphaRorderQuery", func(t *testing.T) {
 		for input, want := range vectors["alphaRorderQuery"] {
-			query := whatwgurl.ParseRawQuery(input)
+			query := whatwgurl.ParseQuery(input)
 			query.SortAbsolute()
 			if got := query.String(); got != want {
 				t.Errorf("sorting %q = %q, want %q", input, got, want)

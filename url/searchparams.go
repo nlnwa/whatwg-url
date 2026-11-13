@@ -213,7 +213,7 @@ func (v *params) Values() iter.Seq[*NameValuePair] {
 // and loses the distinction between a bare term ("flag") and an empty value
 // ("flag="). Every mutation serializes the query as form data.
 //
-// Use SearchParams when the query represents form data. Use RawQuery when its
+// Use SearchParams when the query represents form data. Use Query when its
 // serialized spelling matters.
 type SearchParams struct {
 	url    *Url

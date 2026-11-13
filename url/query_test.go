@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestRawQueryRoundTrip(t *testing.T) {
+func TestQueryRoundTrip(t *testing.T) {
 	tests := []string{
 		"",
 		"q=a+b",
@@ -18,43 +18,43 @@ func TestRawQueryRoundTrip(t *testing.T) {
 		"x=%GG%2%&nested=%2525FD",
 	}
 	for _, raw := range tests {
-		if got := ParseRawQuery(raw).String(); got != raw {
-			t.Errorf("ParseRawQuery(%q).String() = %q", raw, got)
+		if got := ParseQuery(raw).String(); got != raw {
+			t.Errorf("ParseQuery(%q).String() = %q", raw, got)
 		}
 	}
 }
 
-func TestRawQuerySort(t *testing.T) {
-	query := ParseRawQuery("b=first&a=z&b=second&a=a")
+func TestQuerySort(t *testing.T) {
+	query := ParseQuery("b=first&a=z&b=second&a=a")
 	query.Sort()
 	if got, want := query.String(), "a=z&a=a&b=first&b=second"; got != want {
 		t.Fatalf("Sort() = %q, want %q", got, want)
 	}
 
-	query = ParseRawQuery("b=first&a=z&b=second&a=a&b")
+	query = ParseQuery("b=first&a=z&b=second&a=a&b")
 	query.SortAbsolute()
 	if got, want := query.String(), "a=a&a=z&b&b=first&b=second"; got != want {
 		t.Fatalf("SortAbsolute() = %q, want %q", got, want)
 	}
 }
 
-func TestRawQueryFilter(t *testing.T) {
-	query := ParseRawQuery("keep=1&&drop=2&flag&keep=3")
-	var seen []RawQueryParameter
+func TestQueryFilter(t *testing.T) {
+	query := ParseQuery("keep=1&&drop=2&flag&keep=3")
+	var seen []QueryParameter
 	query.Filter(func(name, value string, hasEquals bool) bool {
-		seen = append(seen, RawQueryParameter{name, value, hasEquals})
+		seen = append(seen, QueryParameter{name, value, hasEquals})
 		return name != "drop" && name != ""
 	})
 	if got, want := query.String(), "keep=1&flag&keep=3"; got != want {
 		t.Fatalf("Filter() = %q, want %q", got, want)
 	}
-	if !slices.Equal(seen, ParseRawQuery("keep=1&&drop=2&flag&keep=3")) {
+	if !slices.Equal(seen, ParseQuery("keep=1&&drop=2&flag&keep=3")) {
 		t.Fatalf("Filter callback saw %#v", seen)
 	}
 }
 
-func TestRawQuerySortPreservesNonUTF8Bytes(t *testing.T) {
-	query := ParseRawQuery("b=%FC&a=%FF&a=%FE&flag&empty=&")
+func TestQuerySortPreservesNonUTF8Bytes(t *testing.T) {
+	query := ParseQuery("b=%FC&a=%FF&a=%FE&flag&empty=&")
 	query.Sort()
 	if got, want := query.String(), "&a=%FF&a=%FE&b=%FC&empty=&flag"; got != want {
 		t.Fatalf("Sort() = %q, want %q", got, want)
