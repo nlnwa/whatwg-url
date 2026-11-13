@@ -124,7 +124,7 @@ func domainParser(domain string, beStrict bool) (result string, warning, failure
 
 	// If result is the empty string, then return failure.
 	if result == "" {
-		return "", warning, errors.New("Unicode ToASCII returned the empty string")
+		return "", warning, errors.New("unicode ToASCII returned the empty string")
 	}
 
 	// If result contains a forbidden domain code point, then return failure.

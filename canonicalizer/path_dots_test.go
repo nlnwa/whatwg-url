@@ -29,7 +29,7 @@ func TestURLCanonPathDots(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	decoder := json.NewDecoder(file)
 	expect := func(want json.Token) {
 		t.Helper()

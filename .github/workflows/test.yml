@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+      - master
+    tags:
+      - 'v*'
   pull_request: {}
 
 jobs:
@@ -14,22 +17,27 @@ jobs:
       matrix:
         arch: ["amd64", "386", "arm", "arm64"]
     steps:
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v4
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.27.x'
-      - run:  go test ./...
+      - run: go test ./...
         env:
           GOARCH: ${{ matrix.arch }}
+      - run: go test -tags=long ./...
+        if: matrix.arch == 'amd64'
+      - run: go test -race ./...
+        if: matrix.arch == 'amd64'
   lint:
     name: golangci-lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.27.x'
-      - uses: golangci/golangci-lint-action@v6
+      - uses: golangci/golangci-lint-action@v9
         with:
-          version: latest
+          version: v2.15.0
+          args: --build-tags=long

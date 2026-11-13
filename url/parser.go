@@ -1084,7 +1084,7 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 					// Shorten url’s path.
 					url.path.shortenPath(url.scheme)
 					// If neither c is U+002F (/), nor url is special and c is U+005C (\),
-					if r != '/' && !(url.isSpecial && r == '\\') {
+					if r != '/' && (!url.isSpecial || r != '\\') {
 						// append the empty string to url’s path.
 						url.path.addSegment("")
 						// Note: This means that for input /usr/.. the result is / and not a lack of a path.
@@ -1094,7 +1094,7 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 				// Otherwise, if buffer is a single-dot URL path segment
 				!p.SkipDotSegmentNormalization && isSingleDotPathSegmentBytes(buf) &&
 					// and if neither c is U+002F (/), nor url is special and c is U+005C (\),
-					r != '/' && !(url.isSpecial && r == '\\') {
+					r != '/' && (!url.isSpecial || r != '\\') {
 					// append the empty string to url’s path.
 					url.path.addSegment("")
 				} else if

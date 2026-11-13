@@ -200,7 +200,7 @@ func TestIAPolicyOptions(t *testing.T) {
 		{"defaults", "http://example.org/?flag&keep=2", IA()},
 		{"disabled massage and filtering", "http://www.example.org/?cfid=1&flag&keep=2", IA(WithHostMassage(false), WithQueryFilters(nil))},
 		{"custom replaces filter", "http://example.org/?cfid=1&flag", IA(WithQueryFilter(func(name, value string, hasEquals bool) bool {
-			return !(name == "keep" && value == "2" && hasEquals)
+			return name != "keep" || value != "2" || !hasEquals
 		}))},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

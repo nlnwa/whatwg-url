@@ -37,7 +37,7 @@ func DefaultSessionQueryFilters() map[string]QueryFilter {
 		"phpsessid":  keepUnlessSessionID("phpsessid"),
 		"sid":        keepUnlessSessionID("sid"),
 		"aspsessionid": func(name, value string, hasEquals bool) bool {
-			return !(hasEquals && aspsessionIDRegex.MatchString(name) && len(value) == 24)
+			return !hasEquals || !aspsessionIDRegex.MatchString(name) || len(value) != 24
 		},
 		"cfid":    func(name, _ string, _ bool) bool { return !strings.EqualFold(name, "cfid") },
 		"cftoken": func(name, _ string, _ bool) bool { return !strings.EqualFold(name, "cftoken") },
@@ -144,7 +144,7 @@ var alphaNum32Regex = regexp.MustCompile(`(?i)^[a-z0-9]{32}$`)
 
 func keepUnlessSessionID(parameter string) QueryFilter {
 	return func(name, value string, hasEquals bool) bool {
-		return !(strings.EqualFold(name, parameter) && hasEquals && alphaNum32Regex.MatchString(value))
+		return !strings.EqualFold(name, parameter) || !hasEquals || !alphaNum32Regex.MatchString(value)
 	}
 }
 

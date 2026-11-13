@@ -233,10 +233,7 @@ func onlyASCIIDigits[T ByteSequence](s T) bool {
 
 func onlyASCIIHexDigits[T ByteSequence](s T) bool {
 	for i := 0; i < len(s); i++ {
-		b := s[i]
-		if !(('0' <= b && b <= '9') ||
-			('a' <= b && b <= 'f') ||
-			('A' <= b && b <= 'F')) {
+		if !isHex(s[i]) {
 			return false
 		}
 	}
