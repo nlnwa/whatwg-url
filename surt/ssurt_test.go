@@ -14,6 +14,8 @@ func TestSSURTString(t *testing.T) {
 		{"http://www.example.com", true, "com,example,www,//http:/"},
 		{"http://127.0.0.1/foo/bar", true, "127.0.0.1//http:/foo/bar"},
 		{"http://[::1]/foo/bar", true, "[::1]//http:/foo/bar"},
+		{"http://[1::2::3]/Path?B=2&A=1#Frag", true, "[1::2::3]//http:/Path?B=2&A=1#Frag"},
+		{"http://[unclosed/Path", true, "[unclosed//http:/Path"},
 		{"http://example.com:8080/foo?query#fragment", true, "com,example,//8080:http:/foo?query#fragment"},
 		{"http://user:pass@foo.example.org:81/path", true, "org,example,foo,//81:http@user:pass:/path"},
 		{"http://archive.org/goo/?a=2&b&a=1", false, "org,archive,///goo/?a=2&b&a=1"},

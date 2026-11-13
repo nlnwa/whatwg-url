@@ -7,8 +7,6 @@ import (
 	"slices"
 	"sort"
 	"testing"
-
-	whatwgurl "github.com/nationallibraryofnorway/whatwg-url/url"
 )
 
 const iipcURLCanonRevision = "842afd4d84089cbbef87dd3286edaf053caedb0a"
@@ -53,60 +51,6 @@ func TestIIPCURLCanonDefaultIASURTData(t *testing.T) {
 	vectors := loadIIPCURLCanonVectors(t, "surt.json")
 	runStringVectors(t, vectors["defaultIASurt"], func(input string) (string, error) {
 		return String(input)
-	})
-}
-
-func TestIIPCURLCanonIACanonicalizationData(t *testing.T) {
-	vectors := loadIIPCURLCanonVectors(t, "surt.json")
-	for _, group := range []string{"Canonicalizer.DefaultIA", "Canonicalizer.IA"} {
-		t.Run(group, func(t *testing.T) {
-			runStringVectors(t, vectors[group], func(input string) (string, error) {
-				u, err := iaParser.Parse(input)
-				if err != nil {
-					return "", err
-				}
-				canonicalize(u, defaultOptions())
-				return u.String(), nil
-			})
-		})
-	}
-}
-
-func TestIIPCURLCanonCanonicalizationPrimitiveData(t *testing.T) {
-	vectors := loadIIPCURLCanonVectors(t, "surt.json")
-
-	t.Run("alphaRorderQuery", func(t *testing.T) {
-		for input, want := range vectors["alphaRorderQuery"] {
-			query := whatwgurl.ParseQuery(input)
-			query.SortAbsolute()
-			if got := query.String(); got != want {
-				t.Errorf("sorting %q = %q, want %q", input, got, want)
-			}
-		}
-	})
-
-	t.Run("massageHost", func(t *testing.T) {
-		for input, want := range vectors["massageHost"] {
-			if got := massageHost(input); got != want {
-				t.Errorf("massageHost(%q) = %q, want %q", input, got, want)
-			}
-		}
-	})
-
-	t.Run("stripPathSessionId", func(t *testing.T) {
-		for input, want := range vectors["stripPathSessionId"] {
-			if got := stripPathSessionID(input); got != want {
-				t.Errorf("stripPathSessionID(%q) = %q, want %q", input, got, want)
-			}
-		}
-	})
-
-	t.Run("unescapeRepeatedly", func(t *testing.T) {
-		for input, want := range vectors["unescapeRepeatedly"] {
-			if got := whatwgurl.PercentDecodeRepeated(input); got != want {
-				t.Errorf("PercentDecodeRepeated(%q) = %q, want %q", input, got, want)
-			}
-		}
 	})
 }
 

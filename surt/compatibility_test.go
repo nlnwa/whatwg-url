@@ -1,6 +1,9 @@
 package surt
 
-import "testing"
+import (
+	"github.com/nationallibraryofnorway/whatwg-url/canonicalizer"
+	"testing"
+)
 
 // These vectors were converted from the Internet Archive Python test suite:
 // https://github.com/internetarchive/surt/blob/master/tests/test_surt.py
@@ -31,7 +34,7 @@ func TestUpstreamSURTCompatibility(t *testing.T) {
 		{"whois", "whois://whois.isoc.org.il/shaveh.co.il", nil, "il,org,isoc,whois)/shaveh.co.il"},
 		{"scheme", "http://www.example.com/", []Option{WithIncludeScheme(true)}, "http://(com,example)/"},
 		{"scheme and comma", "https://www.example.com/", []Option{WithIncludeScheme(true), WithTrailingComma(true)}, "https://(com,example,)/"},
-		{"scheme no massage", "ftp://www.example.com/", []Option{WithIncludeScheme(true), WithTrailingComma(true), WithHostMassage(false)}, "ftp://(com,example,www,)/"},
+		{"scheme no massage", "ftp://www.example.com/", []Option{WithIncludeScheme(true), WithTrailingComma(true), WithParser(canonicalizer.IA(canonicalizer.WithHostMassage(false)))}, "ftp://(com,example,www,)/"},
 		{"whois scheme", "whois://whois.isoc.org.il/shaveh.co.il", []Option{WithIncludeScheme(true)}, "whois://(il,org,isoc,whois)/shaveh.co.il"},
 		{"encoded unicode", "http://example.com/app?item=Wroc%C5%82aw", nil, "com,example)/app?item=wroc%c5%82aw"},
 		{"path session", "http://archive.org/(S(4hqa0555fwsecu455xqckv45))/Mileg.aspx", nil, "org,archive)/mileg.aspx"},
@@ -77,36 +80,6 @@ func TestUpstreamHostToSURTCompatibility(t *testing.T) {
 	for _, test := range tests {
 		if got := hostToSURTKey(test.host, test.reverseIPAddr); got != test.want {
 			t.Errorf("hostToSURTKey(%q, %v) = %q, want %q", test.host, test.reverseIPAddr, got, test.want)
-		}
-	}
-}
-
-func TestUpstreamHostMassageCompatibility(t *testing.T) {
-	tests := map[string]string{
-		"foo.com":              "foo.com",
-		"www.foo.com":          "foo.com",
-		"www12.foo.com":        "foo.com",
-		"www2foo.com":          "www2foo.com",
-		"www2.www2foo.com":     "www2foo.com",
-		"www.www2.example.com": "www2.example.com",
-	}
-	for input, want := range tests {
-		if got := massageHost(input); got != want {
-			t.Errorf("massageHost(%q) = %q, want %q", input, got, want)
-		}
-	}
-}
-
-func TestUpstreamPathSessionCompatibility(t *testing.T) {
-	tests := map[string]string{
-		"/(S(4hqa0555fwsecu455xqckv45))/mileg.aspx":                                                       "/mileg.aspx",
-		"/(4hqa0555fwsecu455xqckv45)/mileg.aspx":                                                          "/mileg.aspx",
-		"/(a(4hqa0555fwsecu455xqckv45)S(4hqa0555fwsecu455xqckv45)f(4hqa0555fwsecu455xqckv45))/mileg.aspx": "/mileg.aspx",
-		"/photos/36050182@N05/":                                                                           "/photos/36050182@N05/",
-	}
-	for input, want := range tests {
-		if got := stripPathSessionID(input); got != want {
-			t.Errorf("stripPathSessionID(%q) = %q, want %q", input, got, want)
 		}
 	}
 }

@@ -1,9 +1,11 @@
 package surt
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
+	"github.com/nationallibraryofnorway/whatwg-url/canonicalizer"
 	whatwgurl "github.com/nationallibraryofnorway/whatwg-url/url"
 )
 
@@ -22,8 +24,17 @@ func TestSURTCanonicalization(t *testing.T) {
 		{"keep ipv4", "http://192.168.1.254/info/", []Option{WithReverseIPAddr(false)}, "192.168.1.254)/info"},
 		{"ipv6", "http://[2001:db8::1]/Path/", nil, "[2001:db8::1])/path"},
 		{"lossless raw terms", "http://example.com/?b&empty=&a=2&&a=1&q=a+b&space=%20&slash=%2f", nil, "com,example)/?&a=1&a=2&b&empty=&q=a+b&slash=/&space=%20"},
+		{"escaped query-name separator", "http://example.com/?CFID%253DX=1&cfid=removed", nil, "com,example)/?cfid%3dx=1"},
 		{"default scheme fallback", "www.example.com/Path", nil, "com,example)/path"},
 		{"trimmed default scheme fallback", "  www.example.com/Path  ", nil, "com,example)/path"},
+		{"literal invalid bytes", "http://www.example.com/\xFC?q=\x91", nil, "com,example)/%fc?q=%91"},
+		{"lax IPv4 hostname", "http://09/path", nil, "09)/path"},
+		{"lax malformed IPv6", "http://[1::2::3]/Path/", nil, "[1::2::3])/path"},
+		{"lax unclosed IPv6", "http://[::1/Path/", nil, "[::1)/path"},
+		{"above-root parent", "https://domain.com/../path", nil, "com,domain)/path"},
+		{"parent after segment", "https://domain.com/a/../path", nil, "com,domain)/path"},
+		{"parent beyond root", "https://domain.com/a/../../path", nil, "com,domain)/path"},
+		{"encoded above-root parent", "https://domain.com/%2e%2e/path", nil, "com,domain)/path"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -46,8 +57,8 @@ func TestQueryFilterOptions(t *testing.T) {
 		want string
 	}{
 		{"default", nil, "org,archive)/?keep=1"},
-		{"custom replaces default", []Option{WithFilteredQueryParams("keep")}, "org,archive)/?jsessionid=" + id},
-		{"disabled", []Option{WithQueryParamFilter(nil)}, "org,archive)/?jsessionid=" + id + "&keep=1"},
+		{"custom replaces default", []Option{WithParser(canonicalizer.IA(canonicalizer.WithQueryFilter(func(name, _ string, _ bool) bool { return name != "keep" })))}, "org,archive)/?jsessionid=" + id},
+		{"disabled", []Option{WithParser(canonicalizer.IA(canonicalizer.WithQueryFilter(nil)))}, "org,archive)/?jsessionid=" + id + "&keep=1"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -83,8 +94,8 @@ func TestDefaultQuerySessionFilters(t *testing.T) {
 	}
 }
 
-func TestURLDoesNotMutateInput(t *testing.T) {
-	u, err := whatwgurl.Parse("https://User:Pass@WWW.Example.ORG:80/Path/?B&A#Frag")
+func TestCanonicalizationThenURLDoesNotMutateInput(t *testing.T) {
+	u, err := canonicalizer.IA().Parse("https://User:Pass@WWW.Example.ORG:80/Path/?B&A#Frag")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,6 +116,104 @@ func TestURLNil(t *testing.T) {
 	got, err := URL(nil)
 	if err != nil || got != "" {
 		t.Fatalf("URL(nil) = %q, %v", got, err)
+	}
+}
+
+func TestURLFormatsWithoutCanonicalization(t *testing.T) {
+	u, err := whatwgurl.Parse("https://User:Pass@WWW.Example.ORG:80/Path/?B&A#Frag")
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := u.String()
+	params := u.SearchParams()
+	parser := &countingParser{Parser: canonicalizer.IA()}
+	got, err := URL(u, WithIncludeScheme(true), WithParser(parser))
+	const want = "https://(org,example,www:80)/Path/?B&A"
+	if err != nil || got != want {
+		t.Fatalf("URL() = %q, %v; want %q", got, err, want)
+	}
+	if u.String() != before || u.SearchParams() != params || parser.calls != 0 {
+		t.Fatal("formatter changed the URL or invoked a parser")
+	}
+	opaque, err := whatwgurl.Parse("custom:opaque?b=2&a=1#f")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := URL(opaque); err != nil || got != opaque.String() {
+		t.Fatalf("hostless formatting = %q, %v", got, err)
+	}
+}
+
+type countingParser struct {
+	whatwgurl.Parser
+	calls int
+	err   error
+}
+
+func (p *countingParser) Parse(raw string) (*whatwgurl.Url, error) {
+	p.calls++
+	if p.err != nil {
+		return nil, p.err
+	}
+	return p.Parser.Parse(raw)
+}
+
+func TestStringUsesSelectedParserOnce(t *testing.T) {
+	rules := 0
+	profile := canonicalizer.IA(canonicalizer.WithHostMassage(false)).Then(func(u *whatwgurl.Url) {
+		rules++
+		u.RewritePathname(func(_ *whatwgurl.Url, path string) string { return path + "/rule" })
+	})
+	parser := &countingParser{Parser: profile}
+	got, err := String("http://www.example.org/Path/?B=2&A=1", WithParser(parser))
+	if err != nil || got != "org,example,www)/path/rule?a=1&b=2" || parser.calls != 1 || rules != 1 {
+		t.Fatalf("String() = %q, %v; parser calls=%d, rule calls=%d", got, err, parser.calls, rules)
+	}
+	const input = "http://www.example.org/Path/?B=2&A=1"
+	got, err = String(input, WithParser(whatwgurl.NewParser()))
+	if err != nil || got != "org,example,www)/Path/?B=2&A=1" {
+		t.Fatalf("plain parser was canonicalized: %q, %v", got, err)
+	}
+	got, err = String(input, WithParser(profile), WithParser(nil))
+	if err != nil || got != "org,example)/path?a=1&b=2" {
+		t.Fatalf("nil did not restore default parser: %q, %v", got, err)
+	}
+	if _, err := String("example.org/path", WithParser(whatwgurl.NewParser())); !errors.Is(err, whatwgurl.ErrMissingSchemeNonRelativeURL) {
+		t.Fatalf("SURT applied its own missing-scheme fallback: %v", err)
+	}
+}
+
+func TestStringPreservesParserErrorsAndFormattingConventions(t *testing.T) {
+	sentinel := errors.New("custom parser failure")
+	parser := &countingParser{err: sentinel}
+	if got, err := String("http://example.org/", WithParser(parser)); got != "" || err != sentinel || parser.calls != 1 {
+		t.Fatalf("parser failure changed: %q, %v; calls=%d", got, err, parser.calls)
+	}
+	for _, tc := range []struct{ input, want string }{
+		{"", "-"},
+		{"warcinfo:raw input", "warcinfo:raw input"},
+	} {
+		got, err := String(tc.input, WithParser(parser))
+		if err != nil || got != tc.want || parser.calls != 1 {
+			t.Fatalf("formatting convention invoked parser: %q, %v; calls=%d", got, err, parser.calls)
+		}
+	}
+}
+
+func TestSharedIAProfileCanonicalizesOnce(t *testing.T) {
+	// Host massage removes one label. Applying the profile twice would also
+	// remove www2 and change this key.
+	got, err := String("http://www.www2.example.org/Path")
+	if err != nil || got != "org,example,www2)/path" {
+		t.Fatalf("String() = %q, %v; canonicalization must run once", got, err)
+	}
+}
+
+func TestSSURTUsesSharedParserWithoutCanonicalizing(t *testing.T) {
+	got, err := SSURTString("http://User:Pass@WWW.Example.org/Path/?B=2&A=1#Frag", true)
+	const want = "org,example,www,//http@User:Pass:/Path/?B=2&A=1#Frag"
+	if err != nil || got != want {
+		t.Fatalf("SSURTString() = %q, %v; want %q", got, err, want)
 	}
 }
 

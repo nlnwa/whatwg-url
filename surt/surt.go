@@ -1,8 +1,8 @@
 // Package surt creates [Sort-friendly URI Reordering Transform] (SURT) keys
 // and supports the [IIPC SSURT format].
 //
-// SURT is an Internet Archive convention, not a web standard. This package is
-// experimental, including its reverse operations and SSURT API.
+// SURT keys group URLs by reversed hostname for sorting and prefix matching.
+// This package is experimental.
 //
 // [Sort-friendly URI Reordering Transform]: http://crawler.archive.org/articles/user_manual/glossary.html#surt
 // [IIPC SSURT format]: https://github.com/iipc/urlcanon/blob/master/ssurt.rst
@@ -10,30 +10,24 @@ package surt
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	whatwgurl "github.com/nationallibraryofnorway/whatwg-url/url"
 )
 
-// Options controls SURT serialization and IA-style canonicalization.
+// Options controls SURT formatting and the parser used by String.
 type Options struct {
 	TrailingComma bool
 	ReverseIPAddr bool
 	IncludeScheme bool
-	HostMassage   bool
-	QueryFilter   func(name, value string, hasEq bool) bool
+	Parser        whatwgurl.Parser
 }
 
 // Option changes SURT options.
 type Option func(*Options)
 
 func defaultOptions() Options {
-	return Options{
-		ReverseIPAddr: true,
-		HostMassage:   true,
-		QueryFilter:   shouldFilterCanonicalParam,
-	}
+	return Options{ReverseIPAddr: true, Parser: defaultSURTParser}
 }
 
 // WithTrailingComma controls whether a comma is appended to the SURT host key.
@@ -51,59 +45,32 @@ func WithIncludeScheme(enabled bool) Option {
 	return func(options *Options) { options.IncludeScheme = enabled }
 }
 
-// WithHostMassage controls removal of leading www and wwwN labels.
-func WithHostMassage(enabled bool) Option {
-	return func(options *Options) { options.HostMassage = enabled }
+// WithParser selects the parser used by String. Profiles implementing
+// url.Parser can supply any desired canonicalization. Nil restores the default
+// IA parser. This option has no effect on URL, which formats an existing URL.
+func WithParser(parser whatwgurl.Parser) Option {
+	return func(options *Options) { options.Parser = parser }
 }
 
-// WithQueryParamFilter replaces the default IA session-parameter filter.
-// Returning true removes a serialized parameter. A nil filter disables query
-// filtering.
-func WithQueryParamFilter(filter func(name, value string, hasEq bool) bool) Option {
-	return func(options *Options) { options.QueryFilter = filter }
-}
-
-// WithFilteredQueryParams replaces the default filter with a case-insensitive
-// filter that removes the named parameters.
-func WithFilteredQueryParams(params ...string) Option {
-	lookup := make(map[string]struct{}, len(params))
-	for _, parameter := range params {
-		lookup[strings.ToLower(parameter)] = struct{}{}
-	}
-	return WithQueryParamFilter(func(name, _ string, _ bool) bool {
-		_, found := lookup[strings.ToLower(name)]
-		return found
-	})
-}
-
-var iaParser = whatwgurl.NewParser(
-	whatwgurl.WithLaxHostParsing(),
-	whatwgurl.WithCollapseConsecutiveSlashes(),
-	whatwgurl.WithAcceptInvalidCodepoints(),
-	whatwgurl.WithPercentEncodeSinglePercentSign(),
-)
-
-var iaEscapeSet = whatwgurl.NewPercentEncodeSet(0x20, ' ', '#', '%')
-var iaQueryPartEscapeSet = iaEscapeSet.Set('&')
-
-// URL converts a parsed URL to an IA-style SURT. It clones u and never mutates
-// the caller's URL.
+// URL formats an already-parsed URL as a SURT. It does not canonicalize, clone,
+// or mutate u. Canonicalize explicitly first when normalized keys are needed.
 func URL(u *whatwgurl.Url, opts ...Option) (string, error) {
-	if u == nil {
-		return "", nil
-	}
-	u = u.Clone()
-
-	if shouldPassthroughScheme(u.Scheme()) {
-		return u.String(), nil
-	}
-
-	options := applyOptions(opts)
-	canonicalize(u, options)
-	return serializeSURT(u, options), nil
+	return formatURL(u, applyOptions(opts)), nil
 }
 
-// String parses rawURL and converts it to an IA-style SURT.
+func formatURL(u *whatwgurl.Url, options Options) string {
+	if u == nil {
+		return ""
+	}
+	if u.Hostname() == "" || shouldPassthroughScheme(u.Scheme()) {
+		return u.String()
+	}
+	return serializeSURT(u, options)
+}
+
+// String parses rawURL once with the selected parser, then formats it as a
+// SURT. The default parser applies IA canonicalization. Empty input produces
+// "-"; passthrough schemes retain their original input without parsing.
 func String(rawURL string, opts ...Option) (string, error) {
 	if rawURL == "" {
 		return "-", nil
@@ -112,18 +79,16 @@ func String(rawURL string, opts ...Option) (string, error) {
 		return rawURL, nil
 	}
 
-	u, err := iaParser.Parse(rawURL)
-	if err != nil {
-		fallback := strings.TrimSpace(rawURL)
-		if _, hasScheme := rawScheme(fallback); hasScheme {
-			return "", err
-		}
-		u, err = iaParser.Parse("http://" + fallback)
+	options := applyOptions(opts)
+	parser := options.Parser
+	if parser == nil {
+		parser = defaultSURTParser
 	}
+	u, err := parser.Parse(rawURL)
 	if err != nil {
 		return "", err
 	}
-	return URL(u, opts...)
+	return formatURL(u, options), nil
 }
 
 // Surt is an alias for String retained for compatibility.
@@ -139,64 +104,6 @@ func applyOptions(opts []Option) Options {
 		}
 	}
 	return options
-}
-
-func canonicalize(u *whatwgurl.Url, options Options) {
-	u.SetUsername("")
-	u.SetPassword("")
-	u.RewriteFragment(func(_ *whatwgurl.Url, _ string, _ bool) (string, bool) {
-		return "", false
-	})
-
-	u.RewriteHostname(func(_ *whatwgurl.Url, host string) string {
-		if strings.HasPrefix(host, "[") {
-			return strings.ToLower(host)
-		}
-		host = normalizeEscapes(host, iaEscapeSet)
-		host = strings.ToLower(host)
-		if options.HostMassage {
-			host = massageHost(host)
-		}
-		return host
-	})
-
-	u.RewritePathname(func(_ *whatwgurl.Url, path string) string {
-		path = strings.ToLower(normalizeEscapes(path, iaEscapeSet))
-		path = stripPathSessionID(path)
-		if len(path) > 1 {
-			path = strings.TrimSuffix(path, "/")
-		}
-		return path
-	})
-
-	u.RewriteQueryString(func(_ *whatwgurl.Url, raw string, present bool) (string, bool) {
-		if !present || raw == "" {
-			return "", false
-		}
-		query := whatwgurl.ParseQuery(raw)
-		for i := range query {
-			query[i].Name = strings.ToLower(normalizeQueryPart(query[i].Name))
-			query[i].Value = strings.ToLower(normalizeQueryPart(query[i].Value))
-		}
-		if options.QueryFilter != nil {
-			query.Filter(func(name, value string, hasEquals bool) bool {
-				return !options.QueryFilter(name, value, hasEquals)
-			})
-		}
-		if len(query) == 0 {
-			return "", false
-		}
-		query.SortAbsolute()
-		return query.String(), true
-	})
-}
-
-func normalizeEscapes(value string, set *whatwgurl.PercentEncodeSet) string {
-	return whatwgurl.PercentEncode(whatwgurl.PercentDecodeRepeated(value), set)
-}
-
-func normalizeQueryPart(value string) string {
-	return normalizeEscapes(value, iaQueryPartEscapeSet)
 }
 
 func serializeSURT(u *whatwgurl.Url, options Options) string {
@@ -259,42 +166,6 @@ func isFourDecimalLabelIP(hostname string) bool {
 	return true
 }
 
-var wwwPrefixRegex = regexp.MustCompile(`(?i)^www[0-9]*$`)
-
-func massageHost(hostname string) string {
-	if hostname == "" || strings.HasPrefix(hostname, "[") || isFourDecimalLabelIP(hostname) {
-		return hostname
-	}
-	labels := strings.Split(hostname, ".")
-	if len(labels) > 1 && wwwPrefixRegex.MatchString(labels[0]) {
-		labels = labels[1:]
-	}
-	return strings.Join(labels, ".")
-}
-
-var pathSessionRegex = regexp.MustCompile(`/\((?:[A-Za-z0-9]{24}|(?:[A-Za-z]\([A-Za-z0-9]{24}\))+?)\)/`)
-
-func stripPathSessionID(path string) string {
-	return pathSessionRegex.ReplaceAllString(path, "/")
-}
-
-var aspsessionIDRegex = regexp.MustCompile(`(?i)^aspsessionid[a-z0-9]{8}$`)
-var alphaNum32Regex = regexp.MustCompile(`(?i)^[a-z0-9]{32}$`)
-
-func shouldFilterCanonicalParam(name, value string, hasEquals bool) bool {
-	lowerName := strings.ToLower(name)
-	if hasEquals && alphaNum32Regex.MatchString(value) {
-		switch lowerName {
-		case "jsessionid", "phpsessid", "sid":
-			return true
-		}
-	}
-	if hasEquals && aspsessionIDRegex.MatchString(name) && len(value) == 24 {
-		return true
-	}
-	return lowerName == "cfid" || lowerName == "cftoken"
-}
-
 func shouldPassthroughScheme(scheme string) bool {
 	switch strings.ToLower(scheme) {
 	case "filedesc", "warcinfo", "dns", "mailto":
@@ -321,8 +192,8 @@ func rawScheme(raw string) (string, bool) {
 
 // UnSURT converts a SURT key back to a normalized URL string.
 //
-// This is an EXPERIMENTAL, non-IA extension. Canonicalization is lossy, so a
-// reverse result is not necessarily byte-for-byte equivalent to the input URL.
+// Keys without a scheme use "http". Canonicalization is lossy, so reversal
+// cannot recover spelling or components removed when the key was created.
 func UnSURT(value string) (string, error) {
 	if value == "" || value == "-" {
 		return "", nil

@@ -9,7 +9,8 @@ import (
 
 // SSURTURL converts a parsed URL to an SSURT string.
 //
-// This API for the IIPC-defined SSURT format is EXPERIMENTAL.
+// With includeScheme, the key includes the port, scheme, and credentials.
+// The URL is formatted without further canonicalization.
 func SSURTURL(u *url.Url, includeScheme bool) (string, error) {
 	if u == nil {
 		return "", nil
@@ -86,9 +87,11 @@ func isURLCanonIPv4(host string) bool {
 
 // SSURTString parses rawURL and converts it to SSURT.
 //
-// This API for the IIPC-defined SSURT format is EXPERIMENTAL.
+// Parsing uses the IA parser without canonicalization rules, retaining path
+// case, credentials, query order, and fragments. To apply a profile explicitly,
+// pass its parsed result to SSURTURL.
 func SSURTString(rawURL string, includeScheme bool) (string, error) {
-	u, err := iaParser.Parse(rawURL)
+	u, err := defaultSSURTParser.Parse(rawURL)
 	if err != nil {
 		return "", err
 	}
@@ -97,7 +100,8 @@ func SSURTString(rawURL string, includeScheme bool) (string, error) {
 
 // UnSSURT converts an SSURT string back to a URL string.
 //
-// This reverse API for the IIPC-defined SSURT format is EXPERIMENTAL.
+// Keys without scheme metadata use "http". Reversal cannot recover spelling
+// or components removed by canonicalization.
 func UnSSURT(value string) (string, error) {
 	if value == "" {
 		return "", nil
