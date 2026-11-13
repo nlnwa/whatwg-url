@@ -57,7 +57,7 @@ go test ./surt -run '^TestUpstreamSURTNonUTF8Compatibility$' -count=1
 `url/nonutf8_corpus_test.go` is excluded by default and enabled by the `long`
 build tag. It contains one streaming test. For every row it checks
 successful parsing, original versus serialized path/query bytes after exactly
-one percent-decoding pass, stable serialization after reparsing, exact RawQuery
+one percent-decoding pass, stable serialization after reparsing, exact Query
 round-trip, and unchanged URL serialization after reading SearchParams. It
 allows the standard normalization of an empty HTTP path to `/`.
 

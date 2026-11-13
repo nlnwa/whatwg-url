@@ -2,10 +2,8 @@
 
 whatwg-url is a spec-compliant URL parser written in Go. See [WHATWG](https://url.spec.whatwg.org/#url-parsing) website for the specification.
 
-> **Module path:** Starting with `v0.8.0`, use
-> `github.com/nationallibraryofnorway/whatwg-url` instead of
-> `github.com/nlnwa/whatwg-url`. See [Upgrading from v0.6.2](#upgrading-from-v062)
-> for migration instructions..
+> **Module path:** `github.com/nationallibraryofnorway/whatwg-url`.
+> See [Upgrading from v0.6.2](#upgrading-from-v062) for migration instructions.
 
 ## Status
 
@@ -22,8 +20,8 @@ migrate from `github.com/nlnwa/whatwg-url` in two steps:
 
 1. **Update imports:** Replace the prefix `github.com/nlnwa/whatwg-url` with
    `github.com/nationallibraryofnorway/whatwg-url` in all Go source files,
-   including tests. The old `canonicalizer` and `errors` packages have been
-   removed; migrate those usages to the APIs in `url` as described below.
+   including tests. The old `errors` package has been removed; migrate those
+   usages to `url`.
 2. **Update the dependency:** Using Go 1.27 or later, run the following commands
    from your project's module root:
 
@@ -40,14 +38,12 @@ it.
 
 This release also changes public APIs and validation behavior. Review
 [validation errors and parse failures](#validation-errors-and-parse-failures)
-and the [canonicalizer migration guide](#migration-from-the-removed-canonicalizer-api),
+and the [canonicalizer migration guide](canonicalizer/README.md#migrating-from-v062),
 and adapt your code before running the tests.
 
 Existing projects pinned to `v0.6.2` continue to work without changes. Future
-releases will only be published under the new module path. Version `v0.7.0`
-under the new path is retracted because it was published from a temporary
-fork before the repository migration. `v0.8.0` is the first supported release
-under the new path.
+releases will be published under the new module path. This guide compares the
+public `v0.6.2` release with the upcoming `v0.8.0` release.
 
 ### Parser options and helper API migration
 
@@ -59,14 +55,11 @@ The following APIs also change when upgrading from `v0.6.2`:
 | `WithSpecialSchemes(map[string]string{...})` | Use `map[string]uint16` with numeric ports, for example `map[string]uint16{"http": 80}`. |
 | `WithPreParseHostFunc` / `WithPostParseHostFunc` | Transform the input before parsing, or use `RewriteHostname` for transformations of a valid serialized hostname after parsing. |
 | `WithEncodingOverride` | The option has been removed without a transcoding replacement. Already percent-encoded path/query bytes need no encoding hint and are preserved by the parser. |
-| `WithSkipEqualsForEmptySearchParamsValue` | Use `RawQuery` with `RewriteQuery` when bare query terms must be preserved. |
 | `Parser.BasicParser(...)` | Use `url.BasicParsing` and its `BasicParse(...)` method, for example `p.(url.BasicParsing).BasicParse(...)` for a parser from `NewParser`. |
 | `Parser.PercentEncodeString(...)` | Use the package-level `url.PercentEncode(...)`. |
 | `Parser.NewUrl()` | Parse an initial URL and modify it through the URL API. `url.Parser` now exposes only `Parse` and `ParseRef`. |
 | `Url.DecodedPort() int` | The result is now `uint16`; convert explicitly if your application needs `int`. |
 | `NewPercentEncodeSet`, `PercentEncodeSet.Set` / `Clear` with `uint` arguments | Pass `rune` values or rune literals. Convert slices to `[]rune` before expanding them. |
-| `Url.SetSearchParams`, `SearchParams.Clone` | Mutate the URL's `SearchParams()` directly, copy form data with `SetSearch(source.SearchParams().String())`, or clone the whole URL with `Url.Clone()`. |
-| `SearchParams.QueryEscape` | Use `SearchParams` for form query serialization. |
 | `EmptyParserOption`, exported `IPv6Addr` | These types have been removed. Omit placeholder options and use `Hostname()` / `IsIPv6()` to inspect parsed IPv6 hosts. |
 
 `NewParser` returns a `url.Parser`. To access the low-level `BasicParse` method,
@@ -107,6 +100,51 @@ resolution, use `Parse` or `ParseRef`.
 `ParseRef("", ref)` now parses the base URL and fails when it is empty. If you
 previously used an empty base to parse an absolute URL, call `Parse(ref)`.
 
+### SearchParams migration
+
+`SearchParams` now consistently uses WHATWG `application/x-www-form-urlencoded`
+semantics. In `v0.6.2`, it combined form behavior, such as converting spaces to
+`+`, with the URL parser's configurable escaping and decoding. Form processing
+now uses UTF-8 and form escaping independently of those parser settings.
+
+These changes can affect both returned values and serialized URLs:
+
+| Operation | v0.6.2 behavior | v0.8.0 behavior |
+| --- | --- | --- |
+| Decode `q=a+b%2Bc` | `Get("q")` returned `"a b c"`. | Returns `"a b+c"`: literal `+` becomes a space before percent-decoding, so `%2B` remains a plus. |
+| Decode malformed UTF-8, such as `q=%FC` | Without an encoding override, returned the raw byte `0xFC`. | Returns U+FFFD (`�`). Mutating the parameters serializes it as `%EF%BF%BD`. Different invalid byte sequences can produce the same decoded name or value. |
+| Serialize names and values | Used the parser's query encode set and optional encoding override. | Uses UTF-8 form encoding: spaces become `+`; literal `+`, `&`, `=`, `%`, and `~` become `%2B`, `%26`, `%3D`, `%25`, and `%7E`. Parser encode-set options do not change form serialization. |
+| `Sort()` | Compared decoded names as Go strings. | Stably compares UTF-16 code units. For example, U+10000 sorts before U+E000. |
+| `SortAbsolute()` | Compared concatenated names and values. | Compares names first, then values, using UTF-16 order for both. For example, `ab=a&a=z` becomes `a=z&ab=a`. |
+| Mutate a query to an empty parameter list | Could leave a trailing `?`. | Removes the query, including `?`. If the URL has an opaque path and no fragment, trailing path spaces are also stripped. |
+
+Reading parameters leaves the URL's serialized query unchanged. Mutations,
+including `Sort()` and `Iterate()`, serialize the whole parameter list, so the
+escaping and decoding changes above can affect parameters you did not edit.
+Use `RewriteQuery` for edits that must preserve serialized terms, literal `+`,
+empty terms, or the distinction between `flag` and `flag=`.
+
+The API changes are:
+
+| API | Migration |
+| --- | --- |
+| `Url.SetSearchParams` | Mutate `u.SearchParams()` directly. To copy form data from another URL, use `u.SetSearch(source.SearchParams().String())`. |
+| `SearchParams.Clone` | Use `u.Clone().SearchParams()` for an independent form view. Mutating a cloned URL's parameters now updates the clone rather than the original URL. |
+| `SearchParams.QueryEscape` | Pass decoded names and values to `Append` or `Set`; use `String()` to serialize the form data. |
+| `WithSkipEqualsForEmptySearchParamsValue` | Removed. Form serialization writes `flag=` for an empty value. Use `RewriteQuery` to preserve bare terms. |
+| `SearchParams.Filter` | New method: `Filter(func(name, value string) bool)` keeps pairs for which the predicate returns true and synchronizes the URL. |
+
+`Iterate` still receives `*NameValuePair`, but pairs are now stored as values
+in a slice. Modify them within the callback; use the parameter methods for
+later edits instead of retaining pair pointers across mutations.
+
+### Error handling migration
+
+The old `github.com/nlnwa/whatwg-url/errors` package has been removed. Replace
+its `Type`, `Description`, `Failure`, and `Url` helpers with the types and
+sentinels described in
+[Validation errors and parse failures](#validation-errors-and-parse-failures).
+
 ## Usage
 
 API is similar to [Chapter 6 in WHATWG URL Standard](https://url.spec.whatwg.org/#api). See [documentation](https://pkg.go.dev/github.com/nationallibraryofnorway/whatwg-url) for details.
@@ -141,6 +179,15 @@ validation is detected before they recover. `WithFailOnValidationError` stops
 at the first validation occurrence and takes precedence over every recovery
 option, regardless of option order.
 
+`WithLaxHostParsing()` recovers domain, opaque-host, IPv4, and IPv6 parsing failures.
+IPv4 recovery retains the normalized domain as a hostname, without marking it
+as an IPv4 address. IPv6 recovery retains the consumed host spelling, including
+unclosed brackets, without marking it as IPv6. Valid IP addresses still normalize.
+
+`WithSkipDotSegmentNormalization()` preserves literal and percent-encoded dot
+segments during hierarchical path parsing. Semantic uses this option to resolve
+dots after repeated decoding; ordinary parsing keeps standard dot normalization.
+
 Example:
 
 ```go
@@ -151,12 +198,6 @@ p := url.NewParser(
 ```
 
 ### Validation errors and parse failures
-
-The old `github.com/nlnwa/whatwg-url/errors` package has been removed. Replace
-its `Type`, `Description`, `Failure`, and `Url` helpers with the types and
-sentinels in `url` described here. `Url.ValidationErrors()` now returns
-`[]*ValidationError` rather than `[]error`. Retain the input URL in your
-application if you need it in diagnostics.
 
 A `ValidationError` represents one WHATWG validation-error occurrence. Its
 `Code()` is a stable `ValidationErrorCode`, while `Detail()` is intended for
@@ -196,73 +237,19 @@ if parseErr, ok := errors.AsType[*url.ParseError](err); ok {
 }
 ```
 
-### Canonicalization
-
-Use `Parse` or `NewParser` for WHATWG parsing. To apply additional
-canonicalization rules, you can rewrite individual URL components. For example,
-to sort query parameters:
-
-```go
-u, _ := url.Parse("https://example.org/?q=a+b&flag&space=%20")
-u.RewriteQuery(func(_ *url.Url, raw string, present bool) (string, bool) {
-    query := url.ParseRawQuery(raw)
-    query.SortAbsolute()
-    return query.String(), present
-})
-fmt.Println(u.Query()) // flag&q=a+b&space=%20
-```
-
-These methods use the strings returned by your callbacks as-is, without parsing
-or percent-encoding them again. Each callback must return a valid value for that
-URL component. These methods are experimental extensions to the WHATWG URL API.
-
-Use `SearchParams` for form data and `RawQuery` to preserve the query's original
-text. `SearchParams` decodes percent escapes, turns `+` into a space, discards
-empty terms, and treats `flag` like `flag=`. Changes are written back using
-`application/x-www-form-urlencoded` encoding. `RawQuery` preserves those
-distinctions.
-
-#### Migration from the removed canonicalizer API
-
-The `canonicalizer` package and its `WhatWg`, `WhatWgSortQuery`,
-`GoogleSafeBrowsing`, and `Semantic` profiles have been removed. Use the
-following `url` methods to replace the features you need:
-
-- Replace WHATWG canonicalizer profiles with `Parse` or `NewParser`.
-- Remove credentials, ports, and fragments with `SetUsername("")`,
-  `SetPassword("")`, `SetPort("")`, and `SetHash("")` (or
-  `RewriteFragment` when absent versus empty matters).
-- Use `SearchParams` for form-query operations.
-- Use `ParseRawQuery` inside `RewriteQuery` for lossless query sorting or
-  filtering.
-- Use `PercentDecodeRepeated` followed by `PercentEncode` for repeated escape
-  normalization.
-- Handle URLs without a scheme in your application before parsing.
-- Replace component transformers with `RewriteHostname`, `RewritePathname`,
-  `RewriteQuery`, and `RewriteFragment`.
-
-For example, you can repeatedly decode percent escapes in a path, then encode
-it again:
-
-```go
-escapeSet := url.NewPercentEncodeSet(0x20, ' ', '#', '%')
-u.RewritePathname(func(_ *url.Url, path string) string {
-    return url.PercentEncode(url.PercentDecodeRepeated(path), escapeSet)
-})
-```
-
-This shows the decode-and-encode step used by
-[Google Safe Browsing](https://github.com/google/safebrowsing/blob/master/urls.go).
-It does not implement the complete Safe Browsing canonicalization rules.
-
-### Non-UTF-8 URLs
+### Character encoding
 
 The URL parser preserves percent-encoded bytes in paths and queries without
 requiring an encoding hint. For example, `https://example.org/%FC?q=%FC`
 serializes unchanged. Percent escapes do not identify a character encoding;
 invalid UTF-8 sequences can remain in serialized path and query components.
 
-Use `RawQuery` with `RewriteQuery` when edits must preserve serialized query
+`WithAcceptInvalidCodepoints()` also preserves literal invalid UTF-8 input
+bytes in paths, queries, and fragments by percent-encoding each byte. It does
+not transcode those bytes or change valid UTF-8 text. Validation is recorded
+before recovery, and `WithFailOnValidationError()` takes precedence.
+
+Use `RewriteQuery` when edits must preserve serialized query
 terms, including literal `+`, empty terms, and the distinction between `flag`
 and `flag=`. The byte-oriented percent helpers operate on bytes without
 character-set decoding. For archival indexing, select operations consistent
@@ -290,33 +277,38 @@ character `�` (U+FFFD), which is written as `%EF%BF%BD` when a mutation serial
 the query. This can change bytes and merge distinctions between originally
 different byte sequences.
 
-### Experimental SURT support
-
-Package `github.com/nationallibraryofnorway/whatwg-url/surt` builds
-Internet Archive-style Sort-friendly URI Reordering Transform keys from the
-public `url` APIs. SURT is not a web standard, and this package is experimental.
-Its `UnSURT` reverse API is an extension. SSURT support follows the
-[IIPC format description](https://github.com/iipc/urlcanon/blob/master/ssurt.rst),
-with an experimental Go API and reverse helper. The historical SURT format is
-described in the
-[Heritrix glossary](http://crawler.archive.org/articles/user_manual/glossary.html#surt).
-
-The relevant language-neutral vectors from IIPC urlcanon are vendored under
-`testdata/iipc-urlcanon` and run as part of `go test ./...`.
-
-A single [Common Crawl corpus test](testdata/non-utf8/README.md) checks all
-533,168 fixture rows when enabled with `go test -tags=long ./...`.
-It is excluded from default runs. The ordinary SURT suite also includes
-the four exact-output cases from
-[Internet Archive SURT PR 30](https://github.com/internetarchive/surt/pull/30).
-Matching an existing index requires the same canonicalization policy used to
-create its keys; these checks do not prove complete historical-index parity.
-
 ### Percent-encode set customization
 
-`PercentEncodeSet` can be customized directly with `Set` and `Clear`:
+Use `Set` and `Clear` to derive a new `url.PercentEncodeSet` without changing
+the original:
 
 ```go
 set := url.QueryPercentEncodeSet.Set('#', '&').Clear(';')
 p := url.NewParser(url.WithQueryPercentEncodeSet(set))
 ```
+
+`canonicalizer` provides `LaxPathPercentEncodeSet`, `LaxQueryPercentEncodeSet`,
+and `RepeatedQueryPercentEncodeSet`. Pass a preset to a parser option:
+
+```go
+p := url.NewParser(
+    url.WithPathPercentEncodeSet(canonicalizer.LaxPathPercentEncodeSet),
+)
+```
+
+See the [preset documentation](canonicalizer/README.md#percent-encode-presets)
+for their escaping policies.
+
+### Canonicalization
+
+The experimental `canonicalizer` package applies ordered rules to parsed URLs.
+Use a built-in profile or compose rules for your canonicalization policy.
+See the [canonicalizer README](canonicalizer/README.md) for profiles,
+configuration, and examples.
+
+### Experimental SURT support
+
+The experimental `surt` package generates SURT and SSURT keys for URL indexing
+and provides helpers to convert keys back to URL strings. See the
+[SURT README](surt/README.md) for usage, canonicalization options, and format
+differences.

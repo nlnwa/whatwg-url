@@ -57,7 +57,7 @@ const (
 )
 
 // ValidationError represents one occurrence of a WHATWG validation error.
-// Its state is immutable outside this package.
+// Code and Detail describe the occurrence; Unwrap exposes its underlying cause.
 type ValidationError struct {
 	cause  error
 	code   ValidationErrorCode
@@ -182,8 +182,8 @@ func (e *ParseError) Error() string {
 	return ErrParseFailure.Error() + ": " + e.detail
 }
 
-// ValidationErrors returns a defensive copy of the validation errors associated
-// with this parser failure.
+// ValidationErrors returns a copy of the slice of validation errors associated
+// with this parser failure. The entries refer to the recorded occurrences.
 func (e *ParseError) ValidationErrors() []*ValidationError {
 	if e == nil {
 		return nil
