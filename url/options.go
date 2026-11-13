@@ -69,17 +69,32 @@ func WithFailOnValidationError() ParserOption {
 	})
 }
 
-// WithLaxHostParsing enables non-standard recovery from selected host parsing
-// failures by returning the host as-is.
+// WithLaxHostParsing enables non-standard recovery from domain, opaque-host,
+// IPv4, and IPv6 parsing failures. Domain, opaque-host, and IPv6 failures retain
+// the input host. IPv4 failures retain the ASCII-normalized domain as a hostname,
+// without marking it as an IPv4 address. Valid IPv4 addresses normalize normally.
 //
 // The parser detects and records the applicable WHATWG validation error before
 // applying this recovery. WithFailOnValidationError takes precedence and
-// prevents recovery.
+// prevents recovery. Recovered invalid IP hosts are not marked as IP addresses.
 //
 // This API is EXPERIMENTAL.
 func WithLaxHostParsing() ParserOption {
 	return newParserOption(func(o *parser) {
 		o.LaxHostParsing = true
+	})
+}
+
+// WithSkipDotSegmentNormalization preserves literal and percent-encoded dot
+// segments in hierarchical paths instead of resolving them during parsing.
+// It also applies to relative references and path setters. Relative references
+// still replace the last base-path segment before appending their own path.
+// Opaque paths and slash collapsing are unaffected.
+//
+// This API is EXPERIMENTAL.
+func WithSkipDotSegmentNormalization() ParserOption {
+	return newParserOption(func(o *parser) {
+		o.SkipDotSegmentNormalization = true
 	})
 }
 

@@ -116,8 +116,12 @@ func (u *Url) RewriteFragment(rewriters ...OptionalComponentRewriter) {
 }
 
 func (u *Url) refreshIPMetadata() {
-	u.isIPv4 = serializedIPv4(u.host)
-	u.isIPv6 = len(u.host) >= 2 && u.host[0] == '[' && u.host[len(u.host)-1] == ']'
+	u.isIPv4 = u.IsSpecialScheme() && serializedIPv4(u.host)
+	u.isIPv6 = false
+	if len(u.host) >= 2 && u.host[0] == '[' && u.host[len(u.host)-1] == ']' {
+		_, err := parseIPv6([]byte(u.host[1:len(u.host)-1]), nil)
+		u.isIPv6 = err == nil
+	}
 }
 
 func serializedIPv4(host string) bool {

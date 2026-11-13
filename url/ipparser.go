@@ -59,7 +59,7 @@ func endsInANumber[T ByteSequence](input T) bool {
 
 // parseIPv4 implements the IPv4 parser.
 // https://url.spec.whatwg.org/#concept-ipv4-parser
-func (c *parseContext) parseIPv4(u *Url, input string) (string, error) {
+func (c *parseContext) parseIPv4(input string) (IPv4Addr, error) {
 	// Let parts be the result of strictly splitting input on U+002E (.).
 	parts := strings.Split(input, ".")
 
@@ -67,7 +67,7 @@ func (c *parseContext) parseIPv4(u *Url, input string) (string, error) {
 	if parts[len(parts)-1] == "" {
 		// IPv4-empty-part validation error.
 		if err := c.reportValidation(CodeIPv4EmptyPart, ErrIPv4EmptyPart.Detail(), nil); err != nil {
-			return input, err
+			return 0, err
 		}
 		// If parts's size is greater than 1, then remove the last item from parts.
 		if len(parts) > 1 {
@@ -78,7 +78,7 @@ func (c *parseContext) parseIPv4(u *Url, input string) (string, error) {
 	// If parts's size is less than 4, IPv4-too-few-parts validation error.
 	if len(parts) < 4 {
 		if err := c.reportValidation(CodeIPv4TooFewParts, ErrIPv4TooFewParts.Detail(), nil); err != nil {
-			return input, err
+			return 0, err
 		}
 	}
 
@@ -86,9 +86,9 @@ func (c *parseContext) parseIPv4(u *Url, input string) (string, error) {
 	// return failure.
 	if len(parts) > 4 {
 		if err := c.reportValidation(CodeIPv4TooManyParts, ErrIPv4TooManyParts.Detail(), nil); err != nil {
-			return input, err
+			return 0, err
 		}
-		return input, c.returnFailure(ErrIPv4TooManyParts.Detail())
+		return 0, c.returnFailure(ErrIPv4TooManyParts.Detail())
 	}
 
 	// Let numbers be an empty list.
@@ -108,24 +108,24 @@ func (c *parseContext) parseIPv4(u *Url, input string) (string, error) {
 			if errors.Is(err, ErrIPv4OutOfRangePart) {
 				if validationError {
 					if err := c.reportValidation(CodeIPv4NonDecimalPart, ErrIPv4NonDecimalPart.Detail(), nil); err != nil {
-						return input, err
+						return 0, err
 					}
 				}
 				if err := c.reportValidation(CodeIPv4OutOfRangePart, ErrIPv4OutOfRangePart.Detail(), nil); err != nil {
-					return input, err
+					return 0, err
 				}
-				return input, c.returnFailure("an IPv4 number exceeds the supported integer range")
+				return 0, c.returnFailure("an IPv4 number exceeds the supported integer range")
 			}
 			if err := c.reportValidation(CodeIPv4NonNumericPart, ErrIPv4NonNumericPart.Detail(), nil); err != nil {
-				return input, err
+				return 0, err
 			}
-			return input, c.returnFailure(ErrIPv4NonNumericPart.Detail())
+			return 0, c.returnFailure(ErrIPv4NonNumericPart.Detail())
 		}
 
 		// If result[1] is true, IPv4-non-decimal-part validation error.
 		if validationError {
 			if err := c.reportValidation(CodeIPv4NonDecimalPart, ErrIPv4NonDecimalPart.Detail(), nil); err != nil {
-				return input, err
+				return 0, err
 			}
 		}
 
@@ -139,7 +139,7 @@ func (c *parseContext) parseIPv4(u *Url, input string) (string, error) {
 	for _, n := range numbers {
 		if n > 255 {
 			if err := c.reportValidation(CodeIPv4OutOfRangePart, ErrIPv4OutOfRangePart.Detail(), nil); err != nil {
-				return input, err
+				return 0, err
 			}
 			break
 		}
@@ -149,14 +149,14 @@ func (c *parseContext) parseIPv4(u *Url, input string) (string, error) {
 	// failure.
 	for _, n := range numbers[:last] {
 		if n > 255 {
-			return input, c.returnFailure("an IPv4 part other than the last exceeds 255")
+			return 0, c.returnFailure("an IPv4 part other than the last exceeds 255")
 		}
 	}
 
 	// If the last item in numbers is greater than or equal to
 	// 256^(5 − numbers's size), then return failure.
 	if numbers[last] >= 1<<uint(8*(5-len(numbers))) {
-		return input, c.returnFailure("the final IPv4 part exceeds the available address range")
+		return 0, c.returnFailure("the final IPv4 part exceeds the available address range")
 	}
 
 	// Let ipv4 be the last item in numbers.
@@ -172,8 +172,7 @@ func (c *parseContext) parseIPv4(u *Url, input string) (string, error) {
 	}
 
 	// Return ipv4.
-	u.isIPv4 = true
-	return IPv4Addr(ipv4).String(), nil
+	return IPv4Addr(ipv4), nil
 }
 
 // The IPv4 number parser takes an ASCII string input and runs these steps. It

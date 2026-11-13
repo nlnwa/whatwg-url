@@ -44,6 +44,7 @@ type parser struct {
 	ReportValidationErrors              bool
 	FailOnValidationError               bool
 	LaxHostParsing                      bool
+	SkipDotSegmentNormalization         bool
 	CollapseConsecutiveSlashes          bool
 	AcceptInvalidCodepoints             bool
 	PercentEncodeSinglePercentSign      bool
@@ -478,6 +479,7 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 			url.password = base.password
 			// url’s host to base’s host
 			url.host = base.host
+			url.isIPv4, url.isIPv6 = base.isIPv4, base.isIPv6
 			url.hasHost = base.hasHost
 			// url’s port to base’s port,
 			url.hasPort = base.hasPort
@@ -546,6 +548,7 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 			url.password = base.password
 			// url’s host to base’s host,
 			url.host = base.host
+			url.isIPv4, url.isIPv6 = base.isIPv4, base.isIPv6
 			url.hasHost = base.hasHost
 			// url’s port to base’s port,
 			url.hasPort = base.hasPort
@@ -682,14 +685,13 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 					return nil, ctx.returnFailure("hostname state override encountered a port separator")
 				}
 				// Let host be the result of host parsing buffer with url is not special.
-				host, err := ctx.parseHost(url, buf, !url.isSpecial)
+				host, err := ctx.parseHost(buf, !url.isSpecial)
 				if err != nil {
 					// If host is failure, then return failure.
 					return finalizeURLPath(url), err
 				}
 				// Set url’s host to host,
-				url.host = host
-				url.hasHost = true
+				url.setParsedHost(host)
 				// buffer to the empty string,
 				buf = buf[:0]
 				// and state to port state.
@@ -717,14 +719,13 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 					return nil, ctx.returnFailure("host state override cannot clear a host while credentials or a port are present")
 				}
 				// Let host be the result of host parsing buffer with url is not special.
-				host, err := ctx.parseHost(url, buf, !url.isSpecial)
+				host, err := ctx.parseHost(buf, !url.isSpecial)
 				if err != nil {
 					// If host is failure, then return failure.
 					return finalizeURLPath(url), err
 				}
 				// Set url’s host to host,
-				url.host = host
-				url.hasHost = true
+				url.setParsedHost(host)
 				// buffer to the empty string,
 				buf = buf[:0]
 				// and state to path start state.
@@ -824,8 +825,7 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 			url.scheme = "file"
 			url.isSpecial = true
 			// Set url’s host to the empty string.
-			url.host = ""
-			url.hasHost = true
+			url.setParsedHost(parsedHost{})
 
 			// If c is U+002F (/) or U+005C (\), then:
 			if r == '/' || r == '\\' {
@@ -845,6 +845,7 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 			if base != nil && base.scheme == "file" {
 				// Set url’s host to base’s host,
 				url.host = base.host
+				url.isIPv4, url.isIPv6 = base.isIPv4, base.isIPv6
 				url.hasHost = base.hasHost
 				// url’s path to a clone of base’s path,
 				url.path = base.path.clone()
@@ -922,6 +923,7 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 			if base != nil && base.scheme == "file" {
 				// Set url’s host to base’s host.
 				url.host = base.host
+				url.isIPv4, url.isIPv6 = base.isIPv4, base.isIPv6
 				url.hasHost = base.hasHost
 				// If the code point substring from pointer to the end of input does not start with a Windows drive letter
 				// and base’s path[0] is a normalized Windows drive letter,
@@ -955,8 +957,7 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 				// Otherwise, if buffer is the empty string, then:
 				if len(buf) == 0 {
 					// Set url’s host to the empty string.
-					url.host = ""
-					url.hasHost = true
+					url.setParsedHost(parsedHost{})
 					// If state override is given, then return.
 					if stateOverridden {
 						return nil, nil
@@ -968,19 +969,18 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 				// Otherwise, run these steps:
 
 				// Let host be the result of host parsing buffer with url is not special.
-				host, err := ctx.parseHost(url, buf, !url.isSpecial)
+				host, err := ctx.parseHost(buf, !url.isSpecial)
 				if err != nil {
 					// If host is failure, then return failure.
 					return finalizeURLPath(url), err
 				}
 				// If host is "localhost",
-				if host == "localhost" {
+				if host.value == "localhost" {
 					// then set host to the empty string.
-					host = ""
+					host.value = ""
 				}
 				// Set url’s host to host.
-				url.host = host
-				url.hasHost = true
+				url.setParsedHost(host)
 				// If state override is given, then return.
 				if stateOverridden {
 					return finalizeURLPath(url), nil
@@ -1054,6 +1054,14 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 			}
 
 		case StatePath:
+			if invalidUtf8 && p.AcceptInvalidCodepoints {
+				var err error
+				buf, err = ctx.appendInvalidByte(buf, b)
+				if err != nil {
+					return nil, err
+				}
+				continue
+			}
 
 			// If one of the following is true:
 			// - c is the EOF code point or U+002F (/)
@@ -1072,7 +1080,7 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 				}
 
 				// If buffer is a double-dot URL path segment, then:
-				if isDoubleDotPathSegmentBytes(buf) {
+				if !p.SkipDotSegmentNormalization && isDoubleDotPathSegmentBytes(buf) {
 					// Shorten url’s path.
 					url.path.shortenPath(url.scheme)
 					// If neither c is U+002F (/), nor url is special and c is U+005C (\),
@@ -1084,14 +1092,14 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 
 				} else if
 				// Otherwise, if buffer is a single-dot URL path segment
-				isSingleDotPathSegmentBytes(buf) &&
+				!p.SkipDotSegmentNormalization && isSingleDotPathSegmentBytes(buf) &&
 					// and if neither c is U+002F (/), nor url is special and c is U+005C (\),
 					r != '/' && !(url.isSpecial && r == '\\') {
 					// append the empty string to url’s path.
 					url.path.addSegment("")
 				} else if
 				// Otherwise, if buffer is not a single-dot URL path segment, then:
-				!isSingleDotPathSegmentBytes(buf) {
+				p.SkipDotSegmentNormalization || !isSingleDotPathSegmentBytes(buf) {
 					// If url’s scheme is "file", url’s path is empty, and
 					if url.scheme == "file" && url.path.isEmpty() &&
 						// buffer is a Windows drive letter,
@@ -1163,6 +1171,15 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 			buf = appendPercentEncoded(buf, r, p.PathPercentEncodeSet)
 
 		case StateOpaquePath:
+			if invalidUtf8 && p.AcceptInvalidCodepoints {
+				var err error
+				buf, err = ctx.appendInvalidByte(buf, b)
+				if err != nil {
+					return nil, err
+				}
+				continue
+			}
+
 			// If c is U+003F (?),
 			if r == '?' {
 				// then set url’s query to the empty string
@@ -1233,6 +1250,15 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 			}
 
 		case StateQuery:
+			if invalidUtf8 && p.AcceptInvalidCodepoints {
+				var err error
+				buf, err = ctx.appendInvalidByte(buf, b)
+				if err != nil {
+					return nil, err
+				}
+				continue
+			}
+
 			// If encoding is not UTF-8 and one of the following is true:
 			// - url is not special
 			// - url’s scheme is "ws" or "wss"
@@ -1303,6 +1329,15 @@ func (p *parser) basicParse(ctx *parseContext, urlOrRef string, base *Url, url *
 			}
 
 		case StateFragment:
+			if invalidUtf8 && p.AcceptInvalidCodepoints {
+				var err error
+				buf, err = ctx.appendInvalidByte(buf, b)
+				if err != nil {
+					return nil, err
+				}
+				continue
+			}
+
 			// If c is not the EOF code point, then:
 			if r != eofRune {
 				// If c is not a URL code point and not U+0025 (%),
@@ -1508,4 +1543,13 @@ func removeASCIITabNewline(s string) (string, bool) {
 	}
 
 	return b.String(), true
+}
+
+// appendInvalidByte preserves a rejected UTF-8 byte after reporting validation.
+// Keep recovery outside the common component-encoding path.
+func (c *parseContext) appendInvalidByte(buf []byte, b byte) ([]byte, error) {
+	if err := c.reportValidation(CodeInvalidURLUnit, validationDetailForInvalidUTF8Byte(ErrInvalidURLUnit, b), nil); err != nil {
+		return buf, err
+	}
+	return append(buf, '%', upperHex[b>>4], upperHex[b&15]), nil
 }

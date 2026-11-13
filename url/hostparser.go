@@ -139,58 +139,82 @@ func domainParser(domain string, beStrict bool) (result string, warning, failure
 
 // parseHost is the package-internal entry point used by focused host-parser
 // tests. Basic URL parsing calls parseContext.parseHost so nested validation
-// events share the parse's event ledger.
+// events share the parse's event ledger. An accepted host is assigned to u
+// when u is non-nil.
 func (p *parser) parseHost(u *Url, input []byte, isOpaque bool) (string, error) {
 	ctx := newParseContext(p)
-	host, err := ctx.parseHost(u, input, isOpaque)
+	host, err := ctx.parseHost(input, isOpaque)
+	if err == nil && u != nil {
+		u.setParsedHost(host)
+	}
 	ctx.attachValidationErrors(u)
 	if err != nil {
-		return host, ctx.normalizeFailure(err)
+		return host.value, ctx.normalizeFailure(err)
 	}
-	return host, nil
+	return host.value, nil
+}
+
+// parsedHost keeps a serialized host together with its IP classification.
+// Parsing does not change the URL until the host has been accepted.
+type parsedHost struct {
+	value string
+	ipv4  bool
+	ipv6  bool
+}
+
+func (u *Url) setParsedHost(host parsedHost) {
+	u.host = host.value
+	u.hasHost = true
+	u.isIPv4, u.isIPv6 = host.ipv4, host.ipv6
 }
 
 // parseHost implements the host parser.
 // https://url.spec.whatwg.org/#concept-host-parser
-func (c *parseContext) parseHost(u *Url, input []byte, isOpaque bool) (string, error) {
+func (c *parseContext) parseHost(input []byte, isOpaque bool) (parsedHost, error) {
 	// If input starts with U+005B ([), then:
 	if len(input) > 0 && input[0] == '[' {
 		// If input does not end with U+005D (]),
 		if input[len(input)-1] != ']' {
 			// IPv6-unclosed validation error, return failure.
 			if err := c.reportValidation(CodeIPv6Unclosed, ErrIPv6Unclosed.Detail(), nil); err != nil {
-				return "", err
+				return parsedHost{}, err
 			}
-			return "", c.returnFailure(ErrIPv6Unclosed.Detail())
+			if c.LaxHostParsing {
+				return parsedHost{value: string(input)}, nil
+			}
+			return parsedHost{}, c.returnFailure(ErrIPv6Unclosed.Detail())
 		}
 		// Return the result of IPv6 parsing input with its leading U+005B ([)
 		// and trailing U+005D (]) removed.
 		addr, err := parseIPv6(input[1:len(input)-1], c.reportValidation)
 		if err != nil {
 			if parseErr, ok := errors.AsType[*ParseError](err); ok {
-				return "", parseErr
+				return parsedHost{}, parseErr
 			}
 			validationErr, ok := errors.AsType[*ValidationError](err)
 			if !ok {
-				return "", c.returnFailure(err.Error())
+				return parsedHost{}, c.returnFailure(err.Error())
 			}
 			if err := c.reportValidationOccurrence(validationErr); err != nil {
-				return "", err
+				return parsedHost{}, err
 			}
-			return "", c.returnFailure(validationErr.Detail())
+			if c.LaxHostParsing {
+				return parsedHost{value: string(input)}, nil
+			}
+			return parsedHost{}, c.returnFailure(validationErr.Detail())
 		}
-		u.isIPv6 = true
-		return addr.StringWithBrackets(), nil
+		return parsedHost{value: addr.StringWithBrackets(), ipv6: true}, nil
 	}
 
 	// If isOpaque is true, then return the result of opaque-host parsing input.
 	if isOpaque {
-		return c.parseOpaqueHost(input)
+		host, err := c.parseOpaqueHost(input)
+		return parsedHost{value: host}, err
 	}
 
 	// Assert: input is not the empty string.
 	if len(input) == 0 {
-		return "", nil
+		return parsedHost{}, nil
 	}
 
 	// If input contains a percent-encoded byte, domain-percent-encoded
@@ -199,7 +223,7 @@ func (c *parseContext) parseHost(u *Url, input []byte, isOpaque bool) (string, e
 	bufOwned := false
 	if containsPercentEncodedByte(buf) {
 		if err := c.reportValidation(CodeDomainPercentEncoded, ErrDomainPercentEncoded.Detail(), nil); err != nil {
-			return "", err
+			return parsedHost{}, err
 		}
 
 		// Implementation note: percent-decoding mutates its buffer. Copy only
@@ -221,7 +245,7 @@ func (c *parseContext) parseHost(u *Url, input []byte, isOpaque bool) (string, e
 	// Implementation note: ASCII domains without an ACE prefix can use the
 	// allocation-conscious path below while preserving domain-parser behavior.
 	if isASCIIWithoutACEPrefix(buf) {
-		return c.parseASCIIHostWithoutACEPrefix(u, buf, bufOwned)
+		return c.parseASCIIHostWithoutACEPrefix(input, buf, bufOwned)
 	}
 
 	// Implementation note: x/net/idna treats malformed UTF-8 as U+FFFD, so it
@@ -235,7 +259,7 @@ func (c *parseContext) parseHost(u *Url, input []byte, isOpaque bool) (string, e
 	if warning != nil {
 		if validationErr, ok := errors.AsType[*ValidationError](warning); ok {
 			if err := c.reportValidationOccurrence(validationErr); err != nil {
-				return "", err
+				return parsedHost{}, err
 			}
 		}
 	}
@@ -245,24 +269,24 @@ func (c *parseContext) parseHost(u *Url, input []byte, isOpaque bool) (string, e
 		// after all validation events detected by the domain parser. Fail-fast
 		// therefore takes precedence.
 		if c.LaxHostParsing {
-			return string(input), nil
+			return parsedHost{value: string(input)}, nil
 		}
-		return "", c.returnFailure(failure.Error())
+		return parsedHost{}, c.returnFailure(failure.Error())
 	}
 	// If asciiDomain ends in a number,
 	if endsInANumber(asciiDomain) {
 		// If domain is not an ASCII string, IPv4-non-ASCII-input validation error.
 		if !isASCII(domain) {
 			if err := c.reportValidation(CodeIPv4NonASCIIInput, ErrIPv4NonASCIIInput.Detail(), nil); err != nil {
-				return "", err
+				return parsedHost{}, err
 			}
 		}
 		// Return the result of IPv4 parsing asciiDomain.
-		return c.parseIPv4(u, asciiDomain)
+		return c.parseIPv4Host(asciiDomain)
 	}
 
 	// Return asciiDomain.
-	return asciiDomain, nil
+	return parsedHost{value: asciiDomain}, nil
 }
 
 // parseASCIIHostWithoutACEPrefix implements the domain parser and remaining
@@ -271,7 +295,7 @@ func (c *parseContext) parseHost(u *Url, input []byte, isOpaque bool) (string, e
 // Implementation note: keeping this optimization separate leaves the main
 // host parser aligned with the standard algorithm while avoiding IDNA work on
 // the dominant clean-ASCII path.
-func (c *parseContext) parseASCIIHostWithoutACEPrefix(u *Url, domain []byte, domainOwned bool) (string, error) {
+func (c *parseContext) parseASCIIHostWithoutACEPrefix(input, domain []byte, domainOwned bool) (parsedHost, error) {
 	// Domain parser step 5: set result to domain, lowercased.
 	needsLowercase := false
 	for _, b := range domain {
@@ -305,30 +329,53 @@ func (c *parseContext) parseASCIIHostWithoutACEPrefix(u *Url, domain []byte, dom
 		// as the source of detailed error causes on possible-invalid input.
 		if _, err := domainParserToASCII(asciiDomain, true); err != nil {
 			if err := c.reportValidation(CodeDomainToASCII, ErrDomainToASCII.Detail(), err); err != nil {
-				return "", err
+				return parsedHost{}, err
 			}
 		}
 	}
 
 	// Domain parser step 7: if result is the empty string, return failure.
 	if asciiDomain == "" {
-		return "", c.returnFailure("Unicode ToASCII returned the empty string")
+		if c.LaxHostParsing {
+			return parsedHost{value: string(input)}, nil
+		}
+		return parsedHost{}, c.returnFailure("Unicode ToASCII returned the empty string")
 	}
 	// Domain parser step 8: if result contains a forbidden domain code point,
 	// return failure.
 	for _, b := range domain {
 		if forbiddenDomainASCII[b] {
-			return "", c.returnFailure("the host contains a forbidden domain code point")
+			// Match the general domain-parser recovery after reporting all
+			// validation events. Fail-fast has already returned above. Retain
+			// the original spelling, not the decoded or lowercased domain.
+			if c.LaxHostParsing {
+				return parsedHost{value: string(input)}, nil
+			}
+			return parsedHost{}, c.returnFailure("the host contains a forbidden domain code point")
 		}
 	}
 
 	// Host parser step 8: if asciiDomain ends in a number, return the result of
 	// IPv4 parsing asciiDomain. The non-ASCII validation substep cannot apply.
 	if endsInANumber(domain) {
-		return c.parseIPv4(u, asciiDomain)
+		return c.parseIPv4Host(asciiDomain)
 	}
 	// Host parser step 9: return asciiDomain.
-	return asciiDomain, nil
+	return parsedHost{value: asciiDomain}, nil
+}
+
+func (c *parseContext) parseIPv4Host(domain string) (parsedHost, error) {
+	addr, err := c.parseIPv4(domain)
+	if err == nil {
+		return parsedHost{value: addr.String(), ipv4: true}, nil
+	}
+	if c.FailOnValidationError {
+		return parsedHost{value: domain}, err
+	}
+	if c.LaxHostParsing {
+		return parsedHost{value: domain}, nil
+	}
+	return parsedHost{value: domain}, err
 }
 
 // parseOpaqueHost implements the opaque-host parser.

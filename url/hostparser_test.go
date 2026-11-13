@@ -373,6 +373,104 @@ func TestEndsInANumber_ZeroAllocations(t *testing.T) {
 	}
 }
 
+func TestParseHostWithoutURL(t *testing.T) {
+	for _, tc := range []struct {
+		input, want string
+		opaque, lax bool
+		wantError   bool
+	}{
+		{"WWW.Example.com", "www.example.com", false, false, false},
+		{"www.Googlé.com", "www.xn--googl-fsa.com", false, false, false},
+		{"a.b-.c", "a.b-.c", false, false, false},
+		{"127.1", "127.0.0.1", false, false, false},
+		{"[2001:0db8::1]", "[2001:db8::1]", false, false, false},
+		{"Opaque.Example", "Opaque.Example", true, false, false},
+		{"[1::2::3]", "[1::2::3]", false, true, false},
+		{"[unclosed", "[unclosed", false, true, false},
+		{"09", "09", false, true, false},
+		{"[bogus]", "", false, false, true},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			p := newDefaultParser()
+			p.LaxHostParsing = tc.lax
+			got, err := p.parseHost(nil, []byte(tc.input), tc.opaque)
+			if got != tc.want || (err != nil) != tc.wantError {
+				t.Fatalf("parseHost(nil, %q) = %q, %v; want %q, error=%v", tc.input, got, err, tc.want, tc.wantError)
+			}
+		})
+	}
+}
+
+func TestParseHostCommitsIPMetadataOnSuccess(t *testing.T) {
+	for _, tc := range []struct {
+		name, input           string
+		opaque, lax, failFast bool
+		wantError             bool
+		ipv4, ipv6            bool
+	}{
+		{name: "IPv4", input: "127.0.0.1", ipv4: true},
+		{name: "IPv6", input: "[::1]", ipv6: true},
+		{name: "domain", input: "example.com"},
+		{name: "IDN", input: "Googlé.com"},
+		{name: "opaque", input: "Opaque.Example", opaque: true},
+		{name: "empty"},
+		{name: "recovered IPv4", input: "09", lax: true},
+		{name: "recovered IPv6", input: "[bogus]", lax: true},
+		{name: "recovered unclosed IPv6", input: "[unclosed", lax: true},
+		{name: "recovered domain", input: "bad^host", lax: true},
+		{name: "recovered opaque", input: "bad^host", opaque: true, lax: true},
+		{name: "invalid IPv4", input: "09", wantError: true},
+		{name: "invalid IPv6", input: "[bogus]", wantError: true},
+		{name: "invalid domain", input: "bad^host", wantError: true},
+		{name: "invalid opaque", input: "bad^host", opaque: true, wantError: true},
+		{name: "fail-fast IPv4", input: "127.1", lax: true, failFast: true, wantError: true},
+		{name: "fail-fast IPv6", input: "[01::1]", lax: true, failFast: true, wantError: true},
+		{name: "fail-fast domain", input: "a.b-.c", lax: true, failFast: true, wantError: true},
+		{name: "fail-fast opaque", input: "bad^host", opaque: true, lax: true, failFast: true, wantError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, original := range []struct{ ipv4, ipv6 bool }{{}, {ipv4: true}, {ipv6: true}} {
+				u := &Url{isIPv4: original.ipv4, isIPv6: original.ipv6}
+				p := newDefaultParser()
+				p.LaxHostParsing, p.FailOnValidationError = tc.lax, tc.failFast
+				_, err := p.parseHost(u, []byte(tc.input), tc.opaque)
+				if (err != nil) != tc.wantError {
+					t.Fatalf("parseHost(%q) error = %v; want error=%v", tc.input, err, tc.wantError)
+				}
+				ipv4, ipv6 := tc.ipv4, tc.ipv6
+				if tc.wantError {
+					ipv4, ipv6 = original.ipv4, original.ipv6
+				}
+				if u.IsIPv4() != ipv4 || u.IsIPv6() != ipv6 {
+					t.Errorf("IP metadata = (%v, %v); want (%v, %v)", u.IsIPv4(), u.IsIPv6(), ipv4, ipv6)
+				}
+			}
+		})
+	}
+}
+
+func TestFileHostAssignmentClearsIPMetadata(t *testing.T) {
+	for _, originalHost := range []string{"[::1]", "127.0.0.1"} {
+		for _, replacement := range []string{"", "localhost"} {
+			for _, hostnameOnly := range []bool{false, true} {
+				u, err := Parse("file://" + originalHost + "/a")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if hostnameOnly {
+					u.SetHostname(replacement)
+				} else {
+					u.SetHost(replacement)
+				}
+				if u.String() != "file:///a" || u.IsIPv4() || u.IsIPv6() {
+					t.Errorf("file host %q replaced with %q (hostname only=%v): %v, IPv4=%v, IPv6=%v",
+						originalHost, replacement, hostnameOnly, u, u.IsIPv4(), u.IsIPv6())
+				}
+			}
+		}
+	}
+}
+
 func BenchmarkParseHostIDNA(b *testing.B) {
 	benchmarks := []struct {
 		name   string

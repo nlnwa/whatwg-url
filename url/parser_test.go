@@ -147,7 +147,7 @@ func TestParse(t *testing.T) {
 			}
 
 			if got.Search() != tt.Search {
-				t.Errorf("RawQuery got = '%v', want '%v'", got.Search(), tt.Search)
+				t.Errorf("Query got = '%v', want '%v'", got.Search(), tt.Search)
 			}
 
 			if got.Hash() != tt.Hash {
