@@ -40,6 +40,20 @@ func SortQueryAbsolute(u *url.Url) {
 	sortQuery(u, true)
 }
 
+// RemoveEmptyQueryEquals converts empty-valued query terms such as "flag=" to
+// bare terms such as "flag". It preserves nonempty values, duplicate order,
+// encoded bytes, empty terms, and query presence without form decoding.
+func RemoveEmptyQueryEquals(u *url.Url) {
+	rewritePresentQuery(u, func(query url.Query) (url.Query, bool) {
+		for i := range query {
+			if query[i].Value == "" {
+				query[i].HasEquals = false
+			}
+		}
+		return query, true
+	})
+}
+
 // MassageHost removes one leading www or wwwN domain label. It preserves IP
 // addresses and does not otherwise normalize hosts.
 func MassageHost(u *url.Url) {

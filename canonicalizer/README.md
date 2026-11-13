@@ -489,6 +489,17 @@ semantics used in `v0.6.2`, use an explicit rule calling
 GoogleSafeBrowsing uses `RewriteQueryString` to decode the entire query,
 including encoded separators.
 
+`RemoveEmptyQueryEquals` converts `flag=` to `flag`, preserving nonempty values,
+duplicate order, encoded bytes, empty terms, and query presence. It operates
+through `RewriteQuery` without form decoding and can be composed with sorting:
+
+```go
+profile := canonicalizer.New(
+    canonicalizer.SortQuery,
+    canonicalizer.RemoveEmptyQueryEquals,
+)
+```
+
 ## Test sources and licensing
 
 The upstream urlcanon and Brozzler material used here is licensed under Apache

@@ -14,6 +14,7 @@ func TestQueryRulesPresence(t *testing.T) {
 	}{
 		{"sort", New(SortQuery), true},
 		{"absolute", New(SortQueryAbsolute), true},
+		{"remove empty equals", New(RemoveEmptyQueryEquals), true},
 		{"decode", New(RepeatedPercentDecoding()), true},
 		{"google", GoogleSafeBrowsing(), true},
 		{"semantic", Semantic(), true},

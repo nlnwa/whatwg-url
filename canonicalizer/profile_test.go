@@ -179,6 +179,49 @@ func TestQuerySorting(t *testing.T) {
 	checkProfile(t, canon.New(canon.SortQueryAbsolute), input, "https://example.org/?&=v&a&a=a&a=z&b=2&bytes=%FC&q=%20&q=a+b")
 }
 
+func TestRemoveEmptyQueryEquals(t *testing.T) {
+	p := canon.New(canon.RemoveEmptyQueryEquals)
+	canon.RemoveEmptyQueryEquals(nil)
+	for _, tc := range []struct{ name, input, want string }{
+		{"absent", "https://example.org/", "https://example.org/"},
+		{"empty", "https://example.org/?", "https://example.org/?"},
+		{"flag", "https://example.org/?flag=", "https://example.org/?flag"},
+		{"empty name and value", "https://example.org/?=", "https://example.org/?"},
+		{"empty terms", "https://example.org/?&flag=&&=&", "https://example.org/?&flag&&&"},
+		{"duplicates", "https://example.org/?a=z&a=&a=a&a&a=", "https://example.org/?a=z&a&a=a&a&a"},
+		{"nonempty values", "https://example.org/?a=0&b=+&c=%20&d==&=value&flag", "https://example.org/?a=0&b=+&c=%20&d==&=value&flag"},
+		{"encoded bytes", "https://example.org/?%66lag=&q=%2f%FC%26%3d%2B&bad=%GG%2&%3D=", "https://example.org/?%66lag&q=%2f%FC%26%3d%2B&bad=%GG%2&%3D"},
+		{"other components", "https://user:pass@example.org:8443/flag=?flag=#flag=", "https://user:pass@example.org:8443/flag=?flag#flag="},
+		{"opaque path", "custom:opaque?=#", "custom:opaque?#"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			checkProfile(t, p, tc.input, tc.want)
+			u, err := url.Parse(tc.input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			params := u.SearchParams()
+			want, err := url.Parse(tc.want)
+			if err != nil {
+				t.Fatal(err)
+			}
+			form := want.SearchParams().String()
+			for range 2 {
+				p.Canonicalize(u)
+				if u.String() != tc.want || u.SearchParams() != params || params.String() != form {
+					t.Fatalf("Canonicalize: URL=%q form=%q, want URL=%q form=%q", u, params.String(), tc.want, form)
+				}
+			}
+		})
+	}
+}
+
+func TestRemoveEmptyQueryEqualsWithSortQuery(t *testing.T) {
+	checkProfile(t, canon.New(canon.SortQuery, canon.RemoveEmptyQueryEquals),
+		"https://example.org/?b=&a=z&a=&a=a&a&b=2",
+		"https://example.org/?a=z&a&a=a&a&b&b=2")
+}
+
 func TestRepeatedPercentDecodingPreservesBytes(t *testing.T) {
 	p := canon.New(canon.RepeatedPercentDecoding())
 	for _, tc := range []struct{ input, want string }{
